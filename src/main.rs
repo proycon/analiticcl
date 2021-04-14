@@ -1,6 +1,9 @@
+extern crate clap;
+
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Write,Read,BufReader,BufRead,Error};
+use clap::{Arg, App, SubCommand};
 
 ///Each type gets assigned an ID integer, carries no further meaning
 type VocabId = u64;
@@ -25,17 +28,17 @@ type VocabDecoder = Vec<VocabValue>;
 type VocabEncoder = HashMap<String, VocabId>;
 
 ///The anagram hash: uses a bag-of-characters representation where each bit flags the presence/absence of a certain character (the order of the bits are defined by Alphabet)
-type Anahash = u64;
+type AnaValue = u64;
 
 ///Defines the alphabet, index corresponds how things are encoded, multiple strings may be encoded
 ///in the same way
 type Alphabet = Vec<Vec<String>>;
 
 /// Map from anahashes to vocabulary IDs
-type AnahashTable = HashMap<Anahash,Vec<VocabId>>;
+type AnahashTable = HashMap<AnaValue,Vec<VocabId>>;
 
 /// Map from anahashes to anahashes (one to many)
-type AnahashMap = HashMap<Anahash,Vec<Anahash>>;
+type AnahashMap = HashMap<AnaValue,Vec<AnaValue>>;
 
 
 struct VariantModel {
@@ -60,14 +63,14 @@ struct VariantModel {
 
 ///Trait for objects that can be anahashed (string-like)
 trait Anahashable {
-    fn anahash(&self, alphabet: &Alphabet) -> Anahash;
+    fn anahash(&self, alphabet: &Alphabet) -> AnaValue;
     fn normalize_to_alphabet(&self, alphabet: &Alphabet) -> NormString;
 }
 
 impl Anahashable for str {
     ///Compute the anahash for a given string, according to the alphabet
-    fn anahash(&self, alphabet: &Alphabet) -> Anahash {
-        let mut hash: Anahash = 0;
+    fn anahash(&self, alphabet: &Alphabet) -> AnaValue {
+        let mut hash: AnaValue = 0;
         for (pos, _) in self.char_indices() {
             let mask = 1 << pos;
             for chars in alphabet.iter() {
@@ -109,10 +112,42 @@ impl Anahashable for str {
 
 }
 
-enum AnahashEdit {
-    Insertion(String),
-    Deletion(String),
+//Trait for objects that are anahashes
+trait Anahash {
+    fn insert(&self, value: AnaValue) -> AnaValue;
+    fn delete(&self, value: AnaValue) -> AnaValue;
+    fn sizediff(&self,  other: AnaValue) -> u8;
 }
+
+impl Anahash for AnaValue {
+    fn insert(&self, value: AnaValue) -> AnaValue {
+        *self | value
+    }
+
+    fn delete(&self, value: AnaValue) -> AnaValue {
+        (*self | value) ^ value
+    }
+
+    ///Computes the difference between two anahashes,
+    ///in terms of the number of insertions/deletions
+    ///needed to go from hash1 to hash2
+    fn sizediff(&self,  other: AnaValue) -> u8 {
+        let mut diff = 0;
+        let mut value = *self;
+        let mut other = other;
+        while value > 0 || other > 0 {
+            if value & 1 != other & 1 {
+                diff += 1;
+            }
+            value = value >> 1;
+            other = other >> 1;
+        }
+        diff
+    }
+}
+
+
+
 
 enum AnahashExpandMode {
     ///Expand to all anahashes, whether they occur as instances or not
@@ -177,9 +212,6 @@ fn merge_into<T: std::cmp::Ord + Copy>(target: &mut Vec<T>, source: &[T]) {
         target.insert(pos, *elem);
     }
 }
-
-
-
 
 
 ///Compute levenshtein distance between two normalised strings
@@ -322,7 +354,7 @@ impl VariantModel {
     }
 
     ///Compute all possible deletions for this anahash, where only one deletion is made at a time
-    fn compute_deletions(&self, anahash: Anahash, expandmode: AnahashExpandMode) -> Vec<Anahash> {
+    fn compute_deletions(&self, anahash: AnaValue, expandmode: AnahashExpandMode) -> Vec<AnaValue> {
         let mut deletions = Vec::new();
         for i in 0..self.alphabet.len() {
             let mask = 1 << i;
@@ -341,7 +373,7 @@ impl VariantModel {
 
 
     ///Computes all deletions recursively
-    fn expand_deletions(&self, target: &mut AnahashMap, hashes: &[Anahash]) {
+    fn expand_deletions(&self, target: &mut AnahashMap, hashes: &[AnaValue]) {
         for anahash in hashes.iter() {
             if !self.deletions.contains_key(anahash) {
                 let parents = self.compute_deletions(*anahash, AnahashExpandMode::All);
@@ -354,24 +386,24 @@ impl VariantModel {
     }
 
     ///Find all insertions within a certain distance
-    fn expand_insertions(&self, target: &mut Vec<Anahash>, query: Anahash, hashes: &[Anahash], max_distance: u8) {
-        merge_into::<Anahash>(target, hashes);
+    fn expand_insertions(&self, target: &mut Vec<AnaValue>, query: AnaValue, hashes: &[AnaValue], max_distance: u8) {
+        merge_into::<AnaValue>(target, hashes);
         for anahash in hashes {
             if let Some(children) = self.insertions.get(anahash) {
                 self.expand_insertions(target,
                                        query,
-                                       &children.iter().map(|x| *x).filter(|x| self.anahash_diff(query,*x) <= max_distance).collect::<Vec<Anahash>>(),
+                                       &children.iter().map(|x| *x).filter(|x| query.sizediff(*x) <= max_distance).collect::<Vec<AnaValue>>(),
                                        max_distance);
             }
         }
     }
 
 
-    fn contains_anahash(&self, anahash: Anahash) -> bool {
+    fn contains_anahash(&self, anahash: AnaValue) -> bool {
         self.has_instances(anahash) || self.deletions.contains_key(&anahash)
     }
 
-    fn has_instances(&self, anahash: Anahash) -> bool {
+    fn has_instances(&self, anahash: AnaValue) -> bool {
         self.instances.contains_key(&anahash)
     }
 
@@ -466,7 +498,7 @@ impl VariantModel {
     }
 
     /// Gather instances and their edit distances, given a search string (normalised to the alphabet) and anagram hashes
-    fn gather_instances(&self, hashes: &[Anahash], querystring: &[u8], max_edit_distance: u8) -> Vec<(VocabId,u8)> {
+    fn gather_instances(&self, hashes: &[AnaValue], querystring: &[u8], max_edit_distance: u8) -> Vec<(VocabId,u8)> {
         let mut found_instances = Vec::new();
         for anahash in hashes {
             if let Some(instances) = self.instances.get(anahash) {
@@ -484,15 +516,15 @@ impl VariantModel {
     }
 
     /// Find the nearest anahashes that exists in the model
-    fn find_nearest_anahashes(&self, anahash: &Anahash, max_distance: u8) -> Vec<Anahash> {
+    fn find_nearest_anahashes(&self, anahash: &AnaValue, max_distance: u8) -> Vec<AnaValue> {
         if self.contains_anahash(*anahash) {
             //the easiest case, this anahash exists in the model
             vec!(*anahash)
         } else if max_distance > 0 {
             let mut results = Vec::new();
-            let parents: Vec<Anahash> = self.compute_deletions(*anahash, AnahashExpandMode::All);
+            let parents: Vec<AnaValue> = self.compute_deletions(*anahash, AnahashExpandMode::All);
             for anahash in parents {
-                merge_into::<Anahash>(&mut results, &self.find_nearest_anahashes(&anahash, max_distance - 1) )
+                merge_into::<AnaValue>(&mut results, &self.find_nearest_anahashes(&anahash, max_distance - 1) )
             }
             results
         } else {
@@ -500,22 +532,73 @@ impl VariantModel {
         }
     }
 
-    ///Computes the difference between two anahashes,
-    ///i.e. the number of transitions needed to go from hash1
-    ///to hash2
-    fn anahash_diff(&self, a: Anahash, b: Anahash) -> u8 {
-        let mut diff = 0;
-        for i in 0..self.alphabet.len() {
-            if (a >> i) & 1 != (b >> i) & 1 {
-                diff += 1;
-            }
-        }
-        diff
-    }
-
 
 }
 
 fn main() {
-    println!("Hello, world!");
+    let args = App::new("Analiticcl")
+                    .version("0.1")
+                    .author("Maarten van Gompel (proycon) <proycon@anaproy.nl>")
+                    .about("Spelling variant matching")
+                    //snippet hints --> addargb,addargs,addargi,addargf,addargpos
+                    .arg(Arg::with_name("lexicon")
+                        .long("lexicon")
+                        .short("l")
+                        .help("Lexicon against which all matches are made")
+                        .takes_value(true)
+                        .required(true))
+                    .arg(Arg::with_name("alphabet")
+                        .long("alphabet")
+                        .short("a")
+                        .help("Alphabet file")
+                        .takes_value(true)
+                        .required(true))
+                    .arg(Arg::with_name("max_anagram_distance")
+                        .long("max-anagram-distance")
+                        .short("A")
+                        .help("Maximum anagram distance. This impacts the size of the search space")
+                        .takes_value(true)
+                        .default_value("3"))
+                    .arg(Arg::with_name("max_edit_distance")
+                        .long("max-edit-distance")
+                        .short("d")
+                        .help("Maximum edit distance (levenshtein)")
+                        .takes_value(true)
+                        .default_value("3"))
+                    .arg(Arg::with_name("files")
+                        .help("Input files")
+                        .takes_value(true)
+                        .multiple(true)
+                        .required(true))
+                    .get_matches();
+
+    eprintln!("Loading model resources...");
+    let mut model = VariantModel::new(
+        args.value_of("alphabet").unwrap(),
+        args.value_of("lexicon").unwrap(),
+        Some(VocabParams::default())
+    );
+
+    eprintln!("Training model...");
+    model.train();
+
+    let max_anagram_distance: u8 = args.value_of("max_anagram_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
+    let max_edit_distance: u8 = args.value_of("max_edit_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
+
+    let files: Vec<_> = args.values_of("files").unwrap().collect();
+    for filename in files {
+        let f = File::open(filename).expect(format!("ERROR: Unable to open file {}", filename).as_str());
+        let f_buffer = BufReader::new(f);
+        for line in f_buffer.lines() {
+            if let Ok(line) = line {
+                let variants = model.find_variants(&line, max_anagram_distance, max_edit_distance);
+                print!("{}",line);
+                for (variant, score) in variants {
+                    print!("\t{}\t{}\t",variant, score);
+                }
+                println!();
+            }
+        }
+
+    }
 }
