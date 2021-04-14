@@ -12,7 +12,7 @@ type NormString = Vec<u8>;
 struct VocabValue {
     text: String,
     norm: NormString,
-    frequency: Option<u32>,
+    frequency: u32,
     ///The number of words
     tokencount: u8,
 }
@@ -52,6 +52,9 @@ struct VariantModel {
 
     ///Maps an anahash to all anahashes that add a character
     insertions: AnahashMap,
+
+    ///Does the model have frequency information?
+    have_freq: bool
 }
 
 
@@ -65,7 +68,7 @@ impl Anahashable for str {
     ///Compute the anahash for a given string, according to the alphabet
     fn anahash(&self, alphabet: &Alphabet) -> Anahash {
         let mut hash: Anahash = 0;
-        for (pos, c) in self.char_indices() {
+        for (pos, _) in self.char_indices() {
             let mask = 1 << pos;
             for chars in alphabet.iter() {
                 for element in chars.iter() {
@@ -85,7 +88,7 @@ impl Anahashable for str {
 
     ///Normalize a string via the alphabet
     fn normalize_to_alphabet(&self, alphabet: &Alphabet) -> NormString {
-        let result = Vec::with_capacity(self.chars().count());
+        let mut result = Vec::with_capacity(self.chars().count());
         for (pos, c) in self.char_indices() {
             let mask = 1 << pos;
             //does greedy matching in order of appearance in the alphabet file
@@ -160,7 +163,7 @@ impl Default for VocabParams {
 
 
 ///Merges a sorted source vector into a sorted target vector, ignoring duplicates
-fn merge_into<T: std::cmp::Ord>(target: &mut Vec<T>, source: &[T]) {
+fn merge_into<T: std::cmp::Ord + Copy>(target: &mut Vec<T>, source: &[T]) {
     let mut pos = 0;
     'outer: for elem in source.iter() {
         for refelem in &target[pos..] {
@@ -177,19 +180,82 @@ fn merge_into<T: std::cmp::Ord>(target: &mut Vec<T>, source: &[T]) {
 
 
 
-///Computes the difference between two anahashes,
-///i.e. the number of transitions needed to go from hash1
-///to hash2
-fn anahash_diff(hash1: Anahash, hash2: Anahash) -> u8 {
-    //TODO: implement
-}
-
 
 
 ///Compute levenshtein distance between two normalised strings
 ///Returns None if the maximum distance is exceeded
-fn levenshtein(a: &[u8], b: &[u8], max_distance: u8) -> Option<u8>
-    //TODO: implement
+fn levenshtein(a: &[u8], b: &[u8], max_distance: u8) -> Option<u8> {
+    //Freely adapted from levenshtein-rs (MIT licensed, 2016 Titus Wormer <tituswormer@gmail.com>)
+    if a == b {
+        return Some(0);
+    }
+
+
+    let length_a = a.len();
+    let length_b = b.len();
+
+    if length_a == 0 {
+        if length_b > max_distance as usize {
+            return None;
+        } else {
+            return Some(length_b as u8);
+        }
+    } else if length_a > length_b {
+        if length_a - length_b > max_distance as usize {
+            return None;
+        }
+    }
+    if length_b == 0 {
+        if length_a > max_distance as usize {
+            return None;
+        } else {
+            return Some(length_a as u8);
+        }
+    } else if length_b > length_a {
+        if length_b - length_a > max_distance as usize {
+            return None;
+        }
+    }
+
+    let mut cache: Vec<usize> = (1..).take(length_a).collect();
+    let mut distance_a;
+    let mut distance_b;
+    let mut result = 0;
+
+    for (index_b, elem_b) in b.iter().enumerate() {
+        result = index_b;
+        distance_a = index_b;
+
+        for (index_a, elem_a) in a.iter().enumerate() {
+            distance_b = if elem_a == elem_b {
+                distance_a
+            } else {
+                distance_a + 1
+            };
+
+            distance_a = cache[index_a];
+
+            result = if distance_a > result {
+                if distance_b > result {
+                    result + 1
+                } else {
+                    distance_b
+                }
+            } else if distance_b > distance_a {
+                distance_a + 1
+            } else {
+                distance_b
+            };
+
+            cache[index_a] = result;
+        }
+    }
+
+    if result > max_distance as usize {
+        None
+    } else {
+        Some(result as u8)
+    }
 }
 
 impl VariantModel {
@@ -201,8 +267,9 @@ impl VariantModel {
             instances: HashMap::new(),
             deletions: HashMap::new(),
             insertions: HashMap::new(),
+            have_freq: false,
         };
-        model.read_vocabulary(vocabulary_file, &vocabparams).expect("Error loading vocabulary file");
+        model.read_vocabulary(vocabulary_file, vocabparams).expect("Error loading vocabulary file");
         model
     }
 
@@ -225,9 +292,11 @@ impl VariantModel {
         //Compute deletions for all instances, expanding
         //recursively also to anahashes which do not have instances
         //so we have complete route for all anahashes
+        let mut deletions = HashMap::new();
         for anahash in self.instances.keys() {
-            self.expand_deletions(&[*anahash]);
+            self.expand_deletions(&mut deletions, &[*anahash]);
         }
+        self.deletions = deletions;
 
         eprintln!("Computing insertions...");
 
@@ -272,13 +341,13 @@ impl VariantModel {
 
 
     ///Computes all deletions recursively
-    fn expand_deletions(&mut self, hashes: &[Anahash]) {
+    fn expand_deletions(&self, target: &mut AnahashMap, hashes: &[Anahash]) {
         for anahash in hashes.iter() {
             if !self.deletions.contains_key(anahash) {
                 let parents = self.compute_deletions(*anahash, AnahashExpandMode::All);
-                self.deletions.insert(*anahash, parents);
+                target.insert(*anahash, parents);
                 if let Some(parents) = self.deletions.get(&anahash) {
-                    self.expand_deletions(&parents);
+                    self.expand_deletions(target, &parents);
                 }
             }
         }
@@ -286,12 +355,12 @@ impl VariantModel {
 
     ///Find all insertions within a certain distance
     fn expand_insertions(&self, target: &mut Vec<Anahash>, query: Anahash, hashes: &[Anahash], max_distance: u8) {
-        merge_into::<Anahash>(&mut target, hashes);
+        merge_into::<Anahash>(target, hashes);
         for anahash in hashes {
             if let Some(children) = self.insertions.get(anahash) {
-                self.expand_insertions(&mut target,
+                self.expand_insertions(target,
                                        query,
-                                       &children.iter().map(|x| *x).filter(|x| anahash_diff(query,*x) <= max_distance).collect::<Vec<Anahash>>(),
+                                       &children.iter().map(|x| *x).filter(|x| self.anahash_diff(query,*x) <= max_distance).collect::<Vec<Anahash>>(),
                                        max_distance);
             }
         }
@@ -314,7 +383,7 @@ impl VariantModel {
 
     ///Read vocabulary from a TSV file
     ///The parameters define what value can be read from what column
-    fn read_vocabulary(&mut self, filename: &str, params: &Option<VocabParams>) -> Result<(), std::io::Error> {
+    fn read_vocabulary(&mut self, filename: &str, params: Option<VocabParams>) -> Result<(), std::io::Error> {
         let params = params.unwrap_or_default();
         let f = File::open(filename)?;
         let f_buffer = BufReader::new(f);
@@ -324,16 +393,17 @@ impl VariantModel {
                     let fields: Vec<&str> = line.split("\t").collect();
                     let text = fields.get(params.text_column as usize).expect("Expected text column not found");
                     let frequency = if let Some(freq_column) = params.freq_column {
-                        Some(fields.get(freq_column as usize).expect("Expected frequency column not found").parse::<u32>().expect("frequency should be a valid integer"))
+                        self.have_freq = true;
+                        fields.get(freq_column as usize).expect("Expected frequency column not found").parse::<u32>().expect("frequency should be a valid integer")
                     } else {
-                        None
+                        1
                     };
                     self.encoder.insert(text.to_string(), self.decoder.len() as u64);
                     self.decoder.push(VocabValue {
                         text: text.to_string(),
                         norm: text.normalize_to_alphabet(&self.alphabet),
                         frequency: frequency,
-                        tokencount: text.chars().filter(|c| c == ' ').count() + 1
+                        tokencount: text.chars().filter(|c| *c == ' ').count() as u8 + 1
                     });
                 }
             }
@@ -356,28 +426,64 @@ impl VariantModel {
         self.expand_insertions(&mut expanded_anahashes, anahash, &anahashes, max_anagram_distance);
 
         //Get the instances pertaining to the collected hashes, within a certain maximum distance
-        let variants: Vec<VocabId> = self.gather_instances(&expanded_anahashes, &normstring, max_edit_distance);
+        let variants: Vec<(VocabId,u8)> = self.gather_instances(&expanded_anahashes, &normstring, max_edit_distance);
+
+        self.score_and_resolve(variants, self.have_freq)
     }
 
-    /// Gather instances and their edit distances, given a search string (normalised) and anagram hashes
-    fn gather_instances(&self, hashes: &[Anahash], query: &[u8], max_edit_distance: u8) -> Vec<(VocabId,u8)> {
+
+    /// Resolve and score all variants
+    fn score_and_resolve(&self, instances: Vec<(VocabId,u8)>, use_freq: bool) -> Vec<(&str,f64)> {
+        let mut results: Vec<(&str,f64)> = Vec::new();
+        let mut max_distance = 0;
+        let mut max_freq = 0;
+        for (vocab_id, distance) in instances.iter() {
+            if *distance > max_distance {
+                max_distance = *distance;
+            }
+            if use_freq {
+                if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
+                    if vocabitem.frequency > max_freq {
+                        max_freq = vocabitem.frequency;
+                    }
+                }
+            }
+        }
+        for (vocab_id, distance) in instances.iter() {
+            if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
+                let distance_score: f64 = 1.0 - (*distance as f64 / max_distance as f64);
+                let freq_score: f64 = if use_freq {
+                   vocabitem.frequency as f64 / max_freq as f64
+                } else {
+                    1.0
+                };
+                let score = distance_score * freq_score;
+                results.push( (&vocabitem.text, score) );
+            }
+        }
+        results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); //sort by score, descending order
+        results
+    }
+
+    /// Gather instances and their edit distances, given a search string (normalised to the alphabet) and anagram hashes
+    fn gather_instances(&self, hashes: &[Anahash], querystring: &[u8], max_edit_distance: u8) -> Vec<(VocabId,u8)> {
         let mut found_instances = Vec::new();
         for anahash in hashes {
             if let Some(instances) = self.instances.get(anahash) {
                 for vocab_id in instances {
                     if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
-                        if let Some(distance) = levenshtein(query, &vocabitem.norm, max_edit_distance) {
+                        if let Some(distance) = levenshtein(querystring, &vocabitem.norm, max_edit_distance) {
                             found_instances.push((*vocab_id,distance));
                         }
                     }
                 }
             }
         }
-        found_instances.sort_unstable_by_key(|k| k.1 ); //sort by distance
+        found_instances.sort_unstable_by_key(|k| k.1 ); //sort by distance, ascending order
         found_instances
     }
 
-    /// Find the nearest anahashes that exist in the model
+    /// Find the nearest anahashes that exists in the model
     fn find_nearest_anahashes(&self, anahash: &Anahash, max_distance: u8) -> Vec<Anahash> {
         if self.contains_anahash(*anahash) {
             //the easiest case, this anahash exists in the model
@@ -392,6 +498,19 @@ impl VariantModel {
         } else {
             vec!()
         }
+    }
+
+    ///Computes the difference between two anahashes,
+    ///i.e. the number of transitions needed to go from hash1
+    ///to hash2
+    fn anahash_diff(&self, a: Anahash, b: Anahash) -> u8 {
+        let mut diff = 0;
+        for i in 0..self.alphabet.len() {
+            if (a >> i) & 1 != (b >> i) & 1 {
+                diff += 1;
+            }
+        }
+        diff
     }
 
 
