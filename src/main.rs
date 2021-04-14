@@ -1,15 +1,23 @@
 extern crate clap;
+extern crate num_bigint;
+extern crate primes;
 
-use std::collections::HashMap;
+use std::collections::{HashMap,VecDeque,HashSet};
 use std::fs::File;
 use std::io::{Write,Read,BufReader,BufRead,Error};
+use std::ops::Deref;
+use std::iter::Extend;
 use clap::{Arg, App, SubCommand};
+use num_bigint::BigUint;
+use num_traits::{Zero, One};
 
 ///Each type gets assigned an ID integer, carries no further meaning
 type VocabId = u64;
 
 ///A normalized string encoded via the alphabet
 type NormString = Vec<u8>;
+
+const PRIMES: &[usize] = &[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313, 317, 331, 337, 347, 349, 353, 359, 367, 373, 379, 383, 389, 397, 401, 409, 419, 421, 431, 433, 439, 443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503, 509, 521, 523, 541, 547, 557, 563, 569, 571, 577, 587, 593, 599, 601, 607, 613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691, 701, 709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809, 811, 821, 823, 827, 829, 839, 853, 857, 859, 863, 877, 881, 883, 887, 907, 911, 919, 929, 937, 941, 947, 953, 967, 971, 977, 983, 991, 997];
 
 #[derive(Clone)]
 struct VocabValue {
@@ -28,7 +36,7 @@ type VocabDecoder = Vec<VocabValue>;
 type VocabEncoder = HashMap<String, VocabId>;
 
 ///The anagram hash: uses a bag-of-characters representation where each bit flags the presence/absence of a certain character (the order of the bits are defined by Alphabet)
-type AnaValue = u64;
+type AnaValue = BigUint;
 
 ///Defines the alphabet, index corresponds how things are encoded, multiple strings may be encoded
 ///in the same way
@@ -70,15 +78,15 @@ trait Anahashable {
 impl Anahashable for str {
     ///Compute the anahash for a given string, according to the alphabet
     fn anahash(&self, alphabet: &Alphabet) -> AnaValue {
-        let mut hash: AnaValue = 0;
+        let mut hash: AnaValue = AnaValue::zero();
         for (pos, _) in self.char_indices() {
-            let mask = 1 << pos;
             for chars in alphabet.iter() {
                 for element in chars.iter() {
                     let l = element.chars().count();
                     if let Some(slice) = self.get(pos..pos+l) {
                         if slice == element {
-                            hash = hash | mask;
+                            let charvalue = AnaValue::character(pos);
+                            hash.insert(charvalue);
                             break;
                         }
                     }
@@ -93,7 +101,6 @@ impl Anahashable for str {
     fn normalize_to_alphabet(&self, alphabet: &Alphabet) -> NormString {
         let mut result = Vec::with_capacity(self.chars().count());
         for (pos, c) in self.char_indices() {
-            let mask = 1 << pos;
             //does greedy matching in order of appearance in the alphabet file
             for (i, chars) in alphabet.iter().enumerate() {
                 for element in chars.iter() {
@@ -113,38 +120,82 @@ impl Anahashable for str {
 }
 
 //Trait for objects that are anahashes
-trait Anahash {
-    fn insert(&self, value: AnaValue) -> AnaValue;
-    fn delete(&self, value: AnaValue) -> AnaValue;
-    fn sizediff(&self,  other: AnaValue) -> u8;
+trait Anahash: Zero {
+    fn character(seqnr: usize) -> AnaValue;
+    fn insert(&self, value: &AnaValue) -> AnaValue;
+    fn delete(&self, value: &AnaValue) -> AnaValue;
+    fn contains(&self, value: &AnaValue) -> bool;
+    fn iter(&self, alphabet_size: usize) -> AnaValueIterator;
 }
 
 impl Anahash for AnaValue {
-    fn insert(&self, value: AnaValue) -> AnaValue {
-        *self | value
+    /// Computes the Anagram value for the n'th entry in the alphabet
+    fn character(seqnr: usize) -> AnaValue {
+        BigUint::from(PRIMES[seqnr])
     }
 
-    fn delete(&self, value: AnaValue) -> AnaValue {
-        (*self | value) ^ value
+    /// Insert the characters represented by the anagram value, returning the result
+    fn insert(&self, value: &AnaValue) -> AnaValue {
+        *self * value
     }
 
-    ///Computes the difference between two anahashes,
-    ///in terms of the number of insertions/deletions
-    ///needed to go from hash1 to hash2
-    fn sizediff(&self,  other: AnaValue) -> u8 {
-        let mut diff = 0;
-        let mut value = *self;
-        let mut other = other;
-        while value > 0 || other > 0 {
-            if value & 1 != other & 1 {
-                diff += 1;
-            }
-            value = value >> 1;
-            other = other >> 1;
+    /// Delete the characters represented by the anagram value, returning the result
+    fn delete(&self, value: &AnaValue) -> AnaValue {
+        if self.contains(value) {
+            *self / *value
+        } else {
+            *self
         }
-        diff
+    }
+
+    /// Tests if the anagram value contains the specified anagram value
+    fn contains(&self, value: &AnaValue) -> bool {
+        if *self > *value {
+            false
+        } else {
+            (*self % *value) == AnaValue::zero()
+        }
+    }
+
+    /// Iterates over all characters in an anagram value
+    /// Does not yield duplicates!
+    fn iter(&self, alphabet_size: usize) -> AnaValueIterator {
+        AnaValueIterator::new(self.clone(), alphabet_size)
+    }
+
+}
+
+/// Iterates over all characters in an anagram value
+/// Does not yield duplicates
+struct AnaValueIterator {
+    value: AnaValue,
+    alphabet_size: usize,
+    iteration: usize,
+}
+
+impl AnaValueIterator {
+    pub fn new(value: AnaValue, alphabet_size: usize) -> AnaValueIterator {
+        AnaValueIterator {
+            value: value,
+            alphabet_size: alphabet_size,
+            iteration: 0
+        }
     }
 }
+
+impl<'a> Iterator for AnaValueIterator {
+    type Item = AnaValue;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.value == AnaValue::zero() || self.iteration == self.alphabet_size {
+            None
+        } else {
+            self.iteration += 1;
+            Some(self.value.delete(&AnaValue::character(self.iteration-1)))
+        }
+    }
+}
+
 
 
 
@@ -188,17 +239,122 @@ struct VocabParams {
 }
 
 impl Default for VocabParams {
-    fn default() -> VocabParams {
-        VocabParams {
+    fn default() -> Self {
+        Self {
             text_column: 0,
             freq_column: None,
         }
     }
 }
 
+////////////////////////////////////////////////////////////////////
+
+
+enum AnaHashIteratorMode {
+    Deletion,
+    MapSearch,
+}
+
+///Recursive iterator over anagram values
+///Can be used to compute all deletions
+///Never returns duplicates
+struct AnaHashIterator<F,G>
+   where F: Fn(&AnaValue) -> bool,
+         G: Fn(&AnaValue) -> &[AnaValue]
+{
+    alphabet_size: usize,
+    mode: AnaHashIteratorMode,
+    queue: VecDeque<(AnaValue,usize)>, //second tuple argument encodes the depth
+    visited: HashSet<AnaValue>,
+    filterfunc: Option<F>,
+    mapsearchfunc: Option<G>
+}
+
+impl<F,G> AnaHashIterator<F,G>
+   where F: Fn(&AnaValue) -> bool,
+         G: Fn(&AnaValue) -> &[AnaValue] {
+    fn new(anavalue: AnaValue, mode: AnaHashIteratorMode, alphabet_size: usize) -> Self {
+        Self {
+            alphabet_size: alphabet_size,
+            mode: mode,
+            queue: VecDeque::from(vec!((anavalue, 0))),
+            visited: HashSet::new(),
+            filterfunc: None,
+            mapsearchfunc: None
+        }
+    }
+
+    fn prefilter(self, func: F) -> Self {
+        self.filterfunc = Some(func);
+        self
+    }
+
+    fn mapsearch(self, func: G) -> Self {
+        self.mapsearchfunc = Some(func);
+        self
+    }
+
+    ///Tests if the specified value has already been queued
+    fn queued(&self, refvalue: &AnaValue) -> bool {
+        for item in self.queue.iter() {
+            if *refvalue == item.0 {
+                return true
+            }
+        }
+        false
+    }
+
+    fn test_and_queue(&mut self, child: AnaValue, depth: usize) {
+        if !self.visited.contains(&child) && !self.queued(&child) {
+            let pass = if let Some(func) = self.filterfunc {
+                func(&child)
+            } else {
+                true
+            };
+            if pass {
+                self.queue.push_back((child, depth));
+            }
+        }
+    }
+
+}
+
+impl<F,G> Iterator for AnaHashIterator<F,G>
+   where F: Fn(&AnaValue) -> bool,
+         G: Fn(&AnaValue) -> &[AnaValue]
+{
+    type Item = (AnaValue, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some((anahash, depth)) = self.queue.pop_front() {
+            match self.mode {
+                AnaHashIteratorMode::Deletion => {
+                    for deletion in anahash.iter(self.alphabet_size) {
+                        let child = anahash.delete(&deletion);
+                        self.test_and_queue(child, depth+1);
+                    }
+                },
+                AnaHashIteratorMode::MapSearch => {
+                    for child in self.mapsearchfunc.expect("map search function required!")(&anahash) {
+                        self.test_and_queue(child.clone(), depth+1);
+                    }
+                }
+            }
+            self.visited.insert(anahash.clone());
+            Some((anahash,depth))
+        } else {
+            None
+        }
+    }
+
+}
+
+
+
+////////////////////////////////////////////////////////////////////
 
 ///Merges a sorted source vector into a sorted target vector, ignoring duplicates
-fn merge_into<T: std::cmp::Ord + Copy>(target: &mut Vec<T>, source: &[T]) {
+fn merge_into<T: std::cmp::Ord + Clone>(target: &mut Vec<T>, source: &[T]) {
     let mut pos = 0;
     'outer: for elem in source.iter() {
         for refelem in &target[pos..] {
@@ -209,7 +365,25 @@ fn merge_into<T: std::cmp::Ord + Copy>(target: &mut Vec<T>, source: &[T]) {
             }
             pos += 1;
         }
-        target.insert(pos, *elem);
+        target.insert(pos, elem.clone());
+    }
+}
+
+///Merges a sorted source vector into a sorted target vector, ignoring duplicates
+fn merge_while_expanding<F>(target: &mut Vec<AnaValue>, source: Vec<AnaValue>, map_callback: F)
+    where F: Fn(&AnaValue) -> Vec<AnaValue> {
+    let mut pos = 0;
+    'outer: for elem in source {
+        for refelem in &target[pos..] {
+            if *refelem == elem {
+                break 'outer;
+            } else if *refelem >= elem {
+                break;
+            }
+            pos += 1;
+        }
+        target.insert(pos, elem);
+        merge_while_expanding(target, map_callback(target.get(pos).unwrap()), map_callback);
     }
 }
 
@@ -321,11 +495,17 @@ impl VariantModel {
 
         eprintln!("Computing anahash search space...");
 
+        eprintln!("  Sorting anahashes");
+
+        let mut sorted_hashes: Vec<&AnaValue> = self.instances.keys().collect();
+        sorted_hashes.sort_unstable();
+
+
         //Compute deletions for all instances, expanding
         //recursively also to anahashes which do not have instances
         //so we have complete route for all anahashes
         let mut deletions = HashMap::new();
-        for anahash in self.instances.keys() {
+        for anahash in sorted_hashes {
             self.expand_deletions(&mut deletions, &[*anahash]);
         }
         self.deletions = deletions;
@@ -354,21 +534,13 @@ impl VariantModel {
     }
 
     ///Compute all possible deletions for this anahash, where only one deletion is made at a time
-    fn compute_deletions(&self, anahash: AnaValue, expandmode: AnahashExpandMode) -> Vec<AnaValue> {
-        let mut deletions = Vec::new();
-        for i in 0..self.alphabet.len() {
-            let mask = 1 << i;
-            if anahash | mask == anahash {
-                let candidate = anahash ^ mask;
-                match expandmode {
-                    AnahashExpandMode::All => deletions.push(candidate),
-                    AnahashExpandMode::MatchOnly => if self.has_instances(candidate) { deletions.push(candidate) },
-                    AnahashExpandMode::NoMatchOnly => if !self.has_instances(candidate) { deletions.push(candidate) },
-                };
-            }
-        }
-        deletions.sort_unstable(); //unstable does not preserve the order of equal elements, but is faster
-        deletions
+    fn compute_deletions(&self, anahash: &AnaValue, expandmode: AnahashExpandMode) -> AnaHashIterator<impl Fn(&AnaValue) -> bool + '_, impl Fn(&AnaValue) -> &[AnaValue] + '_> {
+        AnaHashIterator::new(anahash.clone(), AnaHashIteratorMode::Deletion, self.alphabet.len()).prefilter(move |candidate|
+            match expandmode {
+                AnahashExpandMode::All => true,
+                AnahashExpandMode::MatchOnly => self.has_instances(candidate),
+                AnahashExpandMode::NoMatchOnly => !self.has_instances(candidate),
+            })
     }
 
 
@@ -386,25 +558,30 @@ impl VariantModel {
     }
 
     ///Find all insertions within a certain distance
-    fn expand_insertions(&self, target: &mut Vec<AnaValue>, query: AnaValue, hashes: &[AnaValue], max_distance: u8) {
-        merge_into::<AnaValue>(target, hashes);
-        for anahash in hashes {
-            if let Some(children) = self.insertions.get(anahash) {
+    /*
+    fn expand_insertions(&self, target: &mut Vec<AnaValue>, query: AnaValue, hashes: Vec<AnaValue>, max_distance: u8) {
+        merge_while_expanding(target, hashes, |anahash| {
+            if let Some(children) = self.insertions.get(&anahash) {
+                children.iter().map(|x| *x).filter(|x| query.sizediff(*x) <= max_distance).collect::<Vec<AnaValue>>(),
                 self.expand_insertions(target,
                                        query,
-                                       &children.iter().map(|x| *x).filter(|x| query.sizediff(*x) <= max_distance).collect::<Vec<AnaValue>>(),
+                                       children.iter().map(|x| *x).filter(|x| query.sizediff(*x) <= max_distance).collect::<Vec<AnaValue>>(),
                                        max_distance);
+            } else {
+                vec!()
             }
-        }
+        });
+    }
+    */
+
+
+
+    fn contains_anahash(&self, anahash: &AnaValue) -> bool {
+        self.has_instances(anahash) || self.deletions.contains_key(anahash)
     }
 
-
-    fn contains_anahash(&self, anahash: AnaValue) -> bool {
-        self.has_instances(anahash) || self.deletions.contains_key(&anahash)
-    }
-
-    fn has_instances(&self, anahash: AnaValue) -> bool {
-        self.instances.contains_key(&anahash)
+    fn has_instances(&self, anahash: &AnaValue) -> bool {
+        self.instances.contains_key(anahash)
     }
 
     fn contains(&self, s: &str) -> bool {
