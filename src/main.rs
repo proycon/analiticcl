@@ -3,7 +3,7 @@ extern crate num_bigint;
 
 use std::collections::{HashMap,HashSet,VecDeque,BinaryHeap};
 use std::fs::File;
-use std::io::{Write,Read,BufReader,BufRead,Error};
+use std::io::{self, Write,Read,BufReader,BufRead,Error};
 use std::ops::Deref;
 use std::iter::{Extend,FromIterator};
 use clap::{Arg, App, SubCommand};
@@ -789,6 +789,16 @@ impl VariantModel {
 
 }
 
+
+fn process_tsv(model: &VariantModel, input: &str, max_anagram_distance: u8, max_edit_distance: u8) {
+    let variants = model.find_variants(&input, max_anagram_distance, max_edit_distance);
+    print!("{}",input);
+    for (variant, score) in variants {
+        print!("\t{}\t{}\t",variant, score);
+    }
+    println!();
+}
+
 fn main() {
     let args = App::new("Analiticcl")
                     .version("0.1")
@@ -863,21 +873,33 @@ fn main() {
             }
         }
 
-    }
-
-    if args.is_present("files") {
-        let files: Vec<_> = args.values_of("files").unwrap().collect();
+    } else {
+        eprintln!("Testing against model...");
+        let files: Vec<_> = if args.is_present("files") {
+            args.values_of("files").unwrap().collect()
+        } else {
+            eprintln!("(accepting standard input)");
+            vec!("-")
+        };
         for filename in files {
-            let f = File::open(filename).expect(format!("ERROR: Unable to open file {}", filename).as_str());
-            let f_buffer = BufReader::new(f);
-            for line in f_buffer.lines() {
-                if let Ok(line) = line {
-                    let variants = model.find_variants(&line, max_anagram_distance, max_edit_distance);
-                    print!("{}",line);
-                    for (variant, score) in variants {
-                        print!("\t{}\t{}\t",variant, score);
+            match filename {
+                "-" | "STDIN" | "stdin"  => {
+                    let stdin = io::stdin();
+                    let f_buffer = BufReader::new(stdin);
+                    for line in f_buffer.lines() {
+                        if let Ok(line) = line {
+                            process_tsv(&model, &line, max_anagram_distance, max_edit_distance);
+                        }
                     }
-                    println!();
+                },
+                _ =>  {
+                    let f = File::open(filename).expect(format!("ERROR: Unable to open file {}", filename).as_str());
+                    let f_buffer = BufReader::new(f);
+                    for line in f_buffer.lines() {
+                        if let Ok(line) = line {
+                            process_tsv(&model, &line, max_anagram_distance, max_edit_distance);
+                        }
+                    }
                 }
             }
         }
