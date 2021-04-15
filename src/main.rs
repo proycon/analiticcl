@@ -535,19 +535,18 @@ impl VariantModel {
             eprintln!(" - Sorting keys and populating initial queue");
         }
 
-        let alphabet_size = self.alphabet.len() + 1; //+1 for UNK
 
         if self.debug {
             eprintln!(" - Searching all deletions");
         }
 
-        let queue: Vec<AnaValue> = self.index.keys().map(|x| *x).collect();
-        let parents: &mut HashMap<AnaValue,Vec<AnaValue>> = &mut HashMap::new();
+        let queue: Vec<AnaValue> = self.index.keys().map(|x| x.clone()).collect();
+        let mut parents: HashMap<AnaValue,Vec<AnaValue>> = HashMap::new();
         self.compute_deletions(&mut parents, &queue, max_distance);
 
         for (child, parents) in parents.into_iter() {
             let node = self.get_or_create_node(&child);
-            node.parents = *parents;
+            node.parents = parents;
         }
 
         eprintln!(" - Expanded to {} anagrams", self.index.len() );
@@ -710,12 +709,8 @@ impl VariantModel {
         //Compute neighbouring anahashes and find the nearest anahashes in the model
         let anahashes = self.find_nearest_anahashes(&anahash, max_anagram_distance);
 
-        //Expand anahashes using insertions
-        let mut expanded_anahashes = Vec::new();
-        self.expand_insertions(&mut expanded_anahashes, anahash, &anahashes, max_anagram_distance);
-
         //Get the instances pertaining to the collected hashes, within a certain maximum distance
-        let variants: Vec<(VocabId,u8)> = self.gather_instances(&expanded_anahashes, &normstring, max_edit_distance);
+        let variants = self.gather_instances(&anahashes, &normstring, max_edit_distance);
 
         self.score_and_resolve(variants, self.have_freq)
     }
@@ -758,8 +753,8 @@ impl VariantModel {
     fn gather_instances(&self, hashes: &[AnaValue], querystring: &[u8], max_edit_distance: u8) -> Vec<(VocabId,u8)> {
         let mut found_instances = Vec::new();
         for anahash in hashes {
-            if let Some(instances) = self.instances.get(anahash) {
-                for vocab_id in instances {
+            if let Some(node) = self.index.get(anahash) {
+                for vocab_id in node.instances.iter() {
                     if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
                         if let Some(distance) = levenshtein(querystring, &vocabitem.norm, max_edit_distance) {
                             found_instances.push((*vocab_id,distance));
@@ -773,18 +768,19 @@ impl VariantModel {
     }
 
     /// Find the nearest anahashes that exists in the model (computing anahashes in the
-    /// neigbhourhood if needed)
+    /// neigbhourhood if needed). Note: this also returns anahashes that have no instances
     fn find_nearest_anahashes(&self, anahash: &AnaValue, max_distance: u8) -> Vec<AnaValue> {
         if self.index.contains_key(anahash) {
             //the easiest case, this anahash exists in the model
-            vec!(*anahash)
+            vec!(anahash.clone())
         } else if max_distance > 0 {
-            let mut results = Vec::new();
-            let parents: Vec<AnaValue> = self.compute_deletions(*anahash, AnahashExpandMode::All);
-            for anahash in parents {
-                merge_into::<AnaValue>(&mut results, &self.find_nearest_anahashes(&anahash, max_distance - 1) )
+            let mut parents = HashMap::new();
+            self.compute_deletions(&mut parents, &[anahash.clone()], max_distance);
+            if let Some(results) = parents.get(&anahash) {
+                results.to_vec()
+            } else {
+                vec!()
             }
-            results
         } else {
             vec!()
         }
@@ -876,14 +872,12 @@ fn main() {
             let f_buffer = BufReader::new(f);
             for line in f_buffer.lines() {
                 if let Ok(line) = line {
-                    /*
                     let variants = model.find_variants(&line, max_anagram_distance, max_edit_distance);
                     print!("{}",line);
                     for (variant, score) in variants {
                         print!("\t{}\t{}\t",variant, score);
                     }
                     println!();
-                    */
                 }
             }
         }
