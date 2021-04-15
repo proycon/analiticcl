@@ -547,27 +547,23 @@ impl VariantModel {
             node.parents = anahash.iter(alphabet_size).collect::<Vec<AnaValue>>();
 
             let node = self.tree.get(&anahash).expect("getting node immutably after creation"); //needed to lose the mutability and prevent conflicts
-            visited.insert(anahash);
+            if self.debug {
+                eprintln!("-- Parents of {} are {:?}", &anahash, node.parents );
+            }
+
+            visited.insert(anahash); //move value to visited
 
             let mut total = 0;
             let mut expanded = 0;
             for parent in node.parents.iter() {
                 total += 1;
-                //expand only if the node hasn't been expanded before
-                let expand = if let Some(parentnode) = self.tree.get(parent) {
-                    parentnode.parents.is_empty()
-                } else {
-                    true
-                };
-                if expand {
-                    if !queue.contains(&parent) && !visited.contains(&parent) { //no duplicates in the queue
-                        expanded += 1;
-                        queue.push_front(parent.clone()); //we push to the front so have the benefit of the ordering
-                    }
+                if !visited.contains(&parent) { //no duplicates in the queue
+                    expanded += 1;
+                    queue.push_back(parent.clone());
                 }
             }
             if self.debug {
-                eprintln!(" - Expanded {} extra nodes (out of {})", expanded, total );
+                eprintln!(" - Queued {} extra nodes (out of {})", expanded, total );
             }
           }
         }
