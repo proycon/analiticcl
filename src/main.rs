@@ -2,11 +2,11 @@ extern crate clap;
 extern crate num_bigint;
 extern crate primes;
 
-use std::collections::{HashMap,VecDeque,HashSet};
+use std::collections::{HashMap,VecDeque};
 use std::fs::File;
 use std::io::{Write,Read,BufReader,BufRead,Error};
 use std::ops::Deref;
-use std::iter::Extend;
+use std::iter::{Extend,FromIterator};
 use clap::{Arg, App, SubCommand};
 use num_bigint::BigUint;
 use num_traits::{Zero, One};
@@ -42,12 +42,22 @@ type AnaValue = BigUint;
 ///in the same way
 type Alphabet = Vec<Vec<String>>;
 
-/// Map from anahashes to vocabulary IDs
-type AnahashTable = HashMap<AnaValue,Vec<VocabId>>;
 
-/// Map from anahashes to anahashes (one to many)
-type AnahashMap = HashMap<AnaValue,Vec<AnaValue>>;
 
+#[derive(Default)]
+struct AnaTreeNode {
+    ///Maps an anagram value to all existing instances that instantiate it
+    instances: Vec<VocabId>,
+
+    ///Maps an anagram value to all anagram values that delete a single character (deletions)
+    parents: Vec<AnaValue>,
+
+    ///Maps an anagram value to all anagram values that add a single character (insertions)
+    children: Vec<AnaValue>,
+}
+
+
+type AnaTree = HashMap<AnaValue,AnaTreeNode>;
 
 struct VariantModel {
     decoder: VocabDecoder,
@@ -55,14 +65,7 @@ struct VariantModel {
 
     alphabet: Alphabet,
 
-    ///Maps an anahash to all existing instances that instantiate it
-    instances: AnahashTable,
-
-    ///Maps an anahash to all anahashes that delete a character
-    deletions: AnahashMap,
-
-    ///Maps an anahash to all anahashes that add a character
-    insertions: AnahashMap,
+    tree: AnaTree,
 
     ///Does the model have frequency information?
     have_freq: bool
@@ -86,7 +89,7 @@ impl Anahashable for str {
                     if let Some(slice) = self.get(pos..pos+l) {
                         if slice == element {
                             let charvalue = AnaValue::character(pos);
-                            hash.insert(charvalue);
+                            hash.insert(&charvalue);
                             break;
                         }
                     }
@@ -123,7 +126,7 @@ impl Anahashable for str {
 trait Anahash: Zero {
     fn character(seqnr: usize) -> AnaValue;
     fn insert(&self, value: &AnaValue) -> AnaValue;
-    fn delete(&self, value: &AnaValue) -> AnaValue;
+    fn delete(&self, value: &AnaValue) -> Option<AnaValue>;
     fn contains(&self, value: &AnaValue) -> bool;
     fn iter(&self, alphabet_size: usize) -> AnaValueIterator;
 }
@@ -136,24 +139,25 @@ impl Anahash for AnaValue {
 
     /// Insert the characters represented by the anagram value, returning the result
     fn insert(&self, value: &AnaValue) -> AnaValue {
-        *self * value
+        self * value
     }
 
     /// Delete the characters represented by the anagram value, returning the result
-    fn delete(&self, value: &AnaValue) -> AnaValue {
+    /// Returns None of the anagram was not found
+    fn delete(&self, value: &AnaValue) -> Option<AnaValue> {
         if self.contains(value) {
-            *self / *value
+            Some(self / value)
         } else {
-            *self
+            None
         }
     }
 
     /// Tests if the anagram value contains the specified anagram value
     fn contains(&self, value: &AnaValue) -> bool {
-        if *self > *value {
+        if self > value {
             false
         } else {
-            (*self % *value) == AnaValue::zero()
+            (self % value) == AnaValue::zero()
         }
     }
 
@@ -191,7 +195,11 @@ impl<'a> Iterator for AnaValueIterator {
             None
         } else {
             self.iteration += 1;
-            Some(self.value.delete(&AnaValue::character(self.iteration-1)))
+            if let Some(result) = self.value.delete(&AnaValue::character(self.iteration-1)) {
+                Some(result)
+            } else {
+                self.next() //recurse
+            }
         }
     }
 }
@@ -200,14 +208,6 @@ impl<'a> Iterator for AnaValueIterator {
 
 
 
-enum AnahashExpandMode {
-    ///Expand to all anahashes, whether they occur as instances or not
-    All,
-    ///Expand only to anahashes that exist in the instances
-    MatchOnly,
-    ///Expand only to anahashes that do not exist in the instances
-    NoMatchOnly,
-}
 
 ///Read the alphabet from a TSV file
 ///The file contains one alphabet entry per line, but may
@@ -249,49 +249,26 @@ impl Default for VocabParams {
 
 ////////////////////////////////////////////////////////////////////
 
-
-enum AnaHashIteratorMode {
-    Deletion,
-    MapSearch,
-}
+/*
 
 ///Recursive iterator over anagram values
 ///Can be used to compute all deletions
 ///Never returns duplicates
-struct AnaHashIterator<F,G>
-   where F: Fn(&AnaValue) -> bool,
-         G: Fn(&AnaValue) -> &[AnaValue]
-{
+struct AncestorIterator<'a> {
     alphabet_size: usize,
-    mode: AnaHashIteratorMode,
-    queue: VecDeque<(AnaValue,usize)>, //second tuple argument encodes the depth
+    queue: VecDeque<(AnaValue,usize)>, //(child,parent,depth)
     visited: HashSet<AnaValue>,
-    filterfunc: Option<F>,
-    mapsearchfunc: Option<G>
+    tree: Option<&'a AnaTree>,
 }
 
-impl<F,G> AnaHashIterator<F,G>
-   where F: Fn(&AnaValue) -> bool,
-         G: Fn(&AnaValue) -> &[AnaValue] {
-    fn new(anavalue: AnaValue, mode: AnaHashIteratorMode, alphabet_size: usize) -> Self {
+impl<'a> AncestorIterator<'a> {
+    fn new(anavalue: AnaValue, tree: Option<&'a AnaTree>, alphabet_size: usize) -> Self {
         Self {
             alphabet_size: alphabet_size,
-            mode: mode,
+            tree: tree,
             queue: VecDeque::from(vec!((anavalue, 0))),
             visited: HashSet::new(),
-            filterfunc: None,
-            mapsearchfunc: None
         }
-    }
-
-    fn prefilter(self, func: F) -> Self {
-        self.filterfunc = Some(func);
-        self
-    }
-
-    fn mapsearch(self, func: G) -> Self {
-        self.mapsearchfunc = Some(func);
-        self
     }
 
     ///Tests if the specified value has already been queued
@@ -304,55 +281,46 @@ impl<F,G> AnaHashIterator<F,G>
         false
     }
 
-    fn test_and_queue(&mut self, child: AnaValue, depth: usize) {
-        if !self.visited.contains(&child) && !self.queued(&child) {
-            let pass = if let Some(func) = self.filterfunc {
-                func(&child)
-            } else {
-                true
-            };
-            if pass {
-                self.queue.push_back((child, depth));
-            }
-        }
-    }
-
 }
 
-impl<F,G> Iterator for AnaHashIterator<F,G>
-   where F: Fn(&AnaValue) -> bool,
-         G: Fn(&AnaValue) -> &[AnaValue]
+impl<'a> Iterator for AncestorIterator<'a>
 {
     type Item = (AnaValue, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
+        //Pop the next time to consider from the queue
         if let Some((anahash, depth)) = self.queue.pop_front() {
-            match self.mode {
-                AnaHashIteratorMode::Deletion => {
-                    for deletion in anahash.iter(self.alphabet_size) {
-                        let child = anahash.delete(&deletion);
-                        self.test_and_queue(child, depth+1);
-                    }
-                },
-                AnaHashIteratorMode::MapSearch => {
-                    for child in self.mapsearchfunc.expect("map search function required!")(&anahash) {
-                        self.test_and_queue(child.clone(), depth+1);
+            //Do not expand items that already have parents in the tree
+            let expand = if let Some(tree) = self.tree {
+                if let Some(node) = tree.get(&anahash) {
+                    node.parents.is_empty()
+                } else {
+                    true
+                }
+            } else {
+                true
+            };
+            if expand {
+                for deletion in anahash.iter(self.alphabet_size) {
+                    let child = anahash.delete(&deletion);
+                    if !self.visited.contains(&child) && !self.queued(&child) {
+                        self.queue.push_back((child, depth));
                     }
                 }
             }
             self.visited.insert(anahash.clone());
-            Some((anahash,depth))
+            Some((anahash, depth))
         } else {
             None
         }
     }
 
 }
-
+*/
 
 
 ////////////////////////////////////////////////////////////////////
-
+/*
 ///Merges a sorted source vector into a sorted target vector, ignoring duplicates
 fn merge_into<T: std::cmp::Ord + Clone>(target: &mut Vec<T>, source: &[T]) {
     let mut pos = 0;
@@ -386,7 +354,7 @@ fn merge_while_expanding<F>(target: &mut Vec<AnaValue>, source: Vec<AnaValue>, m
         merge_while_expanding(target, map_callback(target.get(pos).unwrap()), map_callback);
     }
 }
-
+*/
 
 ///Compute levenshtein distance between two normalised strings
 ///Returns None if the maximum distance is exceeded
@@ -470,92 +438,106 @@ impl VariantModel {
             alphabet: read_alphabet(alphabet_file).expect("Error loading alphabet file"),
             encoder: HashMap::new(),
             decoder: Vec::new(),
-            instances: HashMap::new(),
-            deletions: HashMap::new(),
-            insertions: HashMap::new(),
+            tree: HashMap::new(),
             have_freq: false,
         };
         model.read_vocabulary(vocabulary_file, vocabparams).expect("Error loading vocabulary file");
         model
     }
 
-    fn train(&mut self) {
-        eprintln!("Computing anahash instance table...");
-        for (s, id)  in self.encoder.iter() {
-            //get the anahash
-            let anahash = s.anahash(&self.alphabet);
-
-            //add it to the instances
-            if let Some(idlist) = self.instances.get_mut(&anahash) {
-                idlist.push(*id);
+    fn get_or_create_node<'a,'b>(&'a mut self, anahash: &'b AnaValue) -> &'a mut AnaTreeNode {
+            if self.contains_key(anahash) {
+                self.tree.get_mut(anahash).expect("get_mut on node after check")
             } else {
-                self.instances.insert(anahash, vec!(*id));
+                self.tree.insert(anahash.clone(), AnaTreeNode::default());
+                self.tree.get_mut(&anahash).expect("get_mut on node after insert")
+            }
+    }
+
+    fn train(&mut self) {
+        eprintln!("Computing anagram values for all items in the lexicon...");
+
+        let alphabet_size = self.alphabet.len();
+
+        {
+            // Hash all strings in the lexicon
+            // and add them to the tree
+            let mut tmp_hashes: Vec<(AnaValue,VocabId)> = Vec::with_capacity(self.encoder.len());
+            for (s, id)  in self.encoder.iter() {
+                //get the anahash
+                let anahash = s.anahash(&self.alphabet);
+                tmp_hashes.push((anahash, *id));
+            }
+
+            eprintln!("Adding all instances to the tree");
+            for (anahash, id) in tmp_hashes {
+                //add it to the tree
+                let node = self.get_or_create_node(&anahash);
+                node.instances.push(id);
             }
         }
 
-        eprintln!("Computing anahash search space...");
+        eprintln!("Computing deletions...");
 
-        eprintln!("  Sorting anahashes");
+        // Create a queue of all anahash keys currently in the tree
+        // (which is the ones having instances)
+        let mut sorted_keys: Vec<&AnaValue> = self.tree.keys().collect();
+        //Sort them first to make the next algorithm a more efficient
+        sorted_keys.sort();
 
-        let mut sorted_hashes: Vec<&AnaValue> = self.instances.keys().collect();
-        sorted_hashes.sort_unstable();
+        let mut queue: VecDeque<AnaValue> = VecDeque::from_iter(sorted_keys.into_iter().map(|x| x.clone()));
 
 
-        //Compute deletions for all instances, expanding
-        //recursively also to anahashes which do not have instances
-        //so we have complete route for all anahashes
-        let mut deletions = HashMap::new();
-        for anahash in sorted_hashes {
-            self.expand_deletions(&mut deletions, &[*anahash]);
+        // Compute deletions for all instances, expanding
+        // recursively also to anahashes which do not have instances
+        // which are created on the fly
+        // so we have complete route for all anahashes
+        while let Some(anahash) = queue.pop_front() {
+            let node = self.get_or_create_node(&anahash);
+            node.parents = anahash.iter(alphabet_size).collect::<Vec<AnaValue>>();
+
+            let node = self.tree.get(&anahash).expect("getting node immutably after creation"); //needed to lose the mutability and prevent conflicts
+            for parent in node.parents.iter() {
+                //expand only if the node hasn't been expanded before
+                let expand = if let Some(parentnode) = self.tree.get(parent) {
+                    parentnode.parents.is_empty()
+                } else {
+                    true
+                };
+                if expand {
+                    if !queue.contains(&parent) { //no duplicates in the queue
+                        queue.push_front(parent.clone()); //we push to the front so have the benefit of the ordering
+                    }
+                }
+            }
         }
-        self.deletions = deletions;
 
         eprintln!("Computing insertions...");
 
-        //Insertions are simply the reverse of deletions
-        for (anahash, parents) in self.deletions.iter() {
-            for parent in parents.iter() {
-                if let Some(newinsertions) = self.insertions.get_mut(&parent) {
-                    if !newinsertions.contains(&anahash) {
-                        newinsertions.push(*anahash); //we will sort later
-                    }
-                } else {
-                    self.insertions.insert(*anahash, vec!(*parent));
-                }
+        // Insertions are simply the reverse of deletions
+        let mut insertions: Vec<(AnaValue,AnaValue)> = Vec::new();
+        for (anahash, node) in self.tree.iter() {
+            for parent in node.parents.iter() {
+                insertions.push((parent.clone(), anahash.clone()));
             }
         }
 
-        eprintln!("Sorting insertions...");
+        for (parent, child) in insertions {
+            let parentnode = self.get_or_create_node(&parent);
+            parentnode.children.push(child.clone());
+        }
 
-        //Sort the insertions in a separate step
-        for (_, children) in self.insertions.iter_mut() {
-            children.sort();
+        eprintln!("Sorting tree nodes...");
+
+        // Sort the insertions in a separate step
+        for (_, node) in self.tree.iter_mut() {
+            node.parents.sort_unstable();
+            node.children.sort_unstable();
         }
     }
 
-    ///Compute all possible deletions for this anahash, where only one deletion is made at a time
-    fn compute_deletions(&self, anahash: &AnaValue, expandmode: AnahashExpandMode) -> AnaHashIterator<impl Fn(&AnaValue) -> bool + '_, impl Fn(&AnaValue) -> &[AnaValue] + '_> {
-        AnaHashIterator::new(anahash.clone(), AnaHashIteratorMode::Deletion, self.alphabet.len()).prefilter(move |candidate|
-            match expandmode {
-                AnahashExpandMode::All => true,
-                AnahashExpandMode::MatchOnly => self.has_instances(candidate),
-                AnahashExpandMode::NoMatchOnly => !self.has_instances(candidate),
-            })
-    }
 
 
-    ///Computes all deletions recursively
-    fn expand_deletions(&self, target: &mut AnahashMap, hashes: &[AnaValue]) {
-        for anahash in hashes.iter() {
-            if !self.deletions.contains_key(anahash) {
-                let parents = self.compute_deletions(*anahash, AnahashExpandMode::All);
-                target.insert(*anahash, parents);
-                if let Some(parents) = self.deletions.get(&anahash) {
-                    self.expand_deletions(target, &parents);
-                }
-            }
-        }
-    }
 
     ///Find all insertions within a certain distance
     /*
@@ -576,12 +558,16 @@ impl VariantModel {
 
 
 
-    fn contains_anahash(&self, anahash: &AnaValue) -> bool {
-        self.has_instances(anahash) || self.deletions.contains_key(anahash)
+    fn contains_key(&self, key: &AnaValue) -> bool {
+        self.tree.contains_key(key)
     }
 
-    fn has_instances(&self, anahash: &AnaValue) -> bool {
-        self.instances.contains_key(anahash)
+    fn has_instances(&self, key: &AnaValue) -> bool {
+        if let Some(node) = self.tree.get(key) {
+            !node.instances.is_empty()
+        } else {
+            false
+        }
     }
 
     fn contains(&self, s: &str) -> bool {
@@ -620,6 +606,7 @@ impl VariantModel {
         Ok(())
     }
 
+    /*
     /// Find variants in the vocabulary for a given string (in its totality), returns a vector of string,score pairs
     fn find_variants<'a>(&'a self, s: &str, max_anagram_distance: u8, max_edit_distance: u8) -> Vec<(&'a str, f64)> {
 
@@ -708,6 +695,7 @@ impl VariantModel {
             vec!()
         }
     }
+    */
 
 
 }
@@ -768,12 +756,14 @@ fn main() {
         let f_buffer = BufReader::new(f);
         for line in f_buffer.lines() {
             if let Ok(line) = line {
+                /*
                 let variants = model.find_variants(&line, max_anagram_distance, max_edit_distance);
                 print!("{}",line);
                 for (variant, score) in variants {
                     print!("\t{}\t{}\t",variant, score);
                 }
                 println!();
+                */
             }
         }
 
