@@ -1,7 +1,7 @@
 extern crate clap;
 extern crate num_bigint;
 
-use std::collections::{HashMap,VecDeque};
+use std::collections::{HashMap,HashSet,BTreeSet,VecDeque,BinaryHeap};
 use std::fs::File;
 use std::io::{Write,Read,BufReader,BufRead,Error};
 use std::ops::Deref;
@@ -487,55 +487,7 @@ impl VariantModel {
         }
         eprintln!(" - Found {} anagrams", self.tree.len() );
 
-        eprintln!("Computing deletions...");
-
-        if self.debug {
-            eprintln!(" - Sorting keys");
-        }
-
-        // Create a queue of all anahash keys currently in the tree
-        // (which is the ones having instances)
-        let mut sorted_keys: Vec<&AnaValue> = self.tree.keys().collect();
-        //Sort them first to make the next algorithm a more efficient
-        sorted_keys.sort();
-
-        let mut queue: VecDeque<AnaValue> = VecDeque::from_iter(sorted_keys.into_iter().map(|x| x.clone()));
-
-
-        // Compute deletions for all instances, expanding
-        // recursively also to anahashes which do not have instances
-        // which are created on the fly
-        // so we have complete route for all anahashes
-        while let Some(anahash) = queue.pop_front() {
-            if self.debug {
-                eprintln!(" - {} nodes left to expand", queue.len() );
-            }
-            let node = self.get_or_create_node(&anahash);
-            node.parents = anahash.iter(alphabet_size).collect::<Vec<AnaValue>>();
-
-            let node = self.tree.get(&anahash).expect("getting node immutably after creation"); //needed to lose the mutability and prevent conflicts
-            let mut total = 0;
-            let mut expanded = 0;
-            for parent in node.parents.iter() {
-                total += 1;
-                //expand only if the node hasn't been expanded before
-                let expand = if let Some(parentnode) = self.tree.get(parent) {
-                    parentnode.parents.is_empty()
-                } else {
-                    true
-                };
-                if expand {
-                    if !queue.contains(&parent) { //no duplicates in the queue
-                        expanded += 1;
-                        queue.push_front(parent.clone()); //we push to the front so have the benefit of the ordering
-                    }
-                }
-            }
-            if self.debug {
-                eprintln!(" - Expanded {} extra nodes (out of {})", expanded, total );
-            }
-        }
-        eprintln!(" - Expanded to {} anagrams", self.tree.len() );
+        self.compute_deletions();
 
         eprintln!("Computing insertions...");
 
@@ -561,7 +513,66 @@ impl VariantModel {
         }
     }
 
+    fn compute_deletions(&mut self) {
+        eprintln!("Computing deletions...");
 
+        if self.debug {
+            eprintln!(" - Sorting keys and populating initial queue");
+        }
+
+        let alphabet_size = self.alphabet.len();
+
+        let mut sorted_keys: Vec<&AnaValue> = Vec::from_iter(self.tree.keys());
+        sorted_keys.sort_unstable();
+
+        // Create a queue of all anahash keys currently in the tree
+        // (which is the ones having instances)
+        let mut queue: VecDeque<AnaValue> = VecDeque::from_iter(sorted_keys.into_iter().map(|x| x.clone()));
+        let mut visited: HashSet<AnaValue> = HashSet::new();
+
+        if self.debug {
+            eprintln!(" - Searching all deletions");
+        }
+
+        // Compute deletions for all instances, expanding
+        // recursively also to anahashes which do not have instances
+        // which are created on the fly
+        // so we have complete route for all anahashes
+        while let Some(anahash) = queue.pop_front() { //pop the first value
+          if !visited.contains(&anahash) {
+            if self.debug {
+                eprintln!(" - {} nodes left to expand, {} nodes already expanded", queue.len(), visited.len() );
+            }
+            let node = self.get_or_create_node(&anahash);
+            node.parents = anahash.iter(alphabet_size).collect::<Vec<AnaValue>>();
+
+            let node = self.tree.get(&anahash).expect("getting node immutably after creation"); //needed to lose the mutability and prevent conflicts
+            visited.insert(anahash);
+
+            let mut total = 0;
+            let mut expanded = 0;
+            for parent in node.parents.iter() {
+                total += 1;
+                //expand only if the node hasn't been expanded before
+                let expand = if let Some(parentnode) = self.tree.get(parent) {
+                    parentnode.parents.is_empty()
+                } else {
+                    true
+                };
+                if expand {
+                    if !queue.contains(&parent) && !visited.contains(&parent) { //no duplicates in the queue
+                        expanded += 1;
+                        queue.push_front(parent.clone()); //we push to the front so have the benefit of the ordering
+                    }
+                }
+            }
+            if self.debug {
+                eprintln!(" - Expanded {} extra nodes (out of {})", expanded, total );
+            }
+          }
+        }
+        eprintln!(" - Expanded to {} anagrams", self.tree.len() );
+    }
 
 
     ///Find all insertions within a certain distance
