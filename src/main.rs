@@ -487,21 +487,25 @@ impl VariantModel {
         }
         eprintln!(" - Found {} anagrams", self.tree.len() );
 
-        self.compute_deletions(3);
+        self.compute_deletions(2);
 
-        eprintln!("Computing insertions...");
+        eprintln!("Establishing reverse links for the deletions (i.e. insertions)...");
 
         // Insertions are simply the reverse of deletions
-        let mut insertions: Vec<(AnaValue,AnaValue)> = Vec::new();
+        let mut insertions: HashMap<AnaValue,Vec<AnaValue>> = HashMap::new();
         for (anahash, node) in self.tree.iter() {
             for parent in node.parents.iter() {
-                insertions.push((parent.clone(), anahash.clone()));
+                if let Some(insertions) = insertions.get_mut(&parent) {
+                    insertions.push(anahash.clone());
+                } else {
+                    insertions.insert(parent.clone(), vec!(anahash.clone()));
+                }
             }
         }
 
-        for (parent, child) in insertions {
+        for (parent, children) in insertions.into_iter() {
             let parentnode = self.get_or_create_node(&parent);
-            parentnode.children.push(child.clone());
+            parentnode.children = children;
         }
 
         eprintln!("Sorting node values...");
@@ -514,7 +518,7 @@ impl VariantModel {
     }
 
     fn compute_deletions(&mut self, max_distance: u8) {
-        eprintln!("Computing deletions...");
+        eprintln!("Computing deletions within distance {}...",max_distance);
 
         if self.debug {
             eprintln!(" - Sorting keys and populating initial queue");
@@ -540,7 +544,7 @@ impl VariantModel {
             for (i, anahash) in queue.iter().enumerate() {
               if !parents.contains_key(anahash) {
                 if self.debug {
-                    eprintln!(" - Depth {}: @{}/{}",depth, i, length );
+                    eprintln!(" - Depth {}: @{}/{}",depth+1, i+1, length );
                 }
                 let newparents: Vec<AnaValue> = anahash.iter(alphabet_size).collect();
                 parents.insert(anahash.clone(), newparents );
