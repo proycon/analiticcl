@@ -498,7 +498,7 @@ impl VariantModel {
         }
         eprintln!(" - Found {} anagrams", self.index.len() );
 
-        self.compute_deletions(2);
+        self.expand_deletions(2);
 
         eprintln!("Establishing reverse links for the deletions (i.e. insertions)...");
 
@@ -528,7 +528,7 @@ impl VariantModel {
         }
     }
 
-    fn compute_deletions(&mut self, max_distance: u8) {
+    fn expand_deletions(&mut self, max_distance: u8) {
         eprintln!("Computing deletions within distance {}...",max_distance);
 
         if self.debug {
@@ -537,13 +537,30 @@ impl VariantModel {
 
         let alphabet_size = self.alphabet.len() + 1; //+1 for UNK
 
-        let mut queue: Vec<AnaValue> = Vec::from_iter(self.index.keys().map(|x| x.clone()));
-        let mut parents: HashMap<AnaValue,Vec<AnaValue>> = HashMap::new();
-
         if self.debug {
             eprintln!(" - Searching all deletions");
         }
 
+        let queue: Vec<AnaValue> = self.index.keys().map(|x| *x).collect();
+        let parents: &mut HashMap<AnaValue,Vec<AnaValue>> = &mut HashMap::new();
+        self.compute_deletions(&mut parents, &queue, max_distance);
+
+        for (child, parents) in parents.into_iter() {
+            let node = self.get_or_create_node(&child);
+            node.parents = *parents;
+        }
+
+        eprintln!(" - Expanded to {} anagrams", self.index.len() );
+    }
+
+    fn compute_deletions(&self, target: &mut HashMap<AnaValue,Vec<AnaValue>>, queue: &[AnaValue], max_distance: u8)  {
+        if self.debug {
+            eprintln!("Computing deletions within distance {}...",max_distance);
+        }
+
+        let alphabet_size = self.alphabet.len() + 1; //+1 for UNK
+
+        let mut queue: Vec<AnaValue> = Vec::from(queue);
 
         // Compute deletions for all instances, expanding
         // recursively also to anahashes which do not have instances
@@ -553,19 +570,19 @@ impl VariantModel {
             let mut nextqueue: Vec<AnaValue> = Vec::new();
             let length = queue.len();
             for (i, anahash) in queue.iter().enumerate() {
-              if !parents.contains_key(anahash) {
+              if !target.contains_key(anahash) {
                 if self.debug {
                     eprintln!(" - Depth {}: @{}/{}",depth+1, i+1, length );
                 }
                 let newparents: Vec<AnaValue> = anahash.iter(alphabet_size).collect();
-                parents.insert(anahash.clone(), newparents );
+                target.insert(anahash.clone(), newparents );
 
                 if depth + 1 < max_distance {
                     let mut total = 0;
                     let mut expanded = 0;
-                    for p in parents.get(&anahash).unwrap() {
+                    for p in target.get(&anahash).unwrap() {
                         total += 1;
-                        if !parents.contains_key(&p) { //no duplicates in the queue
+                        if !target.contains_key(&p) { //no duplicates in the queue
                             expanded += 1;
                             nextqueue.push(p.clone());
                         }
@@ -580,13 +597,8 @@ impl VariantModel {
             let _oldqueue = std::mem::replace(&mut queue, nextqueue);
         }
 
-        for (child, parents) in parents.into_iter() {
-            let node = self.get_or_create_node(&child);
-            node.parents = parents;
-        }
-
-        eprintln!(" - Expanded to {} anagrams", self.index.len() );
     }
+
 
 
     ///Find all insertions within a certain distance
@@ -688,7 +700,6 @@ impl VariantModel {
         Ok(())
     }
 
-    /*
     /// Find variants in the vocabulary for a given string (in its totality), returns a vector of string,score pairs
     fn find_variants<'a>(&'a self, s: &str, max_anagram_distance: u8, max_edit_distance: u8) -> Vec<(&'a str, f64)> {
 
@@ -696,7 +707,7 @@ impl VariantModel {
         let normstring = s.normalize_to_alphabet(&self.alphabet);
         let anahash = s.anahash(&self.alphabet);
 
-        //Find the nearest anahashes in the model
+        //Compute neighbouring anahashes and find the nearest anahashes in the model
         let anahashes = self.find_nearest_anahashes(&anahash, max_anagram_distance);
 
         //Expand anahashes using insertions
@@ -761,9 +772,10 @@ impl VariantModel {
         found_instances
     }
 
-    /// Find the nearest anahashes that exists in the model
+    /// Find the nearest anahashes that exists in the model (computing anahashes in the
+    /// neigbhourhood if needed)
     fn find_nearest_anahashes(&self, anahash: &AnaValue, max_distance: u8) -> Vec<AnaValue> {
-        if self.contains_anahash(*anahash) {
+        if self.index.contains_key(anahash) {
             //the easiest case, this anahash exists in the model
             vec!(*anahash)
         } else if max_distance > 0 {
@@ -777,7 +789,6 @@ impl VariantModel {
             vec!()
         }
     }
-    */
 
 
 }
