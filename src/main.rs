@@ -82,7 +82,7 @@ trait Anahashable {
 impl Anahashable for str {
     ///Compute the anahash for a given string, according to the alphabet
     fn anahash(&self, alphabet: &Alphabet) -> AnaValue {
-        let mut hash: AnaValue = AnaValue::one();
+        let mut hash: AnaValue = AnaValue::empty();
         let mut skip = 0;
         for (pos, _) in self.char_indices() {
             if skip > 0 {
@@ -137,8 +137,9 @@ impl Anahashable for str {
 }
 
 //Trait for objects that are anahashes
-trait Anahash: Zero {
+trait Anahash: One + Zero {
     fn character(seqnr: usize) -> AnaValue;
+    fn empty() -> AnaValue;
     fn insert(&self, value: &AnaValue) -> AnaValue;
     fn delete(&self, value: &AnaValue) -> Option<AnaValue>;
     fn contains(&self, value: &AnaValue) -> bool;
@@ -153,7 +154,11 @@ impl Anahash for AnaValue {
 
     /// Insert the characters represented by the anagram value, returning the result
     fn insert(&self, value: &AnaValue) -> AnaValue {
-        self * value
+        if self == &AnaValue::zero() {
+            value.clone()
+        } else {
+            self * value
+        }
     }
 
     /// Delete the characters represented by the anagram value, returning the result
@@ -168,7 +173,7 @@ impl Anahash for AnaValue {
 
     /// Tests if the anagram value contains the specified anagram value
     fn contains(&self, value: &AnaValue) -> bool {
-        if self > value {
+        if value > self {
             false
         } else {
             (self % value) == AnaValue::zero()
@@ -179,6 +184,12 @@ impl Anahash for AnaValue {
     /// Does not yield duplicates!
     fn iter(&self, alphabet_size: usize) -> AnaValueIterator {
         AnaValueIterator::new(self.clone(), alphabet_size)
+    }
+
+    /// The value of an empty anahash
+    /// Also corresponds to the root of the tree
+    fn empty() -> AnaValue {
+        AnaValue::one()
     }
 
 }
@@ -205,7 +216,7 @@ impl<'a> Iterator for AnaValueIterator {
     type Item = AnaValue;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.value == AnaValue::zero() || self.iteration == self.alphabet_size {
+        if self.value == AnaValue::one() || self.iteration == self.alphabet_size {
             None
         } else {
             self.iteration += 1;
@@ -478,6 +489,10 @@ impl VariantModel {
 
         eprintln!("Computing deletions...");
 
+        if self.debug {
+            eprintln!(" - Sorting keys");
+        }
+
         // Create a queue of all anahash keys currently in the tree
         // (which is the ones having instances)
         let mut sorted_keys: Vec<&AnaValue> = self.tree.keys().collect();
@@ -492,11 +507,17 @@ impl VariantModel {
         // which are created on the fly
         // so we have complete route for all anahashes
         while let Some(anahash) = queue.pop_front() {
+            if self.debug {
+                eprintln!(" - {} nodes left to expand", queue.len() );
+            }
             let node = self.get_or_create_node(&anahash);
             node.parents = anahash.iter(alphabet_size).collect::<Vec<AnaValue>>();
 
             let node = self.tree.get(&anahash).expect("getting node immutably after creation"); //needed to lose the mutability and prevent conflicts
+            let mut total = 0;
+            let mut expanded = 0;
             for parent in node.parents.iter() {
+                total += 1;
                 //expand only if the node hasn't been expanded before
                 let expand = if let Some(parentnode) = self.tree.get(parent) {
                     parentnode.parents.is_empty()
@@ -505,9 +526,13 @@ impl VariantModel {
                 };
                 if expand {
                     if !queue.contains(&parent) { //no duplicates in the queue
+                        expanded += 1;
                         queue.push_front(parent.clone()); //we push to the front so have the benefit of the ordering
                     }
                 }
+            }
+            if self.debug {
+                eprintln!(" - Expanded {} extra nodes (out of {})", expanded, total );
             }
         }
         eprintln!(" - Expanded to {} anagrams", self.tree.len() );
