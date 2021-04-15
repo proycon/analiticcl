@@ -21,7 +21,7 @@ const PRIMES: &[u32] = &[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47,
 #[derive(Clone)]
 struct VocabValue {
     text: String,
-    //norm: NormString,
+    norm: NormString,
     frequency: u32,
     ///The number of words
     tokencount: u8,
@@ -117,18 +117,29 @@ impl Anahashable for str {
     ///Normalize a string via the alphabet
     fn normalize_to_alphabet(&self, alphabet: &Alphabet) -> NormString {
         let mut result = Vec::with_capacity(self.chars().count());
+        let mut skip = 0;
         for (pos, _) in self.char_indices() {
+            if skip > 0 {
+                skip -= 1;
+                continue;
+            }
             //does greedy matching in order of appearance in the alphabet file
+            let mut matched = false;
             'abciter: for (i, chars) in alphabet.iter().enumerate() {
                 for element in chars.iter() {
                     let l = element.chars().count();
                     if let Some(slice) = self.get(pos..pos+l) {
                         if slice == element {
                             result.push(i as u8);
+                            skip = l-1;
                             break 'abciter;
                         }
                     }
                 }
+            }
+            if !matched {
+                //Highest one is reserved for UNK
+                result.push(alphabet.len() as u8);
             }
         }
         result
@@ -464,7 +475,7 @@ impl VariantModel {
     fn train(&mut self) {
         eprintln!("Computing anagram values for all items in the lexicon...");
 
-        let alphabet_size = self.alphabet.len();
+        let alphabet_size = self.alphabet.len() + 1; //+1 for UNK
 
         // Hash all strings in the lexicon
         // and add them to the index
@@ -524,7 +535,7 @@ impl VariantModel {
             eprintln!(" - Sorting keys and populating initial queue");
         }
 
-        let alphabet_size = self.alphabet.len();
+        let alphabet_size = self.alphabet.len() + 1; //+1 for UNK
 
         let mut queue: Vec<AnaValue> = Vec::from_iter(self.index.keys().map(|x| x.clone()));
         let mut parents: HashMap<AnaValue,Vec<AnaValue>> = HashMap::new();
@@ -664,7 +675,7 @@ impl VariantModel {
                     }
                     self.decoder.push(VocabValue {
                         text: text.to_string(),
-                        //norm: text.normalize_to_alphabet(&self.alphabet),
+                        norm: text.normalize_to_alphabet(&self.alphabet),
                         frequency: frequency,
                         tokencount: text.chars().filter(|c| *c == ' ').count() as u8 + 1
                     });
@@ -805,11 +816,16 @@ fn main() {
                         .help("Input files")
                         .takes_value(true)
                         .multiple(true)
-                        .required(true))
+                        .required(false))
                     .arg(Arg::with_name("debug")
                         .long("debug")
                         .short("D")
                         .help("Debug")
+                        .required(false))
+                    .arg(Arg::with_name("printindex")
+                        .long("printindex")
+                        .short("I")
+                        .help("Output the entire index")
                         .required(false))
                     .get_matches();
 
@@ -828,22 +844,37 @@ fn main() {
     let max_anagram_distance: u8 = args.value_of("max_anagram_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
     let max_edit_distance: u8 = args.value_of("max_edit_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
 
-    let files: Vec<_> = args.values_of("files").unwrap().collect();
-    for filename in files {
-        let f = File::open(filename).expect(format!("ERROR: Unable to open file {}", filename).as_str());
-        let f_buffer = BufReader::new(f);
-        for line in f_buffer.lines() {
-            if let Ok(line) = line {
-                /*
-                let variants = model.find_variants(&line, max_anagram_distance, max_edit_distance);
-                print!("{}",line);
-                for (variant, score) in variants {
-                    print!("\t{}\t{}\t",variant, score);
+    if args.is_present("printindex") {
+        for (anahash, indexnode) in model.index.iter() {
+            if !indexnode.instances.is_empty() {
+                print!("{}", anahash);
+                for instance in indexnode.instances.iter() {
+                    let vocabvalue = model.decoder.get(*instance as usize).expect("decoding instance");
+                    print!("\t{}", vocabvalue.text);
                 }
-                println!();
-                */
+                println!()
             }
         }
 
+    }
+
+    if args.is_present("files") {
+        let files: Vec<_> = args.values_of("files").unwrap().collect();
+        for filename in files {
+            let f = File::open(filename).expect(format!("ERROR: Unable to open file {}", filename).as_str());
+            let f_buffer = BufReader::new(f);
+            for line in f_buffer.lines() {
+                if let Ok(line) = line {
+                    /*
+                    let variants = model.find_variants(&line, max_anagram_distance, max_edit_distance);
+                    print!("{}",line);
+                    for (variant, score) in variants {
+                        print!("\t{}\t{}\t",variant, score);
+                    }
+                    println!();
+                    */
+                }
+            }
+        }
     }
 }
