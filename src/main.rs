@@ -487,7 +487,7 @@ impl VariantModel {
         }
         eprintln!(" - Found {} anagrams", self.tree.len() );
 
-        self.compute_deletions();
+        self.compute_deletions(3);
 
         eprintln!("Computing insertions...");
 
@@ -513,7 +513,7 @@ impl VariantModel {
         }
     }
 
-    fn compute_deletions(&mut self) {
+    fn compute_deletions(&mut self, max_distance: u8) {
         eprintln!("Computing deletions...");
 
         if self.debug {
@@ -522,51 +522,54 @@ impl VariantModel {
 
         let alphabet_size = self.alphabet.len();
 
-        let mut sorted_keys: Vec<&AnaValue> = Vec::from_iter(self.tree.keys());
-        sorted_keys.sort_unstable();
-
-        // Create a queue of all anahash keys currently in the tree
-        // (which is the ones having instances)
-        let mut queue: VecDeque<AnaValue> = VecDeque::from_iter(sorted_keys.into_iter().map(|x| x.clone()));
-        let mut visited: HashSet<AnaValue> = HashSet::new();
+        let mut queue: Vec<AnaValue> = Vec::from_iter(self.tree.keys().map(|x| x.clone()));
+        let mut parents: HashMap<AnaValue,Vec<AnaValue>> = HashMap::new();
 
         if self.debug {
             eprintln!(" - Searching all deletions");
         }
 
+
         // Compute deletions for all instances, expanding
         // recursively also to anahashes which do not have instances
         // which are created on the fly
-        // so we have complete route for all anahashes
-        while let Some(anahash) = queue.pop_front() { //pop the first value
-          if !visited.contains(&anahash) {
-            if self.debug {
-                eprintln!(" - {} nodes left to expand, {} nodes already expanded", queue.len(), visited.len() );
-            }
-            let node = self.get_or_create_node(&anahash);
-            node.parents = anahash.iter(alphabet_size).collect::<Vec<AnaValue>>();
-
-            let node = self.tree.get(&anahash).expect("getting node immutably after creation"); //needed to lose the mutability and prevent conflicts
-            if self.debug {
-                eprintln!("-- Parents of {} are {:?}", &anahash, node.parents );
-            }
-
-            visited.insert(anahash); //move value to visited
-
-            let mut total = 0;
-            let mut expanded = 0;
-            for parent in node.parents.iter() {
-                total += 1;
-                if !visited.contains(&parent) { //no duplicates in the queue
-                    expanded += 1;
-                    queue.push_back(parent.clone());
+        for depth in 0..max_distance {
+            queue.sort_unstable();
+            let mut nextqueue: Vec<AnaValue> = Vec::new();
+            let length = queue.len();
+            for (i, anahash) in queue.iter().enumerate() {
+              if !parents.contains_key(anahash) {
+                if self.debug {
+                    eprintln!(" - Depth {}: @{}/{}",depth, i, length );
                 }
+                let newparents: Vec<AnaValue> = anahash.iter(alphabet_size).collect();
+                parents.insert(anahash.clone(), newparents );
+
+                if depth + 1 < max_distance {
+                    let mut total = 0;
+                    let mut expanded = 0;
+                    for p in parents.get(&anahash).unwrap() {
+                        total += 1;
+                        if !parents.contains_key(&p) { //no duplicates in the queue
+                            expanded += 1;
+                            nextqueue.push(p.clone());
+                        }
+                    }
+
+                    if self.debug {
+                        eprintln!(" - Queued {} extra nodes (out of {})", expanded, total );
+                    }
+                }
+              }
             }
-            if self.debug {
-                eprintln!(" - Queued {} extra nodes (out of {})", expanded, total );
-            }
-          }
+            let _oldqueue = std::mem::replace(&mut queue, nextqueue);
         }
+
+        for (child, parents) in parents.into_iter() {
+            let node = self.get_or_create_node(&child);
+            node.parents = parents;
+        }
+
         eprintln!(" - Expanded to {} anagrams", self.tree.len() );
     }
 
