@@ -90,7 +90,7 @@ impl Anahashable for str {
                 continue;
             }
             let mut matched = false;
-            for (seqnr, chars) in alphabet.iter().enumerate() {
+            'abciter: for (seqnr, chars) in alphabet.iter().enumerate() {
                 for element in chars.iter() {
                     let l = element.chars().count();
                     if let Some(slice) = self.get(pos..pos+l) {
@@ -99,7 +99,7 @@ impl Anahashable for str {
                             hash = hash.insert(&charvalue);
                             matched = true;
                             skip = l-1;
-                            break;
+                            break 'abciter;
                         }
                     }
                 }
@@ -117,15 +117,15 @@ impl Anahashable for str {
     ///Normalize a string via the alphabet
     fn normalize_to_alphabet(&self, alphabet: &Alphabet) -> NormString {
         let mut result = Vec::with_capacity(self.chars().count());
-        for (pos, c) in self.char_indices() {
+        for (pos, _) in self.char_indices() {
             //does greedy matching in order of appearance in the alphabet file
-            for (i, chars) in alphabet.iter().enumerate() {
+            'abciter: for (i, chars) in alphabet.iter().enumerate() {
                 for element in chars.iter() {
                     let l = element.chars().count();
                     if let Some(slice) = self.get(pos..pos+l) {
                         if slice == element {
                             result.push(i as u8);
-                            break;
+                            break 'abciter;
                         }
                     }
                 }
