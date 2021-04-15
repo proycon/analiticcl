@@ -1,6 +1,5 @@
 extern crate clap;
 extern crate num_bigint;
-extern crate primes;
 
 use std::collections::{HashMap,VecDeque};
 use std::fs::File;
@@ -22,7 +21,7 @@ const PRIMES: &[usize] = &[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 4
 #[derive(Clone)]
 struct VocabValue {
     text: String,
-    norm: NormString,
+    //norm: NormString,
     frequency: u32,
     ///The number of words
     tokencount: u8,
@@ -68,7 +67,9 @@ struct VariantModel {
     tree: AnaTree,
 
     ///Does the model have frequency information?
-    have_freq: bool
+    have_freq: bool,
+
+    debug: bool
 }
 
 
@@ -81,19 +82,32 @@ trait Anahashable {
 impl Anahashable for str {
     ///Compute the anahash for a given string, according to the alphabet
     fn anahash(&self, alphabet: &Alphabet) -> AnaValue {
-        let mut hash: AnaValue = AnaValue::zero();
+        let mut hash: AnaValue = AnaValue::one();
+        let mut skip = 0;
         for (pos, _) in self.char_indices() {
-            for chars in alphabet.iter() {
+            if skip > 0 {
+                skip -= 1;
+                continue;
+            }
+            let mut matched = false;
+            for (seqnr, chars) in alphabet.iter().enumerate() {
                 for element in chars.iter() {
                     let l = element.chars().count();
                     if let Some(slice) = self.get(pos..pos+l) {
                         if slice == element {
-                            let charvalue = AnaValue::character(pos);
-                            hash.insert(&charvalue);
+                            let charvalue = AnaValue::character(seqnr);
+                            hash = hash.insert(&charvalue);
+                            matched = true;
+                            skip = l-1;
                             break;
                         }
                     }
                 }
+            }
+            if !matched {
+                //Highest one is reserved for UNK
+                let charvalue = AnaValue::character(alphabet.len());
+                hash = hash.insert(&charvalue);
             }
         }
         hash
@@ -209,26 +223,6 @@ impl<'a> Iterator for AnaValueIterator {
 
 
 
-///Read the alphabet from a TSV file
-///The file contains one alphabet entry per line, but may
-///consist of multiple tab-separated alphabet entries on that line, which
-///will be treated as the identical.
-///The alphabet is not limited to single characters but may consist
-///of longer string, a greedy matching approach will be used so order
-///matters (but only for this)
-fn read_alphabet(filename: &str) -> Result<Alphabet, std::io::Error> {
-    let mut alphabet: Alphabet = Vec::new();
-    let f = File::open(filename)?;
-    let f_buffer = BufReader::new(f);
-    for line in f_buffer.lines() {
-        if let Ok(line) = line {
-            if !line.is_empty() {
-                alphabet.push(line.split("\t").map(|x| x.to_owned()).collect());
-            }
-        }
-    }
-    Ok(alphabet)
-}
 
 
 struct VocabParams {
@@ -433,14 +427,16 @@ fn levenshtein(a: &[u8], b: &[u8], max_distance: u8) -> Option<u8> {
 }
 
 impl VariantModel {
-    fn new(alphabet_file: &str, vocabulary_file: &str, vocabparams: Option<VocabParams>) -> VariantModel {
+    fn new(alphabet_file: &str, vocabulary_file: &str, vocabparams: Option<VocabParams>, debug: bool) -> VariantModel {
         let mut model = VariantModel {
-            alphabet: read_alphabet(alphabet_file).expect("Error loading alphabet file"),
+            alphabet: Vec::new(),
             encoder: HashMap::new(),
             decoder: Vec::new(),
             tree: HashMap::new(),
             have_freq: false,
+            debug: debug,
         };
+        model.read_alphabet(alphabet_file).expect("Error loading alphabet file");
         model.read_vocabulary(vocabulary_file, vocabparams).expect("Error loading vocabulary file");
         model
     }
@@ -459,23 +455,26 @@ impl VariantModel {
 
         let alphabet_size = self.alphabet.len();
 
-        {
-            // Hash all strings in the lexicon
-            // and add them to the tree
-            let mut tmp_hashes: Vec<(AnaValue,VocabId)> = Vec::with_capacity(self.encoder.len());
-            for (s, id)  in self.encoder.iter() {
-                //get the anahash
-                let anahash = s.anahash(&self.alphabet);
-                tmp_hashes.push((anahash, *id));
+        // Hash all strings in the lexicon
+        // and add them to the tree
+        let mut tmp_hashes: Vec<(AnaValue,VocabId)> = Vec::with_capacity(self.decoder.len());
+        for (id, value)  in self.decoder.iter().enumerate() {
+            //get the anahash
+            let anahash = value.text.anahash(&self.alphabet);
+            if self.debug {
+                eprintln!("   -- Anavalue={} VocabId={} Text={}", &anahash, id, value.text);
             }
-
-            eprintln!("Adding all instances to the tree");
-            for (anahash, id) in tmp_hashes {
-                //add it to the tree
-                let node = self.get_or_create_node(&anahash);
-                node.instances.push(id);
-            }
+            tmp_hashes.push((anahash, id as VocabId));
         }
+        eprintln!(" - Found {} instances",tmp_hashes.len());
+
+        eprintln!("Adding all instances to the tree");
+        for (anahash, id) in tmp_hashes {
+            //add it to the tree
+            let node = self.get_or_create_node(&anahash);
+            node.instances.push(id);
+        }
+        eprintln!(" - Found {} anagrams", self.tree.len() );
 
         eprintln!("Computing deletions...");
 
@@ -511,6 +510,7 @@ impl VariantModel {
                 }
             }
         }
+        eprintln!(" - Expanded to {} anagrams", self.tree.len() );
 
         eprintln!("Computing insertions...");
 
@@ -527,7 +527,7 @@ impl VariantModel {
             parentnode.children.push(child.clone());
         }
 
-        eprintln!("Sorting tree nodes...");
+        eprintln!("Sorting node values...");
 
         // Sort the insertions in a separate step
         for (_, node) in self.tree.iter_mut() {
@@ -570,15 +570,41 @@ impl VariantModel {
         }
     }
 
-    fn contains(&self, s: &str) -> bool {
-        self.encoder.contains_key(s)
+
+
+    ///Read the alphabet from a TSV file
+    ///The file contains one alphabet entry per line, but may
+    ///consist of multiple tab-separated alphabet entries on that line, which
+    ///will be treated as the identical.
+    ///The alphabet is not limited to single characters but may consist
+    ///of longer string, a greedy matching approach will be used so order
+    ///matters (but only for this)
+    fn read_alphabet(&mut self, filename: &str) -> Result<(), std::io::Error> {
+        if self.debug {
+            eprintln!("Reading alphabet from {}...", filename);
+        }
+        let f = File::open(filename)?;
+        let f_buffer = BufReader::new(f);
+        for line in f_buffer.lines() {
+            if let Ok(line) = line {
+                if !line.is_empty() {
+                    self.alphabet.push(line.split("\t").map(|x| x.to_owned()).collect());
+                }
+
+            }
+        }
+        if self.debug {
+            eprintln!(" -- Read alphabet of size {}", self.alphabet.len());
+        }
+        Ok(())
     }
-
-
 
     ///Read vocabulary from a TSV file
     ///The parameters define what value can be read from what column
     fn read_vocabulary(&mut self, filename: &str, params: Option<VocabParams>) -> Result<(), std::io::Error> {
+        if self.debug {
+            eprintln!("Reading vocabulary from {}...", filename);
+        }
         let params = params.unwrap_or_default();
         let f = File::open(filename)?;
         let f_buffer = BufReader::new(f);
@@ -593,15 +619,21 @@ impl VariantModel {
                     } else {
                         1
                     };
-                    self.encoder.insert(text.to_string(), self.decoder.len() as u64);
+                    //self.encoder.insert(text.to_string(), self.decoder.len() as u64);
+                    if self.debug {
+                        eprintln!(" -- Adding to vocabulary: {}", text);
+                    }
                     self.decoder.push(VocabValue {
                         text: text.to_string(),
-                        norm: text.normalize_to_alphabet(&self.alphabet),
+                        //norm: text.normalize_to_alphabet(&self.alphabet),
                         frequency: frequency,
                         tokencount: text.chars().filter(|c| *c == ' ').count() as u8 + 1
                     });
                 }
             }
+        }
+        if self.debug {
+            eprintln!(" - Read vocabulary of size {}", self.decoder.len());
         }
         Ok(())
     }
@@ -735,13 +767,20 @@ fn main() {
                         .takes_value(true)
                         .multiple(true)
                         .required(true))
+                    .arg(Arg::with_name("debug")
+                        .long("debug")
+                        .short("D")
+                        .help("Debug")
+                        .required(false))
                     .get_matches();
 
     eprintln!("Loading model resources...");
     let mut model = VariantModel::new(
         args.value_of("alphabet").unwrap(),
         args.value_of("lexicon").unwrap(),
-        Some(VocabParams::default())
+        Some(VocabParams::default()),
+        args.is_present("debug")
+
     );
 
     eprintln!("Training model...");
