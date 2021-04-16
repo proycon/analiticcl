@@ -13,10 +13,14 @@ use num_traits::{Zero, One};
 ///Each type gets assigned an ID integer, carries no further meaning
 type VocabId = u64;
 
-///A normalized string encoded via the alphabet
-type NormString = Vec<u8>;
+type CharIndexType = u8;
 
-const PRIMES: &[u32] = &[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313, 317, 331, 337, 347, 349, 353, 359, 367, 373, 379, 383, 389, 397, 401, 409, 419, 421, 431, 433, 439, 443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503, 509, 521, 523, 541, 547, 557, 563, 569, 571, 577, 587, 593, 599, 601, 607, 613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691, 701, 709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809, 811, 821, 823, 827, 829, 839, 853, 857, 859, 863, 877, 881, 883, 887, 907, 911, 919, 929, 937, 941, 947, 953, 967, 971, 977, 983, 991, 997];
+type CharType = u32;
+
+///A normalized string encoded via the alphabet
+type NormString = Vec<CharIndexType>;
+
+const PRIMES: &[CharType] = &[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313, 317, 331, 337, 347, 349, 353, 359, 367, 373, 379, 383, 389, 397, 401, 409, 419, 421, 431, 433, 439, 443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503, 509, 521, 523, 541, 547, 557, 563, 569, 571, 577, 587, 593, 599, 601, 607, 613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691, 701, 709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809, 811, 821, 823, 827, 829, 839, 853, 857, 859, 863, 877, 881, 883, 887, 907, 911, 919, 929, 937, 941, 947, 953, 967, 971, 977, 983, 991, 997];
 
 #[derive(Clone)]
 struct VocabValue {
@@ -97,7 +101,7 @@ impl Anahashable for str {
                     let l = element.chars().count();
                     if let Some(slice) = self.get(pos..pos+l) {
                         if slice == element {
-                            let charvalue = AnaValue::character(seqnr);
+                            let charvalue = AnaValue::character(seqnr as CharIndexType);
                             hash = hash.insert(&charvalue);
                             matched = true;
                             skip = l-1;
@@ -108,7 +112,7 @@ impl Anahashable for str {
             }
             if !matched {
                 //Highest one is reserved for UNK
-                let charvalue = AnaValue::character(alphabet.len());
+                let charvalue = AnaValue::character(alphabet.len() as CharIndexType);
                 hash = hash.insert(&charvalue);
             }
         }
@@ -132,7 +136,7 @@ impl Anahashable for str {
                     let l = element.chars().count();
                     if let Some(slice) = self.get(pos..pos+l) {
                         if slice == element {
-                            result.push(i as u8);
+                            result.push(i as CharIndexType);
                             skip = l-1;
                             break 'abciter;
                         }
@@ -141,7 +145,7 @@ impl Anahashable for str {
             }
             if !matched {
                 //Highest one is reserved for UNK
-                result.push(alphabet.len() as u8);
+                result.push(alphabet.len() as CharIndexType);
             }
         }
         result
@@ -149,22 +153,26 @@ impl Anahashable for str {
 
 }
 
-//Trait for objects that are anahashes
+/// This trait can be applied to types
+/// that can function as anahashes.
+/// It can be implemented  for integer types.
 trait Anahash: One + Zero {
-    fn character(seqnr: usize) -> AnaValue;
+    fn character(seqnr: CharIndexType) -> AnaValue;
     fn empty() -> AnaValue;
     fn is_empty(&self) -> bool;
     fn insert(&self, value: &AnaValue) -> AnaValue;
     fn delete(&self, value: &AnaValue) -> Option<AnaValue>;
     fn contains(&self, value: &AnaValue) -> bool;
-    fn iter(&self, alphabet_size: usize) -> AnaValueIterator;
-    fn char_count(&self, alphabet_size: usize) -> u16;
+    fn iter(&self, alphabet_size: CharIndexType) -> RecurseDeletionIterator;
+    fn iter_parents(&self, alphabet_size: CharIndexType) -> DeletionIterator;
+    fn char_count(&self, alphabet_size: CharIndexType) -> u16;
+    fn alphabet_upper_bound(&self, alphabet_size: CharIndexType) -> CharIndexType;
 }
 
 impl Anahash for AnaValue {
     /// Computes the Anagram value for the n'th entry in the alphabet
-    fn character(seqnr: usize) -> AnaValue {
-        BigUint::from(PRIMES[seqnr])
+    fn character(seqnr: CharIndexType) -> AnaValue {
+        BigUint::from(PRIMES[seqnr as usize])
     }
 
     /// Insert the characters represented by the anagram value, returning the result
@@ -195,10 +203,26 @@ impl Anahash for AnaValue {
         }
     }
 
-    /// Iterates over all characters in an anagram value
-    /// Does not yield duplicates!
-    fn iter(&self, alphabet_size: usize) -> AnaValueIterator {
-        AnaValueIterator::new(self, alphabet_size)
+    /// Iterate over all characters in this alphabet
+    /// Returns DeletionResult instances that holds
+    /// a `charindex` attribute indicating the index
+    /// in the alphabet. If there are duplicates,
+    /// this iterator returns them all.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// for (result,_depth) in anavalue.iter() {
+    ///     result.charindex
+    /// }
+    /// ```
+    fn iter(&self, alphabet_size: CharIndexType) -> RecurseDeletionIterator {
+        RecurseDeletionIterator::new(self, alphabet_size, true, None)
+    }
+
+    /// Iterator over all the parents that are generated when applying all deletions within edit distance 1
+    fn iter_parents(&self, alphabet_size: CharIndexType) -> DeletionIterator {
+        DeletionIterator::new(self, alphabet_size)
     }
 
     /// The value of an empty anahash
@@ -214,27 +238,42 @@ impl Anahash for AnaValue {
     }
 
     /// Computes the number of characters in this anagram
-    fn char_count(&self, alphabet_size: usize) -> u16 {
-        if self.is_empty() {
-            0
-        } else {
-            return 1 + self.iter(alphabet_size).next().expect("Char Iterator").char_count(alphabet_size)
+    fn char_count(&self, alphabet_size: CharIndexType) -> u16 {
+        self.iter(alphabet_size).count() as u16
+    }
+
+
+    /// Returns the the upper bound of the alphabet size
+    /// as used in this anavalue, which may be lower
+    /// than the actual alphabet size.
+    /// Returns a character index in the alphabet
+    fn alphabet_upper_bound(&self, alphabet_size: CharIndexType) -> CharIndexType {
+        let mut maxcharindex = 0;
+        for (result, _) in self.iter(alphabet_size) {
+            if result.charindex > maxcharindex {
+                maxcharindex = result.charindex;
+            }
         }
+        maxcharindex
     }
 
 }
 
-/// Returns all AnaValues that are contained
-/// when doing single deletion
-struct AnaValueIterator<'a> {
+///////////////////////////////////////////////////////////////////////////////////////
+
+/// Returns all AnaValues that are formed
+/// when doing single deletion. This
+/// is the most basic iterator form
+/// from which most others are derived.
+struct DeletionIterator<'a> {
     value: &'a AnaValue,
-    alphabet_size: usize,
+    alphabet_size: CharIndexType,
     iteration: usize,
 }
 
-impl<'a> AnaValueIterator<'a> {
-    pub fn new(value: &'a AnaValue, alphabet_size: usize) -> AnaValueIterator {
-        AnaValueIterator {
+impl<'a> DeletionIterator<'a> {
+    pub fn new(value: &'a AnaValue, alphabet_size: CharIndexType) -> DeletionIterator {
+        DeletionIterator {
             value: value,
             alphabet_size: alphabet_size,
             iteration: 0
@@ -242,16 +281,46 @@ impl<'a> AnaValueIterator<'a> {
     }
 }
 
-impl<'a> Iterator for AnaValueIterator<'a> {
-    type Item = AnaValue;
+#[derive(Clone)]
+struct DeletionResult {
+    value: Option<AnaValue>,
+    charindex: CharIndexType
+}
+
+impl Deref for DeletionResult {
+    type Target = AnaValue;
+
+    fn deref(&self) -> &Self::Target {
+        match self.value {
+            Some(value) => &value,
+            None => &AnaValue::empty()
+        }
+    }
+}
+
+impl DeletionResult {
+    fn take(&mut self) -> AnaValue {
+        match self.value {
+            Some(value) => value,
+            None => AnaValue::empty()
+        }
+    }
+}
+
+impl<'a> Iterator for DeletionIterator<'a> {
+    type Item = DeletionResult;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.value == &AnaValue::one() || self.iteration == self.alphabet_size {
+        if self.value == &AnaValue::one() || self.iteration == self.alphabet_size as usize {
             None
         } else {
+            let charindex: CharIndexType = self.alphabet_size - (self.iteration as u8) - 1;
             self.iteration += 1;
-            if let Some(result) = self.value.delete(&AnaValue::character(self.iteration-1)) {
-                Some(result)
+            if let Some(result) = self.value.delete(&AnaValue::character(charindex)) {
+                Some(DeletionResult {
+                    value: Some(result),
+                    charindex: charindex
+                })
             } else {
                 self.next() //recurse
             }
@@ -260,10 +329,85 @@ impl<'a> Iterator for AnaValueIterator<'a> {
 }
 
 
+///////////////////////////////////////////////////////////////////////////////////////
+
+struct RecurseDeletionIterator<'a> {
+    iterator: DeletionIterator<'a>,
+    depth: u32,
+    queue: VecDeque<(DeletionResult,u32)>, //second tuple argument is the depth at which the iterator starts
+    alphabet_size: CharIndexType,
+    singlebeam: bool, //caps the queue at every expansion
+    maxdepth: Option<u32>, //max depth
+    valueholder: Option<AnaValue>, //owns and hold the AnaValue when needed for the current iteration
+}
+
+impl<'a> RecurseDeletionIterator<'a> {
+    pub fn new(value: &'a AnaValue, alphabet_size: CharIndexType, singlebeam: bool, maxdepth: Option<u32>) -> RecurseDeletionIterator<'a> {
+        RecurseDeletionIterator {
+            iterator: DeletionIterator::new(value, alphabet_size),
+            depth: 0,
+            queue: VecDeque::new(),
+            alphabet_size: 0,
+            singlebeam: singlebeam,
+            maxdepth: maxdepth,
+            valueholder: None, //not needed here yet
+        }
+    }
+}
 
 
+impl<'a> Iterator for RecurseDeletionIterator<'a> {
+    type Item = (DeletionResult,u32);
 
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(maxdepth) = self.maxdepth {
+            if self.depth >= maxdepth {
+                //Discard the current sub-iterator and give back a new one
+                if !self.renew() {
+                    //
+                    return None;
+                }
+            }
+        }
 
+        match self.iterator.next() {
+            Some(next) => {
+                if self.singlebeam {
+                    //we are in single beam mode, clear the queue before adding to it
+                    self.queue.clear();
+                }
+                self.queue.push_front((next,self.depth + 1));
+                self.queue.front().cloned() //return a clone of the last queued item (it may outlive the actual queue)
+            }
+            None => {
+                //iterator is depleted, create new one
+                if self.renew() {
+                    self.next()
+                } else {
+                    None
+                }
+            },
+        }
+    }
+
+}
+
+impl<'a> RecurseDeletionIterator<'a> {
+    /// Renew the sub-iterator. Returns a boolean to indicate success or failure.
+    fn renew(&mut self) -> bool {
+        if let Some((value,depth)) = self.queue.pop_front() {
+            self.valueholder = value.value; //take ownership
+            self.depth = depth;
+            self.iterator = DeletionIterator::new(&self.valueholder.expect("getting value"),self.alphabet_size);
+            true
+        } else {
+            //all iterators are depleted, we are done
+            false
+        }
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////
 
 
 struct VocabParams {
@@ -282,114 +426,6 @@ impl Default for VocabParams {
     }
 }
 
-////////////////////////////////////////////////////////////////////
-
-/*
-
-///Recursive iterator over anagram values
-///Can be used to compute all deletions
-///Never returns duplicates
-struct AncestorIterator<'a> {
-    alphabet_size: usize,
-    queue: VecDeque<(AnaValue,usize)>, //(child,parent,depth)
-    visited: HashSet<AnaValue>,
-    index: Option<&'a AnaIndex>,
-}
-
-impl<'a> AncestorIterator<'a> {
-    fn new(anavalue: AnaValue, index: Option<&'a AnaIndex>, alphabet_size: usize) -> Self {
-        Self {
-            alphabet_size: alphabet_size,
-            index: index,
-            queue: VecDeque::from(vec!((anavalue, 0))),
-            visited: HashSet::new(),
-        }
-    }
-
-    ///Tests if the specified value has already been queued
-    fn queued(&self, refvalue: &AnaValue) -> bool {
-        for item in self.queue.iter() {
-            if *refvalue == item.0 {
-                return true
-            }
-        }
-        false
-    }
-
-}
-
-impl<'a> Iterator for AncestorIterator<'a>
-{
-    type Item = (AnaValue, usize);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        //Pop the next time to consider from the queue
-        if let Some((anahash, depth)) = self.queue.pop_front() {
-            //Do not expand items that already have parents in the index
-            let expand = if let Some(index) = self.index {
-                if let Some(node) = index.get(&anahash) {
-                    node.parents.is_empty()
-                } else {
-                    true
-                }
-            } else {
-                true
-            };
-            if expand {
-                for deletion in anahash.iter(self.alphabet_size) {
-                    let child = anahash.delete(&deletion);
-                    if !self.visited.contains(&child) && !self.queued(&child) {
-                        self.queue.push_back((child, depth));
-                    }
-                }
-            }
-            self.visited.insert(anahash.clone());
-            Some((anahash, depth))
-        } else {
-            None
-        }
-    }
-
-}
-*/
-
-
-////////////////////////////////////////////////////////////////////
-/*
-///Merges a sorted source vector into a sorted target vector, ignoring duplicates
-fn merge_into<T: std::cmp::Ord + Clone>(target: &mut Vec<T>, source: &[T]) {
-    let mut pos = 0;
-    'outer: for elem in source.iter() {
-        for refelem in &target[pos..] {
-            if *refelem == *elem {
-                break 'outer;
-            } else if *refelem >= *elem {
-                break;
-            }
-            pos += 1;
-        }
-        target.insert(pos, elem.clone());
-    }
-}
-
-///Merges a sorted source vector into a sorted target vector, ignoring duplicates
-fn merge_while_expanding<F>(target: &mut Vec<AnaValue>, source: Vec<AnaValue>, map_callback: F)
-    where F: Fn(&AnaValue) -> Vec<AnaValue> {
-    let mut pos = 0;
-    'outer: for elem in source {
-        for refelem in &target[pos..] {
-            if *refelem == elem {
-                break 'outer;
-            } else if *refelem >= elem {
-                break;
-            }
-            pos += 1;
-        }
-        target.insert(pos, elem);
-        merge_while_expanding(target, map_callback(target.get(pos).unwrap()), map_callback);
-    }
-}
-*/
 
 ///Compute levenshtein distance between two normalised strings
 ///Returns None if the maximum distance is exceeded
@@ -483,8 +519,8 @@ impl VariantModel {
         model
     }
 
-    fn alphabet_size(&self) -> usize {
-        self.alphabet.len() + 1 //+1 for UNK
+    fn alphabet_size(&self) -> CharIndexType {
+        self.alphabet.len() as CharIndexType + 1 //+1 for UNK
     }
 
     fn get_or_create_node<'a,'b>(&'a mut self, anahash: &'b AnaValue) -> &'a mut AnaIndexNode {
@@ -565,7 +601,7 @@ impl VariantModel {
                 if self.debug {
                     eprintln!(" - Depth {}: @{}/{}",depth+1, i+1, length );
                 }
-                let newparents: Vec<AnaValue> = anahash.iter(alphabet_size).collect();
+                let newparents: Vec<AnaValue> = anahash.iter_parents(alphabet_size).map(|x| *x).collect();
                 target.insert(anahash.clone(), newparents );
 
                 if depth + 1 < max_distance {
@@ -761,11 +797,20 @@ impl VariantModel {
 
     /// Find the nearest anahashes that exists in the model (computing anahashes in the
     /// neigbhourhood if needed). Note: this also returns anahashes that have no instances
-    fn find_nearest_anahashes(&self, anahash: &AnaValue, max_distance: u8) -> Vec<AnaValue> {
+    fn find_nearest_anahashes<'a>(&'a self, anahash: &AnaValue, max_distance: u8) -> Vec<&'a AnaValue> {
+        let nearest: Vec<&AnaValue> = Vec::new();
+
+        if let Some((matched_anahash, node)) = self.index.get_key_value(anahash) {
+            //the easiest case, this anahash exists in the model!
+            nearest.push(matched_anahash);
+        }
+
+
+
         if self.index.contains_key(anahash) {
-            //the easiest case, this anahash exists in the model
-            vec!(anahash.clone())
-        } else if max_distance > 0 {
+        }
+
+        if max_distance > 0 {
             let mut parents = HashMap::new();
             self.compute_deletions(&mut parents, &[anahash.clone()], max_distance);
             if let Some(results) = parents.get(&anahash) {
