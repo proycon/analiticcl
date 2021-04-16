@@ -47,6 +47,8 @@ type Alphabet = Vec<Vec<String>>;
 struct AnaIndexNode {
     ///Maps an anagram value to all existing instances that instantiate it
     instances: Vec<VocabId>,
+
+    charcount: u16
 }
 
 
@@ -149,6 +151,7 @@ trait Anahash: One + Zero {
     fn delete(&self, value: &AnaValue) -> Option<AnaValue>;
     fn contains(&self, value: &AnaValue) -> bool;
     fn iter(&self, alphabet_size: usize) -> AnaValueIterator;
+    fn char_count(&self, alphabet_size: usize) -> u16;
 }
 
 impl Anahash for AnaValue {
@@ -188,7 +191,7 @@ impl Anahash for AnaValue {
     /// Iterates over all characters in an anagram value
     /// Does not yield duplicates!
     fn iter(&self, alphabet_size: usize) -> AnaValueIterator {
-        AnaValueIterator::new(self.clone(), alphabet_size)
+        AnaValueIterator::new(self, alphabet_size)
     }
 
     /// The value of an empty anahash
@@ -197,18 +200,27 @@ impl Anahash for AnaValue {
         AnaValue::one()
     }
 
+    /// Computes the number of characters in this anagram
+    fn char_count(&self, alphabet_size: usize) -> u16 {
+        if self <= &AnaValue::one() {
+            0
+        } else {
+            return 1 + self.iter(alphabet_size).next().expect("Iterator").char_count(alphabet_size)
+        }
+    }
+
 }
 
 /// Iterates over all characters in an anagram value
 /// Does not yield duplicates
-struct AnaValueIterator {
-    value: AnaValue,
+struct AnaValueIterator<'a> {
+    value: &'a AnaValue,
     alphabet_size: usize,
     iteration: usize,
 }
 
-impl AnaValueIterator {
-    pub fn new(value: AnaValue, alphabet_size: usize) -> AnaValueIterator {
+impl<'a> AnaValueIterator<'a> {
+    pub fn new(value: &'a AnaValue, alphabet_size: usize) -> AnaValueIterator {
         AnaValueIterator {
             value: value,
             alphabet_size: alphabet_size,
@@ -217,11 +229,11 @@ impl AnaValueIterator {
     }
 }
 
-impl<'a> Iterator for AnaValueIterator {
+impl<'a> Iterator for AnaValueIterator<'a> {
     type Item = AnaValue;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.value == AnaValue::one() || self.iteration == self.alphabet_size {
+        if self.value == &AnaValue::one() || self.iteration == self.alphabet_size {
             None
         } else {
             self.iteration += 1;
@@ -457,11 +469,18 @@ impl VariantModel {
         model
     }
 
+    fn alphabet_size(&self) -> usize {
+        self.alphabet.len() + 1 //+1 for UNK
+    }
+
     fn get_or_create_node<'a,'b>(&'a mut self, anahash: &'b AnaValue) -> &'a mut AnaIndexNode {
             if self.contains_key(anahash) {
                 self.index.get_mut(anahash).expect("get_mut on node after check")
             } else {
-                self.index.insert(anahash.clone(), AnaIndexNode::default());
+                self.index.insert(anahash.clone(), AnaIndexNode {
+                    instances: Vec::new(),
+                    charcount: anahash.char_count(self.alphabet_size())
+                });
                 self.index.get_mut(&anahash).expect("get_mut on node after insert")
             }
     }
@@ -469,7 +488,6 @@ impl VariantModel {
     fn train(&mut self) {
         eprintln!("Computing anagram values for all items in the lexicon...");
 
-        let alphabet_size = self.alphabet.len() + 1; //+1 for UNK
 
         // Hash all strings in the lexicon
         // and add them to the index
@@ -499,7 +517,7 @@ impl VariantModel {
             eprintln!("Computing deletions within distance {}...",max_distance);
         }
 
-        let alphabet_size = self.alphabet.len() + 1; //+1 for UNK
+        let alphabet_size = self.alphabet_size();
 
         let mut queue: Vec<AnaValue> = Vec::from(queue);
 
