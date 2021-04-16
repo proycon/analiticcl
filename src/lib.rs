@@ -9,6 +9,7 @@ pub mod anahash;
 pub mod index;
 pub mod vocab;
 pub mod distance;
+pub mod test;
 
 
 pub use crate::types::*;

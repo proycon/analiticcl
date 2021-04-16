@@ -3,7 +3,9 @@ authors = ["Maarten van Gompel <proycon@anaproy.nl>"]
 edition = "2018"
 name = "analiticcl"
 version = "0.1.0"
+
 [dependencies]
 clap = "*"
 num-bigint = "*"
 num-traits = "*"
+matches = "*"

@@ -138,10 +138,27 @@ impl Anahash for AnaValue {
     ///
     /// # Examples
     ///
-    /// ```
-    /// for (result,_depth) in anavalue.iter() {
-    ///     result.charindex
+    /// ```ignore
+    /// for (deletion, depth) in anavalue.iter() {
+    ///  //...
     /// }
+    /// ```
+    ///
+    /// ```
+    /// # use analiticcl::*;
+    /// # use analiticcl::test::*;
+    /// # use std::ops::Deref;
+    /// # let (alphabet, alphabet_size) = get_test_alphabet();
+    /// let anavalue: AnaValue = "house".anahash(&alphabet);
+    /// let mut chars: Vec<AnaValue> = Vec::new();
+    /// for (deletion, _depth) in  anavalue.iter(alphabet_size) {
+    ///    chars.push(AnaValue::character(deletion.charindex));
+    /// }
+    /// assert_eq!(chars.get(0).unwrap(), &"u".anahash(&alphabet));
+    /// assert_eq!(chars.get(1).unwrap(), &"s".anahash(&alphabet));
+    /// assert_eq!(chars.get(2).unwrap(), &"o".anahash(&alphabet));
+    /// assert_eq!(chars.get(3).unwrap(), &"h".anahash(&alphabet));
+    /// assert_eq!(chars.get(4).unwrap(), &"e".anahash(&alphabet));
     /// ```
     fn iter(&self, alphabet_size: CharIndexType) -> RecurseDeletionIterator {
         RecurseDeletionIterator::new(self.clone(), alphabet_size, true, None, false)
@@ -222,7 +239,7 @@ impl<'a> DeletionIterator<'a> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct DeletionResult {
     pub value: AnaValue,
     pub charindex: CharIndexType,
