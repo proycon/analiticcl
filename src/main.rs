@@ -218,7 +218,7 @@ impl Anahash for AnaValue {
     /// }
     /// ```
     fn iter(&self, alphabet_size: CharIndexType) -> RecurseDeletionIterator {
-        RecurseDeletionIterator::new(self, alphabet_size, true, None, false)
+        RecurseDeletionIterator::new(self.clone(), alphabet_size, true, None, false)
     }
 
     /// Iterator over all the parents that are generated when applying all deletions within edit distance 1
@@ -228,7 +228,7 @@ impl Anahash for AnaValue {
 
     /// Iterator over all the possible deletions within the specified anagram distance
     fn iter_deletions(&self, alphabet_size: CharIndexType, max_distance: Option<u32>, breadthfirst: bool) -> RecurseDeletionIterator {
-        RecurseDeletionIterator::new(self, alphabet_size, false, max_distance, breadthfirst)
+        RecurseDeletionIterator::new(self.clone(), alphabet_size, false, max_distance, breadthfirst)
     }
 
     /// The value of an empty anahash
@@ -331,37 +331,74 @@ impl<'a> Iterator for DeletionIterator<'a> {
     }
 }
 
+///////////////////////////////////////////////////////////////////////////////////////
+
+struct OwnedDeletionIterator {
+    value: AnaValue,
+    alphabet_size: CharIndexType,
+    iteration: usize,
+}
+
+impl OwnedDeletionIterator {
+    pub fn new(value: AnaValue, alphabet_size: CharIndexType) -> OwnedDeletionIterator {
+        OwnedDeletionIterator {
+            value: value,
+            alphabet_size: alphabet_size,
+            iteration: 0
+        }
+    }
+}
+
+impl Iterator for OwnedDeletionIterator {
+    type Item = DeletionResult;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.value == AnaValue::one() || self.iteration == self.alphabet_size as usize {
+            None
+        } else {
+            let charindex: CharIndexType = self.alphabet_size - (self.iteration as u8) - 1;
+            self.iteration += 1;
+            if let Some(result) = self.value.delete(&AnaValue::character(charindex)) {
+                Some(DeletionResult {
+                    value: result,
+                    charindex: charindex
+                })
+            } else {
+                self.next() //recurse
+            }
+        }
+    }
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////////////
 
-struct RecurseDeletionIterator<'a> {
-    iterator: DeletionIterator<'a>,
+struct RecurseDeletionIterator {
+    iterator: OwnedDeletionIterator,
     depth: u32,
     queue: VecDeque<(DeletionResult,u32)>, //second tuple argument is the depth at which the iterator starts
     alphabet_size: CharIndexType,
     singlebeam: bool, //caps the queue at every expansion
     breadthfirst: bool,
     maxdepth: Option<u32>, //max depth
-    valueholder: Option<AnaValue>, //owns and hold the AnaValue when needed for the current iteration
 }
 
-impl<'a> RecurseDeletionIterator<'a> {
-    pub fn new(value: &'a AnaValue, alphabet_size: CharIndexType, singlebeam: bool, maxdepth: Option<u32>, breadthfirst: bool) -> RecurseDeletionIterator<'a> {
+impl RecurseDeletionIterator {
+    pub fn new(value: AnaValue, alphabet_size: CharIndexType, singlebeam: bool, maxdepth: Option<u32>, breadthfirst: bool) -> RecurseDeletionIterator {
         RecurseDeletionIterator {
-            iterator: DeletionIterator::new(value, alphabet_size),
+            iterator: OwnedDeletionIterator::new(value, alphabet_size),
             depth: 0,
             queue: VecDeque::new(),
             alphabet_size: 0,
             singlebeam: singlebeam,
             breadthfirst: breadthfirst,
             maxdepth: maxdepth,
-            valueholder: None, //not needed here yet
         }
     }
 }
 
 
-impl<'a> Iterator for RecurseDeletionIterator<'a> {
+impl Iterator for RecurseDeletionIterator {
     type Item = (DeletionResult,u32);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -403,15 +440,14 @@ impl<'a> Iterator for RecurseDeletionIterator<'a> {
 
 }
 
-impl<'a> RecurseDeletionIterator<'a> {
+impl RecurseDeletionIterator {
     /// Renew the sub-iterator. Returns a boolean to indicate success or failure.
     fn renew(&mut self) -> bool {
         if let Some((value,depth)) = self.queue.pop_front() {
-            self.valueholder = Some(value.value); //take ownership
             self.depth = depth;
 
             //Create a new iterator
-            self.iterator = DeletionIterator::new(self.valueholder.as_ref().expect("unpacking valueholder"),
+            self.iterator = OwnedDeletionIterator::new(value.value,
               match self.singlebeam {
                 false => self.alphabet_size,
                 true => value.charindex //this is an optimization, in single beam mode we can effectively shrink our alphabet as we go
@@ -598,7 +634,11 @@ impl VariantModel {
         }
     }
 
+    /*
     fn compute_deletions(&self, target: &mut HashMap<AnaValue,Vec<AnaValue>>, queue: &[AnaValue], max_distance: u8)  {
+        //TODO: REMOVE, redundant
+        //
+        //
         if self.debug {
             eprintln!("Computing deletions within distance {}...",max_distance);
         }
@@ -619,7 +659,7 @@ impl VariantModel {
                 if self.debug {
                     eprintln!(" - Depth {}: @{}/{}",depth+1, i+1, length );
                 }
-                let newparents: Vec<AnaValue> = anahash.iter_parents(alphabet_size).map(|x| *x).collect();
+                let newparents: Vec<AnaValue> = anahash.iter_parents(alphabet_size).map(|x| x.clone()).collect();
                 target.insert(anahash.clone(), newparents );
 
                 if depth + 1 < max_distance {
@@ -643,6 +683,7 @@ impl VariantModel {
         }
 
     }
+    */
 
 
 
