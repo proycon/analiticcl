@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::ops::Deref;
 use num_bigint::BigUint;
 use num_traits::{Zero, One};
+use std::iter::{FromIterator,IntoIterator};
 
 use crate::types::*;
 
@@ -138,12 +139,6 @@ impl Anahash for AnaValue {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// for (deletion, depth) in anavalue.iter() {
-    ///  //...
-    /// }
-    /// ```
-    ///
     /// ```
     /// # use analiticcl::*;
     /// # use analiticcl::test::*;
@@ -151,9 +146,11 @@ impl Anahash for AnaValue {
     /// # let (alphabet, alphabet_size) = get_test_alphabet();
     /// let anavalue: AnaValue = "house".anahash(&alphabet);
     /// let mut chars: Vec<AnaValue> = Vec::new();
-    /// for (deletion, _depth) in  anavalue.iter(alphabet_size) {
+    /// for (deletion, depth) in anavalue.iter(alphabet_size) {
     ///    chars.push(AnaValue::character(deletion.charindex));
+    ///    assert_eq!(chars.len(), depth as usize);
     /// }
+    /// assert_eq!(chars.len(), 5);
     /// assert_eq!(chars.get(0).unwrap(), &"u".anahash(&alphabet));
     /// assert_eq!(chars.get(1).unwrap(), &"s".anahash(&alphabet));
     /// assert_eq!(chars.get(2).unwrap(), &"o".anahash(&alphabet));
@@ -274,51 +271,10 @@ impl<'a> Iterator for DeletionIterator<'a> {
     }
 }
 
-///////////////////////////////////////////////////////////////////////////////////////
-
-pub struct OwnedDeletionIterator {
-    value: AnaValue,
-    alphabet_size: CharIndexType,
-    iteration: usize,
-}
-
-impl OwnedDeletionIterator {
-    pub fn new(value: AnaValue, alphabet_size: CharIndexType) -> OwnedDeletionIterator {
-        OwnedDeletionIterator {
-            value: value,
-            alphabet_size: alphabet_size,
-            iteration: 0
-        }
-    }
-}
-
-impl Iterator for OwnedDeletionIterator {
-    type Item = DeletionResult;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.value == AnaValue::one() || self.iteration == self.alphabet_size as usize {
-            None
-        } else {
-            let charindex: CharIndexType = self.alphabet_size - (self.iteration as u8) - 1;
-            self.iteration += 1;
-            if let Some(result) = self.value.delete(&AnaValue::character(charindex)) {
-                Some(DeletionResult {
-                    value: result,
-                    charindex: charindex
-                })
-            } else {
-                self.next() //recurse
-            }
-        }
-    }
-}
-
 
 ///////////////////////////////////////////////////////////////////////////////////////
 
 pub struct RecurseDeletionIterator {
-    iterator: OwnedDeletionIterator,
-    depth: u32,
     queue: VecDeque<(DeletionResult,u32)>, //second tuple argument is the depth at which the iterator starts
     alphabet_size: CharIndexType,
     singlebeam: bool, //caps the queue at every expansion
@@ -328,10 +284,10 @@ pub struct RecurseDeletionIterator {
 
 impl RecurseDeletionIterator {
     pub fn new(value: AnaValue, alphabet_size: CharIndexType, singlebeam: bool, maxdepth: Option<u32>, breadthfirst: bool) -> RecurseDeletionIterator {
+        eprintln!("DEBUG NEW");
+        let queue: Vec<(DeletionResult,u32)> =  vec!((DeletionResult { value: value, charindex: 0 },0));
         RecurseDeletionIterator {
-            iterator: OwnedDeletionIterator::new(value, alphabet_size),
-            depth: 0,
-            queue: VecDeque::new(),
+            queue: VecDeque::from(queue),
             alphabet_size: 0,
             singlebeam: singlebeam,
             breadthfirst: breadthfirst,
@@ -345,61 +301,54 @@ impl Iterator for RecurseDeletionIterator {
     type Item = (DeletionResult,u32);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(maxdepth) = self.maxdepth {
-            if self.depth >= maxdepth {
-                //Discard the current sub-iterator and give back a new one
-                if !self.renew() {
-                    //
-                    return None;
+        if self.breadthfirst {
+            //breadth first search
+            if let Some((node, depth)) = self.queue.pop_front() {
+                if self.maxdepth.is_none() || depth < self.maxdepth.expect("get maxdepth") {
+                    let iter_children = DeletionIterator::new(&node.value, self.alphabet_size);
+                    self.queue.extend(iter_children.map(|child| (child, depth + 1)));
                 }
-            }
-        }
 
-        match self.iterator.next() {
-            Some(next) => {
-                if self.singlebeam {
-                    //we are in single beam mode, clear the queue before adding to it
-                    self.queue.clear();
-                }
-                if self.breadthfirst {
-                    self.queue.push_back((next,self.depth + 1));
-                    self.queue.back().cloned() //return a clone of the last queued item (it may outlive the actual queue)
-                } else {
-                    //depth first
-                    self.queue.push_front((next,self.depth + 1));
-                    self.queue.front().cloned() //return a clone of the last queued item (it may outlive the actual queue)
-                }
-            }
-            None => {
-                //iterator is depleted, create new one
-                if self.renew() {
+                //don't yield the root element, just recurse in that case
+                if depth == 0 {
                     self.next()
                 } else {
-                    None
+                    Some((node,depth))
                 }
-            },
-        }
-    }
-
-}
-
-impl RecurseDeletionIterator {
-    /// Renew the sub-iterator. Returns a boolean to indicate success or failure.
-    pub fn renew(&mut self) -> bool {
-        if let Some((value,depth)) = self.queue.pop_front() {
-            self.depth = depth;
-
-            //Create a new iterator
-            self.iterator = OwnedDeletionIterator::new(value.value,
-              match self.singlebeam {
-                false => self.alphabet_size,
-                true => value.charindex //this is an optimization, in single beam mode we can effectively shrink our alphabet as we go
-             }
-            );
-            true
+            } else {
+                None
+            }
         } else {
-            //all iterators are depleted, we are done
-            false
+            //depth first search  (pre-order)
+            if let Some((node, depth)) = self.queue.pop_back() {
+                if self.maxdepth.is_none() || depth < self.maxdepth.expect("get maxdepth") {
+                    let mut iter_children = DeletionIterator::new(&node.value, self.alphabet_size);
+
+                    if self.singlebeam {
+                        // single beam, just dive to the bottom in a single line and stop
+                        if let Some(child) = iter_children.next() {
+                            self.queue.push_back((child, depth + 1));
+                        }
+                    } else {
+                        //reverse the order in which we obtained them
+                        let children = iter_children.collect::<Vec<_>>();
+                        let children = children.into_iter().rev();
+
+                        self.queue.extend(children.map(|child| (child, depth + 1)));
+                    }
+                }
+
+                //don't yield the root element, just recurse in that case
+                if depth == 0 {
+                    self.next()
+                } else {
+                    Some((node,depth))
+                }
+            } else {
+                None
+            }
         }
     }
+
 }
+
