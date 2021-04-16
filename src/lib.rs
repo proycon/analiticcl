@@ -331,16 +331,43 @@ impl VariantModel {
     pub fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, max_distance: u8) -> Vec<&'a AnaValue> {
         let mut nearest: Vec<&AnaValue> = Vec::new();
 
+        if self.debug {
+            eprintln!("(finding nearest anagram matches for focus anavalue {})", focus);
+        }
+
         if let Some((matched_anahash, _node)) = self.index.get_key_value(focus) {
             //the easiest case, this anahash exists in the model!
             if self.debug {
-                eprintln!("(found exact match)");
+                eprintln!(" (found exact match)");
             }
             nearest.push(matched_anahash);
         }
 
         let (focus_alphabet_size, focus_charcount) = focus.alphabet_upper_bound(self.alphabet_size());
         let focus_highest_alphabet_char = AnaValue::character(focus_alphabet_size);
+
+
+        //Find anagrams reachable through insertions within the the maximum distance
+        for distance in 1..=max_distance {
+            let mut count = 0;
+            let search_charcount = focus_charcount + distance as u16;
+            if self.debug {
+                eprintln!(" (testing insertion at distance {}, charcount {})", distance, search_charcount);
+            }
+            if let Some(sortedindex) = self.sortedindex.get(&search_charcount) {
+                nearest.extend( sortedindex.iter().filter(|candidate| {
+                    if candidate.contains(focus) {//this is where the magic happens
+                        count += 1;
+                        true
+                    } else {
+                        false
+                    }
+                }));
+            }
+            if self.debug {
+                eprintln!(" (found {} candidates)", count);
+            }
+        }
 
         /*
         //Compute upper bounds for each of the distances
@@ -356,28 +383,41 @@ impl VariantModel {
 
         // Do a breadth first search for deletions
         for (deletion,distance) in focus.iter_deletions(focus_alphabet_size, Some(max_distance as u32), true) {
-            eprintln!("(testing deletion at distance {}: {})", distance, deletion.value);
+            if self.debug {
+                eprintln!(" (testing deletion at distance {} for anavalue {})", distance, deletion.value);
+            }
             if let Some((matched_anahash, _node)) = self.index.get_key_value(&deletion) {
                 if self.debug {
-                    eprintln!("(deletion matches)");
+                    eprintln!("  (deletion matches)");
                 }
                 //This deletion exists in the model
                 nearest.push(matched_anahash);
             }
 
-            //Find possible insertions starting from this deletion
-            if let Some(sortedindex) = self.sortedindex.get(&(distance as u16)) { //corresponds to distance + 1
-                for candidate in sortedindex {
-                    if candidate.contains(&deletion) {
-                        if self.debug {
-                            eprintln!("(found anagram that subsumes this deletion: {})", candidate);
+            if distance == max_distance as u32 { //no need to check for distances that are not the max
+                let mut count = 0;
+                let search_charcount = focus_charcount + distance as u16;
+                //Find possible insertions starting from this deletion
+                if let Some(sortedindex) = self.sortedindex.get(&search_charcount) {
+                    nearest.extend( sortedindex.iter().filter(|candidate| {
+                        if candidate.contains(focus) {//this is where the magic happens
+                            count += 1;
+                            true
+                        } else {
+                            false
                         }
-                        nearest.push(candidate);
-                    }
+                    }));
+                }
+                if self.debug {
+                    eprintln!("  (added {} candidates)", count);
                 }
             }
+
         }
 
+        if self.debug {
+            eprintln!("(found {} anagram matches in total for focus anavalue {})", nearest.len(), focus);
+        }
         nearest
     }
 
