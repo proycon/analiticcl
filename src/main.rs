@@ -1,7 +1,7 @@
 extern crate clap;
 extern crate num_bigint;
 
-use std::collections::{HashMap,HashSet,VecDeque,BinaryHeap};
+use std::collections::{HashMap,HashSet,VecDeque,BTreeMap};
 use std::fs::File;
 use std::io::{self, Write,Read,BufReader,BufRead,Error};
 use std::ops::Deref;
@@ -60,7 +60,13 @@ struct VariantModel {
 
     alphabet: Alphabet,
 
+    ///The main index, mapping anagrams to instances
     index: AnaIndex,
+
+    ///A secondary sorted index
+    ///indices of the outer vector correspond to the length of an anagram (in chars)  - 1
+    ///Inner vector is always sorted
+    sortedindex: BTreeMap<u16,Vec<AnaValue>>,
 
     ///Does the model have frequency information?
     have_freq: bool,
@@ -468,6 +474,7 @@ impl VariantModel {
             encoder: HashMap::new(),
             decoder: Vec::new(),
             index: HashMap::new(),
+            sortedindex: BTreeMap::new(),
             have_freq: false,
             debug: debug,
         };
@@ -495,6 +502,7 @@ impl VariantModel {
     fn train(&mut self) {
         eprintln!("Computing anagram values for all items in the lexicon...");
 
+        let alphabet_size = self.alphabet_size();
 
         // Hash all strings in the lexicon
         // and add them to the index
@@ -517,6 +525,23 @@ impl VariantModel {
         }
         eprintln!(" - Found {} anagrams", self.index.len() );
 
+        eprintln!("Creating sorted secondary index");
+        for (anahash, node) in self.index.iter() {
+            if !self.sortedindex.contains_key(&node.charcount) {
+                self.sortedindex.insert(node.charcount, Vec::new());
+            }
+            let keys = self.sortedindex.get_mut(&node.charcount).expect("getting sorted index (1)");
+            keys.push(anahash.clone());  //TODO: see if we can make this a reference later
+        }
+
+        eprintln!("Sorting secondary index");
+        let mut sizes: Vec<u16> = self.sortedindex.keys().map(|x| *x).collect();
+        sizes.sort_unstable();
+        for size in sizes {
+            let keys = self.sortedindex.get_mut(&size).expect("getting sorted index (2)");
+            keys.sort_unstable();
+            eprintln!(" - Found {} anagrams of length {}", keys.len(), size );
+        }
     }
 
     fn compute_deletions(&self, target: &mut HashMap<AnaValue,Vec<AnaValue>>, queue: &[AnaValue], max_distance: u8)  {
