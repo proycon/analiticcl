@@ -165,8 +165,9 @@ trait Anahash: One + Zero {
     fn contains(&self, value: &AnaValue) -> bool;
     fn iter(&self, alphabet_size: CharIndexType) -> RecurseDeletionIterator;
     fn iter_parents(&self, alphabet_size: CharIndexType) -> DeletionIterator;
+    fn iter_deletions(&self, alphabet_size: CharIndexType, max_distance: Option<u32>, breadthfirst: bool) -> RecurseDeletionIterator;
     fn char_count(&self, alphabet_size: CharIndexType) -> u16;
-    fn alphabet_upper_bound(&self, alphabet_size: CharIndexType) -> CharIndexType;
+    fn alphabet_upper_bound(&self, alphabet_size: CharIndexType) -> (CharIndexType, u16);
 }
 
 impl Anahash for AnaValue {
@@ -217,12 +218,17 @@ impl Anahash for AnaValue {
     /// }
     /// ```
     fn iter(&self, alphabet_size: CharIndexType) -> RecurseDeletionIterator {
-        RecurseDeletionIterator::new(self, alphabet_size, true, None)
+        RecurseDeletionIterator::new(self, alphabet_size, true, None, false)
     }
 
     /// Iterator over all the parents that are generated when applying all deletions within edit distance 1
     fn iter_parents(&self, alphabet_size: CharIndexType) -> DeletionIterator {
         DeletionIterator::new(self, alphabet_size)
+    }
+
+    /// Iterator over all the possible deletions within the specified anagram distance
+    fn iter_deletions(&self, alphabet_size: CharIndexType, max_distance: Option<u32>, breadthfirst: bool) -> RecurseDeletionIterator {
+        RecurseDeletionIterator::new(self, alphabet_size, false, max_distance, breadthfirst)
     }
 
     /// The value of an empty anahash
@@ -246,15 +252,18 @@ impl Anahash for AnaValue {
     /// Returns the the upper bound of the alphabet size
     /// as used in this anavalue, which may be lower
     /// than the actual alphabet size.
-    /// Returns a character index in the alphabet
-    fn alphabet_upper_bound(&self, alphabet_size: CharIndexType) -> CharIndexType {
+    /// Returns a character index in the alphabet,
+    /// also returns the character count as 2nd member of the tuple
+    fn alphabet_upper_bound(&self, alphabet_size: CharIndexType) -> (CharIndexType, u16) {
         let mut maxcharindex = 0;
+        let mut count = 0;
         for (result, _) in self.iter(alphabet_size) {
+            count += 1;
             if result.charindex > maxcharindex {
                 maxcharindex = result.charindex;
             }
         }
-        maxcharindex
+        (maxcharindex, count)
     }
 
 }
@@ -265,6 +274,12 @@ impl Anahash for AnaValue {
 /// when doing single deletion. This
 /// is the most basic iterator form
 /// from which most others are derived.
+///
+/// The iterator yields values in order
+/// of descending alphabet index.
+///
+/// So given an anagram value for abcd it will yield
+/// anagram values abc, abd, acd, bcd
 struct DeletionIterator<'a> {
     value: &'a AnaValue,
     alphabet_size: CharIndexType,
@@ -283,27 +298,15 @@ impl<'a> DeletionIterator<'a> {
 
 #[derive(Clone)]
 struct DeletionResult {
-    value: Option<AnaValue>,
-    charindex: CharIndexType
+    value: AnaValue,
+    charindex: CharIndexType,
 }
 
 impl Deref for DeletionResult {
     type Target = AnaValue;
 
     fn deref(&self) -> &Self::Target {
-        match self.value {
-            Some(value) => &value,
-            None => &AnaValue::empty()
-        }
-    }
-}
-
-impl DeletionResult {
-    fn take(&mut self) -> AnaValue {
-        match self.value {
-            Some(value) => value,
-            None => AnaValue::empty()
-        }
+        &self.value
     }
 }
 
@@ -318,7 +321,7 @@ impl<'a> Iterator for DeletionIterator<'a> {
             self.iteration += 1;
             if let Some(result) = self.value.delete(&AnaValue::character(charindex)) {
                 Some(DeletionResult {
-                    value: Some(result),
+                    value: result,
                     charindex: charindex
                 })
             } else {
@@ -337,18 +340,20 @@ struct RecurseDeletionIterator<'a> {
     queue: VecDeque<(DeletionResult,u32)>, //second tuple argument is the depth at which the iterator starts
     alphabet_size: CharIndexType,
     singlebeam: bool, //caps the queue at every expansion
+    breadthfirst: bool,
     maxdepth: Option<u32>, //max depth
     valueholder: Option<AnaValue>, //owns and hold the AnaValue when needed for the current iteration
 }
 
 impl<'a> RecurseDeletionIterator<'a> {
-    pub fn new(value: &'a AnaValue, alphabet_size: CharIndexType, singlebeam: bool, maxdepth: Option<u32>) -> RecurseDeletionIterator<'a> {
+    pub fn new(value: &'a AnaValue, alphabet_size: CharIndexType, singlebeam: bool, maxdepth: Option<u32>, breadthfirst: bool) -> RecurseDeletionIterator<'a> {
         RecurseDeletionIterator {
             iterator: DeletionIterator::new(value, alphabet_size),
             depth: 0,
             queue: VecDeque::new(),
             alphabet_size: 0,
             singlebeam: singlebeam,
+            breadthfirst: breadthfirst,
             maxdepth: maxdepth,
             valueholder: None, //not needed here yet
         }
@@ -376,8 +381,14 @@ impl<'a> Iterator for RecurseDeletionIterator<'a> {
                     //we are in single beam mode, clear the queue before adding to it
                     self.queue.clear();
                 }
-                self.queue.push_front((next,self.depth + 1));
-                self.queue.front().cloned() //return a clone of the last queued item (it may outlive the actual queue)
+                if self.breadthfirst {
+                    self.queue.push_back((next,self.depth + 1));
+                    self.queue.back().cloned() //return a clone of the last queued item (it may outlive the actual queue)
+                } else {
+                    //depth first
+                    self.queue.push_front((next,self.depth + 1));
+                    self.queue.front().cloned() //return a clone of the last queued item (it may outlive the actual queue)
+                }
             }
             None => {
                 //iterator is depleted, create new one
@@ -396,9 +407,16 @@ impl<'a> RecurseDeletionIterator<'a> {
     /// Renew the sub-iterator. Returns a boolean to indicate success or failure.
     fn renew(&mut self) -> bool {
         if let Some((value,depth)) = self.queue.pop_front() {
-            self.valueholder = value.value; //take ownership
+            self.valueholder = Some(value.value); //take ownership
             self.depth = depth;
-            self.iterator = DeletionIterator::new(&self.valueholder.expect("getting value"),self.alphabet_size);
+
+            //Create a new iterator
+            self.iterator = DeletionIterator::new(self.valueholder.as_ref().expect("unpacking valueholder"),
+              match self.singlebeam {
+                false => self.alphabet_size,
+                true => value.charindex //this is an optimization, in single beam mode we can effectively shrink our alphabet as we go
+             }
+            );
             true
         } else {
             //all iterators are depleted, we are done
@@ -778,7 +796,7 @@ impl VariantModel {
     }
 
     /// Gather instances and their edit distances, given a search string (normalised to the alphabet) and anagram hashes
-    fn gather_instances(&self, hashes: &[AnaValue], querystring: &[u8], max_edit_distance: u8) -> Vec<(VocabId,u8)> {
+    fn gather_instances(&self, hashes: &[&AnaValue], querystring: &[u8], max_edit_distance: u8) -> Vec<(VocabId,u8)> {
         let mut found_instances = Vec::new();
         for anahash in hashes {
             if let Some(node) = self.index.get(anahash) {
@@ -797,30 +815,48 @@ impl VariantModel {
 
     /// Find the nearest anahashes that exists in the model (computing anahashes in the
     /// neigbhourhood if needed). Note: this also returns anahashes that have no instances
-    fn find_nearest_anahashes<'a>(&'a self, anahash: &AnaValue, max_distance: u8) -> Vec<&'a AnaValue> {
-        let nearest: Vec<&AnaValue> = Vec::new();
+    fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, max_distance: u8) -> Vec<&'a AnaValue> {
+        let mut nearest: Vec<&AnaValue> = Vec::new();
 
-        if let Some((matched_anahash, node)) = self.index.get_key_value(anahash) {
+        if let Some((matched_anahash, _node)) = self.index.get_key_value(focus) {
             //the easiest case, this anahash exists in the model!
             nearest.push(matched_anahash);
         }
 
+        let (focus_alphabet_size, focus_charcount) = focus.alphabet_upper_bound(self.alphabet_size());
+        let focus_highest_alphabet_char = AnaValue::character(focus_alphabet_size);
 
-
-        if self.index.contains_key(anahash) {
+        /*
+        //Compute upper bounds for each of the distances
+        let mut av_upper_bounds: Vec<AnaValue>; //indices correspond to distance - 1  (so 0 for AV distance 1)
+        let mut av_lower_bounds: Vec<AnaValue>; //indices correspond to distance - 1  (so 0 for AV distance 1)
+        let mut upperbound_value = *focus;
+        for i in 0..max_distance {
+            upperbound_value = upperbound_value.insert(&focus_highest_alphabet_char);
+            lowerbound_value = lowerbound_value.delete(&focus_highest_alphabet_char);
+            av_upper_bounds.push(upperbound_value);
         }
+        */
 
-        if max_distance > 0 {
-            let mut parents = HashMap::new();
-            self.compute_deletions(&mut parents, &[anahash.clone()], max_distance);
-            if let Some(results) = parents.get(&anahash) {
-                results.to_vec()
-            } else {
-                vec!()
+        // Do a breadth first search for deletions
+        for (deletion,distance) in focus.iter_deletions(focus_alphabet_size, Some(max_distance as u32), true) {
+            if let Some((matched_anahash, _node)) = self.index.get_key_value(&deletion) {
+                //This deletion exists in the model
+                nearest.push(matched_anahash);
             }
-        } else {
-            vec!()
+
+            //Find possible insertions starting from this deletion
+            /*
+            if let Some(sortedindex) = self.sortedindex.get(&(distance as u16 - 1)) {
+                for candidate in sortedindex {
+                    if candidate.contains(&deletion) {
+                        nearest.push(candidate);
+                    }
+                }
+            }*/
         }
+
+        nearest
     }
 
 
