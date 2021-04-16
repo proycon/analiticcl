@@ -861,6 +861,9 @@ impl VariantModel {
 
         if let Some((matched_anahash, _node)) = self.index.get_key_value(focus) {
             //the easiest case, this anahash exists in the model!
+            if self.debug {
+                eprintln!("(found exact match)");
+            }
             nearest.push(matched_anahash);
         }
 
@@ -881,7 +884,11 @@ impl VariantModel {
 
         // Do a breadth first search for deletions
         for (deletion,distance) in focus.iter_deletions(focus_alphabet_size, Some(max_distance as u32), true) {
+            eprintln!("(testing deletion at distance {}: {})", distance, deletion.value);
             if let Some((matched_anahash, _node)) = self.index.get_key_value(&deletion) {
+                if self.debug {
+                    eprintln!("(deletion matches)");
+                }
                 //This deletion exists in the model
                 nearest.push(matched_anahash);
             }
