@@ -47,12 +47,6 @@ type Alphabet = Vec<Vec<String>>;
 struct AnaIndexNode {
     ///Maps an anagram value to all existing instances that instantiate it
     instances: Vec<VocabId>,
-
-    ///Maps an anagram value to all anagram values that delete a single character (deletions)
-    parents: Vec<AnaValue>,
-
-    ///Maps an anagram value to all anagram values that add a single character (insertions)
-    children: Vec<AnaValue>,
 }
 
 
@@ -498,58 +492,6 @@ impl VariantModel {
         }
         eprintln!(" - Found {} anagrams", self.index.len() );
 
-        self.expand_deletions(2);
-
-        eprintln!("Establishing reverse links for the deletions (i.e. insertions)...");
-
-        // Insertions are simply the reverse of deletions
-        let mut insertions: HashMap<AnaValue,Vec<AnaValue>> = HashMap::new();
-        for (anahash, node) in self.index.iter() {
-            for parent in node.parents.iter() {
-                if let Some(insertions) = insertions.get_mut(&parent) {
-                    insertions.push(anahash.clone());
-                } else {
-                    insertions.insert(parent.clone(), vec!(anahash.clone()));
-                }
-            }
-        }
-
-        for (parent, children) in insertions.into_iter() {
-            let parentnode = self.get_or_create_node(&parent);
-            parentnode.children = children;
-        }
-
-        eprintln!("Sorting node values...");
-
-        // Sort the insertions in a separate step
-        for (_, node) in self.index.iter_mut() {
-            node.parents.sort_unstable();
-            node.children.sort_unstable();
-        }
-    }
-
-    fn expand_deletions(&mut self, max_distance: u8) {
-        eprintln!("Computing deletions within distance {}...",max_distance);
-
-        if self.debug {
-            eprintln!(" - Sorting keys and populating initial queue");
-        }
-
-
-        if self.debug {
-            eprintln!(" - Searching all deletions");
-        }
-
-        let queue: Vec<AnaValue> = self.index.keys().map(|x| x.clone()).collect();
-        let mut parents: HashMap<AnaValue,Vec<AnaValue>> = HashMap::new();
-        self.compute_deletions(&mut parents, &queue, max_distance);
-
-        for (child, parents) in parents.into_iter() {
-            let node = self.get_or_create_node(&child);
-            node.parents = parents;
-        }
-
-        eprintln!(" - Expanded to {} anagrams", self.index.len() );
     }
 
     fn compute_deletions(&self, target: &mut HashMap<AnaValue,Vec<AnaValue>>, queue: &[AnaValue], max_distance: u8)  {
