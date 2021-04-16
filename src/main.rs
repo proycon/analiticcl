@@ -147,6 +147,7 @@ impl Anahashable for str {
 trait Anahash: One + Zero {
     fn character(seqnr: usize) -> AnaValue;
     fn empty() -> AnaValue;
+    fn is_empty(&self) -> bool;
     fn insert(&self, value: &AnaValue) -> AnaValue;
     fn delete(&self, value: &AnaValue) -> Option<AnaValue>;
     fn contains(&self, value: &AnaValue) -> bool;
@@ -200,19 +201,25 @@ impl Anahash for AnaValue {
         AnaValue::one()
     }
 
+    /// The value of an empty anahash
+    /// Also corresponds to the root of the index
+    fn is_empty(&self) -> bool {
+        self == &AnaValue::empty() || self == &AnaValue::zero()
+    }
+
     /// Computes the number of characters in this anagram
     fn char_count(&self, alphabet_size: usize) -> u16 {
-        if self <= &AnaValue::one() {
+        if self.is_empty() {
             0
         } else {
-            return 1 + self.iter(alphabet_size).next().expect("Iterator").char_count(alphabet_size)
+            return 1 + self.iter(alphabet_size).next().expect("Char Iterator").char_count(alphabet_size)
         }
     }
 
 }
 
-/// Iterates over all characters in an anagram value
-/// Does not yield duplicates
+/// Returns all AnaValues that are contained
+/// when doing single deletion
 struct AnaValueIterator<'a> {
     value: &'a AnaValue,
     alphabet_size: usize,
