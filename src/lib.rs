@@ -2,7 +2,7 @@ extern crate num_bigint;
 
 use std::fs::File;
 use std::io::{self, Write,Read,BufReader,BufRead,Error};
-use std::collections::{HashMap,BTreeMap};
+use std::collections::{HashMap,HashSet,BTreeMap};
 
 pub mod types;
 pub mod anahash;
@@ -312,9 +312,9 @@ impl VariantModel {
     }
 
     /// Gather instances and their edit distances, given a search string (normalised to the alphabet) and anagram hashes
-    pub fn gather_instances(&self, hashes: &[&AnaValue], querystring: &[u8], max_edit_distance: u8) -> Vec<(VocabId,u8)> {
+    pub fn gather_instances(&self, nearest_anagrams: &HashSet<&AnaValue>, querystring: &[u8], max_edit_distance: u8) -> Vec<(VocabId,u8)> {
         let mut found_instances = Vec::new();
-        for anahash in hashes {
+        for anahash in nearest_anagrams {
             if let Some(node) = self.index.get(anahash) {
                 for vocab_id in node.instances.iter() {
                     if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
@@ -331,8 +331,8 @@ impl VariantModel {
 
     /// Find the nearest anahashes that exists in the model (computing anahashes in the
     /// neigbhourhood if needed). Note: this also returns anahashes that have no instances
-    pub fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, max_distance: u8) -> Vec<&'a AnaValue> {
-        let mut nearest: Vec<&AnaValue> = Vec::new();
+    pub fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, max_distance: u8) -> HashSet<&'a AnaValue> {
+        let mut nearest: HashSet<&AnaValue> = HashSet::new();
 
         if self.debug {
             eprintln!("(finding nearest anagram matches for focus anavalue {})", focus);
@@ -343,7 +343,7 @@ impl VariantModel {
             if self.debug {
                 eprintln!(" (found exact match)");
             }
-            nearest.push(matched_anahash);
+            nearest.insert(matched_anahash);
         }
 
         let (focus_alphabet_size, focus_charcount) = focus.alphabet_upper_bound(self.alphabet_size());
@@ -385,7 +385,13 @@ impl VariantModel {
         */
 
         // Do a breadth first search for deletions
-        for (deletion,distance) in focus.iter_recursive(focus_alphabet_size, None, Some(max_distance as u32), true) {
+        for (deletion,distance) in focus.iter_recursive(focus_alphabet_size, &SearchParams {
+            max_distance: Some(max_distance as u32),
+            breadthfirst: true,
+            allow_empty_leaves: false,
+            allow_duplicates: false,
+            ..Default::default()
+        }) {
             if self.debug {
                 eprintln!(" (testing deletion at distance {} for anavalue {})", distance, deletion.value);
             }
@@ -394,12 +400,13 @@ impl VariantModel {
                     eprintln!("  (deletion matches)");
                 }
                 //This deletion exists in the model
-                nearest.push(matched_anahash);
+                nearest.insert(matched_anahash);
             }
 
             if distance == max_distance as u32 { //no need to check for distances that are not the max
                 let mut count = 0;
                 let search_charcount = focus_charcount + distance as u16;
+                let beginlength = nearest.len();
                 //Find possible insertions starting from this deletion
                 if let Some(sortedindex) = self.sortedindex.get(&search_charcount) {
                     nearest.extend( sortedindex.iter().filter(|candidate| {
@@ -412,14 +419,18 @@ impl VariantModel {
                     }));
                 }
                 if self.debug {
-                    eprintln!("  (added {} candidates)", count);
+                    eprintln!("  (added {} out of {} candidates)", nearest.len() - beginlength , count);
                 }
             }
 
         }
 
         if self.debug {
-            eprintln!("(found {} anagram matches in total for focus anavalue {})", nearest.len(), focus);
+            eprint!("(found {} anagram matches in total for focus anavalue {}: ", nearest.len(), focus);
+            for av in nearest.iter() {
+                eprint!(" {}", av);
+            }
+            eprintln!(")");
         }
         nearest
     }

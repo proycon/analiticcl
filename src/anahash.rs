@@ -78,6 +78,7 @@ impl Anahashable for str {
 
 }
 
+
 /// This trait can be applied to types
 /// that can function as anahashes.
 /// It can be implemented  for integer types.
@@ -90,7 +91,7 @@ pub trait Anahash: One + Zero {
     fn contains(&self, value: &AnaValue) -> bool;
     fn iter(&self, alphabet_size: CharIndexType) -> RecurseDeletionIterator;
     fn iter_parents(&self, alphabet_size: CharIndexType) -> DeletionIterator;
-    fn iter_recursive(&self, alphabet_size: CharIndexType, min_distance: Option<u32>, max_distance: Option<u32>, breadthfirst: bool) -> RecurseDeletionIterator;
+    fn iter_recursive(&self, alphabet_size: CharIndexType, params: &SearchParams) -> RecurseDeletionIterator;
     fn char_count(&self, alphabet_size: CharIndexType) -> u16;
     fn alphabet_upper_bound(&self, alphabet_size: CharIndexType) -> (CharIndexType, u16);
 }
@@ -149,7 +150,7 @@ impl Anahash for AnaValue {
     /// }
     /// ```
     fn iter(&self, alphabet_size: CharIndexType) -> RecurseDeletionIterator {
-        RecurseDeletionIterator::new(self.clone(), alphabet_size, true, None, None, false)
+        RecurseDeletionIterator::new(self.clone(), alphabet_size, true, None, None, false,false,true)
     }
 
     /// Iterator over all the parents that are generated when applying all deletions within edit distance 1
@@ -158,8 +159,8 @@ impl Anahash for AnaValue {
     }
 
     /// Iterator over all the possible deletions within the specified anagram distance
-    fn iter_recursive(&self, alphabet_size: CharIndexType, min_distance: Option<u32>, max_distance: Option<u32>, breadthfirst: bool) -> RecurseDeletionIterator {
-        RecurseDeletionIterator::new(self.clone(), alphabet_size, false, min_distance, max_distance, breadthfirst)
+    fn iter_recursive(&self, alphabet_size: CharIndexType, params: &SearchParams) -> RecurseDeletionIterator {
+        RecurseDeletionIterator::new(self.clone(), alphabet_size, false, params.min_distance, params.max_distance, params.breadthfirst, !params.allow_duplicates, params.allow_empty_leaves )
     }
 
     /// The value of an empty anahash
@@ -197,5 +198,28 @@ impl Anahash for AnaValue {
         (maxcharindex, count)
     }
 
+}
+
+
+
+/// Search parameters used to pass to the Anahash::iter_recursive() function
+pub struct SearchParams {
+    pub min_distance: Option<u32>,
+    pub max_distance: Option<u32>,
+    pub breadthfirst: bool,
+    pub allow_duplicates: bool,
+    pub allow_empty_leaves: bool,
+}
+
+impl Default for SearchParams {
+    fn default() -> Self {
+        SearchParams {
+            min_distance: None,
+            max_distance: None,
+            breadthfirst: false,
+            allow_duplicates: true,
+            allow_empty_leaves: true,
+        }
+    }
 }
 
