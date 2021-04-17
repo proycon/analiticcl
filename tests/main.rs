@@ -545,7 +545,24 @@ fn test0302_levenshtein() {
 }
 
 #[test]
-fn test0302_lcslen() {
+fn test0303_damereau_levenshtein() {
+    let (alphabet, alphabet_size) = get_test_alphabet();
+    assert_eq!(damerau_levenshtein(&"a".normalize_to_alphabet(&alphabet), &"a".normalize_to_alphabet(&alphabet),99), Some(0));
+    assert_eq!(damerau_levenshtein(&"a".normalize_to_alphabet(&alphabet), &"b".normalize_to_alphabet(&alphabet),99), Some(1));
+    //substitution
+    assert_eq!(damerau_levenshtein(&"ab".normalize_to_alphabet(&alphabet), &"ac".normalize_to_alphabet(&alphabet),99), Some(1));
+    //insertion
+    assert_eq!(damerau_levenshtein(&"a".normalize_to_alphabet(&alphabet), &"ab".normalize_to_alphabet(&alphabet),99), Some(1));
+    //deletion
+    assert_eq!(damerau_levenshtein(&"ab".normalize_to_alphabet(&alphabet), &"a".normalize_to_alphabet(&alphabet),99), Some(1));
+    //transposition (this is where the difference with normal levenshtein is)
+    assert_eq!(damerau_levenshtein(&"ab".normalize_to_alphabet(&alphabet), &"ba".normalize_to_alphabet(&alphabet),99), Some(1));
+
+    assert_eq!(damerau_levenshtein(&"abc".normalize_to_alphabet(&alphabet), &"xyz".normalize_to_alphabet(&alphabet),99), Some(3));
+}
+
+#[test]
+fn test0304_lcslen() {
     let (alphabet, alphabet_size) = get_test_alphabet();
     assert_eq!(longest_common_substring_length(&"test".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 4);
     assert_eq!(longest_common_substring_length(&"fasttest".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 4);

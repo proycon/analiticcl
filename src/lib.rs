@@ -318,7 +318,7 @@ impl VariantModel {
             if let Some(node) = self.index.get(anahash) {
                 for vocab_id in node.instances.iter() {
                     if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
-                        if let Some(distance) = levenshtein(querystring, &vocabitem.norm, max_edit_distance) {
+                        if let Some(distance) = damerau_levenshtein(querystring, &vocabitem.norm, max_edit_distance) {
                             found_instances.push((*vocab_id,distance));
                         }
                     }
