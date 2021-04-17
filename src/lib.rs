@@ -304,7 +304,7 @@ impl VariantModel {
                 } else {
                     1.0
                 };
-                let score = distance_score * freq_score * lcs_score;
+                let score = (distance_score + freq_score + lcs_score) / 3.0;
                 results.push( (&vocabitem.text, score) );
             }
         }
