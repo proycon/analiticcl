@@ -75,3 +75,29 @@ pub fn levenshtein(a: &[CharIndexType], b: &[CharIndexType], max_distance: CharI
         Some(result as CharIndexType)
     }
 }
+
+pub fn longest_common_substring_length(s1: &[CharIndexType], s2: &[CharIndexType]) -> u16 {
+    let mut lcs = 0;
+
+    for i in 0..s1.len() {
+        for j in 0..s2.len() {
+            if s1[i] == s2[j] {
+                let mut tmp_lcs = 1;
+                let mut tmp_i = i + 1;
+                let mut tmp_j = j + 1;
+
+                while tmp_i < s1.len() && tmp_j < s2.len() && s1[tmp_i] == s2[tmp_j] {
+                    tmp_lcs += 1;
+                    tmp_i += 1;
+                    tmp_j += 1;
+                }
+
+                if tmp_lcs > lcs {
+                    lcs = tmp_lcs;
+                }
+            }
+        }
+    }
+
+    lcs
+}

@@ -35,7 +35,7 @@ fn main() {
                         .required(true))
                     .arg(Arg::with_name("max_anagram_distance")
                         .long("max-anagram-distance")
-                        .short("A")
+                        .short("k")
                         .help("Maximum anagram distance. This impacts the size of the search space")
                         .takes_value(true)
                         .default_value("3"))

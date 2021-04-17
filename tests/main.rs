@@ -543,3 +543,12 @@ fn test0302_levenshtein() {
 
     assert_eq!(levenshtein(&"abc".normalize_to_alphabet(&alphabet), &"xyz".normalize_to_alphabet(&alphabet),99), Some(3));
 }
+
+#[test]
+fn test0302_lcslen() {
+    let (alphabet, alphabet_size) = get_test_alphabet();
+    assert_eq!(longest_common_substring_length(&"test".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 4);
+    assert_eq!(longest_common_substring_length(&"fasttest".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 4);
+    assert_eq!(longest_common_substring_length(&"abcdefhij".normalize_to_alphabet(&alphabet), &"def".normalize_to_alphabet(&alphabet)), 3);
+    assert_eq!(longest_common_substring_length(&"def".normalize_to_alphabet(&alphabet), &"abcdefhij".normalize_to_alphabet(&alphabet)), 3);
+}
