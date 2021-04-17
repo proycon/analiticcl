@@ -6,13 +6,24 @@ use analiticcl::*;
 use analiticcl::test::*;
 
 #[test]
-fn test001_alphabet() {
+fn test0001_alphabet() {
     let (alphabet, alphabet_size) = get_test_alphabet();
     assert_eq!(alphabet.len(), 27);
 }
 
 #[test]
-fn test002_hash_hash() {
+fn test0002_primes() {
+    //tests whether the primes are really prime
+    //(since they're hard coded and we don't want accidental typos)
+    for prime in PRIMES {
+        for i in 2..*prime {
+            assert!(*prime % i != 0);
+        }
+    }
+}
+
+#[test]
+fn test0102_hash_hash() {
     let (alphabet, alphabet_size) = get_test_alphabet();
 
     //this is a hash that would overflow any normal 64-bit int, but it should hash fine
@@ -20,7 +31,7 @@ fn test002_hash_hash() {
 }
 
 #[test]
-fn test003_hash_basic() {
+fn test0103_hash_basic() {
     let (alphabet, alphabet_size) = get_test_alphabet();
 
     assert_eq!("a".anahash(&alphabet), AnaValue::from(2 as usize));
@@ -34,7 +45,7 @@ fn test003_hash_basic() {
 }
 
 #[test]
-fn test003_hash_alphabet_equivalence() {
+fn test0103_hash_alphabet_equivalence() {
     let (alphabet, alphabet_size) = get_test_alphabet();
 
     //the alphabet may define multiple values that map to the same
@@ -47,7 +58,7 @@ fn test003_hash_alphabet_equivalence() {
 }
 
 #[test]
-fn test004_hash_big() {
+fn test0104_hash_big() {
     let (alphabet, alphabet_size) = get_test_alphabet();
 
     //this is a hash that would overflow any normal 64-bit int, but it should hash fine
@@ -56,7 +67,7 @@ fn test004_hash_big() {
 
 
 #[test]
-fn test005_hash_anagram() {
+fn test0105_hash_anagram() {
     let (alphabet, alphabet_size) = get_test_alphabet();
     assert_eq!("stressed".anahash(&alphabet),"desserts".anahash(&alphabet) );
     assert_eq!("dormitory".anahash(&alphabet),"dirtyroom".anahash(&alphabet) );
@@ -64,7 +75,7 @@ fn test005_hash_anagram() {
 }
 
 #[test]
-fn test006_hash_insertion() {
+fn test0106_hash_insertion() {
     let (alphabet, alphabet_size) = get_test_alphabet();
 
     let ab = "ab".anahash(&alphabet);
@@ -76,7 +87,7 @@ fn test006_hash_insertion() {
 }
 
 #[test]
-fn test007_hash_containment() {
+fn test0107_hash_containment() {
     let (alphabet, alphabet_size) = get_test_alphabet();
 
     let ab = "ab".anahash(&alphabet);
@@ -94,7 +105,7 @@ fn test007_hash_containment() {
 }
 
 #[test]
-fn test008_hash_deletion() {
+fn test0108_hash_deletion() {
     let (alphabet, alphabet_size) = get_test_alphabet();
 
     let ab = "ab".anahash(&alphabet);
