@@ -78,18 +78,19 @@ pub struct RecurseDeletionIterator {
     alphabet_size: CharIndexType,
     singlebeam: bool, //caps the queue at every expansion
     breadthfirst: bool,
+    mindepth: u32,
     maxdepth: Option<u32>, //max depth
 }
 
 impl RecurseDeletionIterator {
-    pub fn new(value: AnaValue, alphabet_size: CharIndexType, singlebeam: bool, maxdepth: Option<u32>, breadthfirst: bool) -> RecurseDeletionIterator {
-        eprintln!("DEBUG NEW");
+    pub fn new(value: AnaValue, alphabet_size: CharIndexType, singlebeam: bool, mindepth: Option<u32>, maxdepth: Option<u32>, breadthfirst: bool) -> RecurseDeletionIterator {
         let queue: Vec<(DeletionResult,u32)> =  vec!((DeletionResult { value: value, charindex: 0 },0));
         RecurseDeletionIterator {
             queue: VecDeque::from(queue),
-            alphabet_size: 0,
+            alphabet_size: alphabet_size,
             singlebeam: singlebeam,
             breadthfirst: breadthfirst,
+            mindepth: mindepth.unwrap_or(1),
             maxdepth: maxdepth,
         }
     }
@@ -109,7 +110,7 @@ impl Iterator for RecurseDeletionIterator {
                 }
 
                 //don't yield the root element, just recurse in that case
-                if depth == 0 {
+                if depth < self.mindepth {
                     self.next()
                 } else {
                     Some((node,depth))
@@ -138,7 +139,7 @@ impl Iterator for RecurseDeletionIterator {
                 }
 
                 //don't yield the root element, just recurse in that case
-                if depth == 0 {
+                if depth < self.mindepth {
                     self.next()
                 } else {
                     Some((node,depth))

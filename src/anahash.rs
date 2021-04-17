@@ -90,7 +90,7 @@ pub trait Anahash: One + Zero {
     fn contains(&self, value: &AnaValue) -> bool;
     fn iter(&self, alphabet_size: CharIndexType) -> RecurseDeletionIterator;
     fn iter_parents(&self, alphabet_size: CharIndexType) -> DeletionIterator;
-    fn iter_deletions(&self, alphabet_size: CharIndexType, max_distance: Option<u32>, breadthfirst: bool) -> RecurseDeletionIterator;
+    fn iter_recursive(&self, alphabet_size: CharIndexType, min_distance: Option<u32>, max_distance: Option<u32>, breadthfirst: bool) -> RecurseDeletionIterator;
     fn char_count(&self, alphabet_size: CharIndexType) -> u16;
     fn alphabet_upper_bound(&self, alphabet_size: CharIndexType) -> (CharIndexType, u16);
 }
@@ -146,17 +146,10 @@ impl Anahash for AnaValue {
     /// let mut chars: Vec<AnaValue> = Vec::new();
     /// for (deletion, depth) in anavalue.iter(alphabet_size) {
     ///    chars.push(AnaValue::character(deletion.charindex));
-    ///    assert_eq!(chars.len(), depth as usize);
     /// }
-    /// assert_eq!(chars.len(), 5);
-    /// assert_eq!(chars.get(0).unwrap(), &"u".anahash(&alphabet));
-    /// assert_eq!(chars.get(1).unwrap(), &"s".anahash(&alphabet));
-    /// assert_eq!(chars.get(2).unwrap(), &"o".anahash(&alphabet));
-    /// assert_eq!(chars.get(3).unwrap(), &"h".anahash(&alphabet));
-    /// assert_eq!(chars.get(4).unwrap(), &"e".anahash(&alphabet));
     /// ```
     fn iter(&self, alphabet_size: CharIndexType) -> RecurseDeletionIterator {
-        RecurseDeletionIterator::new(self.clone(), alphabet_size, true, None, false)
+        RecurseDeletionIterator::new(self.clone(), alphabet_size, true, None, None, false)
     }
 
     /// Iterator over all the parents that are generated when applying all deletions within edit distance 1
@@ -165,8 +158,8 @@ impl Anahash for AnaValue {
     }
 
     /// Iterator over all the possible deletions within the specified anagram distance
-    fn iter_deletions(&self, alphabet_size: CharIndexType, max_distance: Option<u32>, breadthfirst: bool) -> RecurseDeletionIterator {
-        RecurseDeletionIterator::new(self.clone(), alphabet_size, false, max_distance, breadthfirst)
+    fn iter_recursive(&self, alphabet_size: CharIndexType, min_distance: Option<u32>, max_distance: Option<u32>, breadthfirst: bool) -> RecurseDeletionIterator {
+        RecurseDeletionIterator::new(self.clone(), alphabet_size, false, min_distance, max_distance, breadthfirst)
     }
 
     /// The value of an empty anahash

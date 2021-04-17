@@ -2,8 +2,10 @@
 //extern crate matches;
 
 use std::str;
+use std::ops::Deref;
 use analiticcl::*;
 use analiticcl::test::*;
+
 
 #[test]
 fn test0001_alphabet() {
@@ -121,4 +123,75 @@ fn test0108_hash_deletion() {
     //counter-examples that should return None
     assert_eq!(c.delete(&abc), None);
     assert_eq!(abc.delete(&x), None);
+}
+
+#[test]
+fn test0201_iterator_parents() {
+    let (alphabet, alphabet_size) = get_test_alphabet();
+    let anavalue: AnaValue = "house".anahash(&alphabet);
+    let mut chars: Vec<AnaValue> = Vec::new();
+    let mut deletions: Vec<AnaValue> = Vec::new();
+    for deletion in anavalue.iter_parents(alphabet_size) {
+       chars.push(AnaValue::character(deletion.charindex));
+       deletions.push(deletion.value.clone());
+    }
+    assert_eq!(chars.len(), 5, "Checking length of results",);
+    assert_eq!(chars.get(0).unwrap(), &"u".anahash(&alphabet));
+    assert_eq!(chars.get(1).unwrap(), &"s".anahash(&alphabet));
+    assert_eq!(chars.get(2).unwrap(), &"o".anahash(&alphabet));
+    assert_eq!(chars.get(3).unwrap(), &"h".anahash(&alphabet));
+    assert_eq!(chars.get(4).unwrap(), &"e".anahash(&alphabet));
+    assert_eq!(deletions.get(0).unwrap(), &"hose".anahash(&alphabet));
+    assert_eq!(deletions.get(1).unwrap(), &"houe".anahash(&alphabet));
+    assert_eq!(deletions.get(2).unwrap(), &"huse".anahash(&alphabet));
+    assert_eq!(deletions.get(3).unwrap(), &"ouse".anahash(&alphabet));
+    assert_eq!(deletions.get(4).unwrap(), &"hous".anahash(&alphabet));
+}
+
+#[test]
+fn test0202_iterator_parents_dup() {
+    //This one has duplicate letters, but no duplicate
+    //anagram output will be generated, we do only
+    //1 deletion
+    let (alphabet, alphabet_size) = get_test_alphabet();
+    let anavalue: AnaValue = "pass".anahash(&alphabet);
+    let mut chars: Vec<AnaValue> = Vec::new();
+    let mut deletions: Vec<AnaValue> = Vec::new();
+    for deletion in anavalue.iter_parents(alphabet_size) {
+       chars.push(AnaValue::character(deletion.charindex));
+       deletions.push(deletion.value.clone());
+    }
+    assert_eq!(chars.len(),3, "Checking length of results",);
+    assert_eq!(chars.get(0).unwrap(), &"s".anahash(&alphabet));
+    assert_eq!(chars.get(1).unwrap(), &"p".anahash(&alphabet));
+    assert_eq!(chars.get(2).unwrap(), &"a".anahash(&alphabet));
+    assert_eq!(deletions.get(0).unwrap(), &"pas".anahash(&alphabet));
+    assert_eq!(deletions.get(1).unwrap(), &"ass".anahash(&alphabet));
+    assert_eq!(deletions.get(2).unwrap(), &"pss".anahash(&alphabet));
+}
+
+#[test]
+fn test0203_iterator_recursive_singlebeam() {
+    let (alphabet, alphabet_size) = get_test_alphabet();
+    let anavalue: AnaValue = "house".anahash(&alphabet);
+    let mut chars: Vec<AnaValue> = Vec::new();
+    let mut depths: Vec<_> = Vec::new();
+    let mut deletions: Vec<AnaValue> = Vec::new();
+    for (deletion, depth) in anavalue.iter(alphabet_size) {
+       chars.push(AnaValue::character(deletion.charindex));
+       deletions.push(deletion.value.clone());
+       depths.push(depth);
+    }
+    assert_eq!(chars.len(), 5, "Checking length of results",);
+    assert_eq!(chars.get(0).unwrap(), &"u".anahash(&alphabet));
+    assert_eq!(chars.get(1).unwrap(), &"s".anahash(&alphabet));
+    assert_eq!(chars.get(2).unwrap(), &"o".anahash(&alphabet));
+    assert_eq!(chars.get(3).unwrap(), &"h".anahash(&alphabet));
+    assert_eq!(chars.get(4).unwrap(), &"e".anahash(&alphabet));
+    assert_eq!(deletions.get(0).unwrap(), &"hose".anahash(&alphabet));
+    assert_eq!(deletions.get(1).unwrap(), &"hoe".anahash(&alphabet));
+    assert_eq!(deletions.get(2).unwrap(), &"he".anahash(&alphabet));
+    assert_eq!(deletions.get(3).unwrap(), &"e".anahash(&alphabet));
+    assert_eq!(deletions.get(4).unwrap(), &AnaValue::empty());
+    assert_eq!(depths, &[1,2,3,4,5]);
 }

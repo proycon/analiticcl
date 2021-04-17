@@ -385,7 +385,7 @@ impl VariantModel {
         */
 
         // Do a breadth first search for deletions
-        for (deletion,distance) in focus.iter_deletions(focus_alphabet_size, Some(max_distance as u32), true) {
+        for (deletion,distance) in focus.iter_recursive(focus_alphabet_size, None, Some(max_distance as u32), true) {
             if self.debug {
                 eprintln!(" (testing deletion at distance {} for anavalue {})", distance, deletion.value);
             }
