@@ -520,4 +520,26 @@ fn test0203_iterator_recursive_bfs_max_dist2() {
     assert_eq!(dpit.next(), None);
 }
 
+#[test]
+fn test0301_normalize_to_alphabet() {
+    let (alphabet, alphabet_size) = get_test_alphabet();
+    assert_eq!(&"a".normalize_to_alphabet(&alphabet), &[0]);
+    assert_eq!(&"b".normalize_to_alphabet(&alphabet), &[1]);
+}
 
+#[test]
+fn test0302_levenshtein() {
+    let (alphabet, alphabet_size) = get_test_alphabet();
+    assert_eq!(levenshtein(&"a".normalize_to_alphabet(&alphabet), &"a".normalize_to_alphabet(&alphabet),99), Some(0));
+    assert_eq!(levenshtein(&"a".normalize_to_alphabet(&alphabet), &"b".normalize_to_alphabet(&alphabet),99), Some(1));
+    //substitution
+    assert_eq!(levenshtein(&"ab".normalize_to_alphabet(&alphabet), &"ac".normalize_to_alphabet(&alphabet),99), Some(1));
+    //insertion
+    assert_eq!(levenshtein(&"a".normalize_to_alphabet(&alphabet), &"ab".normalize_to_alphabet(&alphabet),99), Some(1));
+    //deletion
+    assert_eq!(levenshtein(&"ab".normalize_to_alphabet(&alphabet), &"a".normalize_to_alphabet(&alphabet),99), Some(1));
+    //transposition
+    assert_eq!(levenshtein(&"ab".normalize_to_alphabet(&alphabet), &"ba".normalize_to_alphabet(&alphabet),99), Some(2));
+
+    assert_eq!(levenshtein(&"abc".normalize_to_alphabet(&alphabet), &"xyz".normalize_to_alphabet(&alphabet),99), Some(3));
+}

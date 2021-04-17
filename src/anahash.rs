@@ -62,6 +62,7 @@ impl Anahashable for str {
                     if let Some(slice) = self.get(pos..pos+l) {
                         if slice == element {
                             result.push(i as CharIndexType);
+                            matched = true;
                             skip = l-1;
                             break 'abciter;
                         }
@@ -70,7 +71,7 @@ impl Anahashable for str {
             }
             if !matched {
                 //Highest one is reserved for UNK
-                result.push(alphabet.len() as CharIndexType);
+                result.push(alphabet.len() as CharIndexType + 1);
             }
         }
         result
