@@ -18,3 +18,14 @@ pub type AnaValue = BigUint;
 ///Defines the alphabet, index corresponds how things are encoded, multiple strings may be encoded
 ///in the same way
 pub type Alphabet = Vec<Vec<String>>;
+
+pub struct Distance {
+    ///Levenshtein (or Damarau-Levenshtein) distance
+    pub ld: CharIndexType,
+
+    ///Longest common substring length
+    pub lcs: u16,
+
+    ///Length of the word
+    pub len: u16
+}

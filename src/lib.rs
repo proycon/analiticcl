@@ -279,13 +279,13 @@ impl VariantModel {
 
 
     /// Resolve and score all variants
-    pub fn score_and_resolve(&self, instances: Vec<(VocabId,u8)>, use_freq: bool) -> Vec<(&str,f64)> {
+    pub fn score_and_resolve(&self, instances: Vec<(VocabId,Distance)>, use_freq: bool) -> Vec<(&str,f64)> {
         let mut results: Vec<(&str,f64)> = Vec::new();
         let mut max_distance = 0;
         let mut max_freq = 0;
         for (vocab_id, distance) in instances.iter() {
-            if *distance > max_distance {
-                max_distance = *distance;
+            if distance.ld > max_distance {
+                max_distance = distance.ld;
             }
             if use_freq {
                 if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
@@ -297,13 +297,14 @@ impl VariantModel {
         }
         for (vocab_id, distance) in instances.iter() {
             if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
-                let distance_score: f64 = 1.0 - (*distance as f64 / max_distance as f64);
+                let distance_score: f64 = 1.0 - (distance.ld as f64 / max_distance as f64);
+                let lcs_score: f64 = distance.lcs as f64 / distance.len as f64;
                 let freq_score: f64 = if use_freq {
                    vocabitem.frequency as f64 / max_freq as f64
                 } else {
                     1.0
                 };
-                let score = distance_score * freq_score;
+                let score = distance_score * freq_score * lcs_score;
                 results.push( (&vocabitem.text, score) );
             }
         }
@@ -312,20 +313,27 @@ impl VariantModel {
     }
 
     /// Gather instances and their edit distances, given a search string (normalised to the alphabet) and anagram hashes
-    pub fn gather_instances(&self, nearest_anagrams: &HashSet<&AnaValue>, querystring: &[u8], max_edit_distance: u8) -> Vec<(VocabId,u8)> {
+    pub fn gather_instances(&self, nearest_anagrams: &HashSet<&AnaValue>, querystring: &[u8], max_edit_distance: u8) -> Vec<(VocabId,Distance)> {
         let mut found_instances = Vec::new();
         for anahash in nearest_anagrams {
             if let Some(node) = self.index.get(anahash) {
                 for vocab_id in node.instances.iter() {
                     if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
-                        if let Some(distance) = damerau_levenshtein(querystring, &vocabitem.norm, max_edit_distance) {
+                        let ld = damerau_levenshtein(querystring, &vocabitem.norm, max_edit_distance);
+                        if let Some(ld) = ld {
+                            //we get here only if we don't reach the max_edit_distance cut-off
+                            let distance = Distance {
+                                ld: ld,
+                                lcs: longest_common_substring_length(querystring, &vocabitem.norm),
+                                len: vocabitem.norm.len() as u16,
+                            };
                             found_instances.push((*vocab_id,distance));
                         }
                     }
                 }
             }
         }
-        found_instances.sort_unstable_by_key(|k| k.1 ); //sort by distance, ascending order
+        //found_instances.sort_unstable_by_key(|k| k.1 ); //sort by distance, ascending order
         found_instances
     }
 

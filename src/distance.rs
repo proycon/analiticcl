@@ -165,7 +165,12 @@ pub fn damerau_levenshtein(s: &[CharIndexType], t: &[CharIndexType], max_distanc
         char_map.insert(*s_char, i as CharIndexType);
     }
 
-    Some(mat[len_s + 1][len_t + 1] as CharIndexType)
+    let result = mat[len_s + 1][len_t + 1];
+    if result > max_distance.into() {
+        None
+    } else {
+        Some(mat[len_s + 1][len_t + 1] as CharIndexType)
+    }
 }
 
 pub fn longest_common_substring_length(s1: &[CharIndexType], s2: &[CharIndexType]) -> u16 {
