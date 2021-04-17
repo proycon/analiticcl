@@ -125,6 +125,22 @@ fn test0108_hash_deletion() {
     assert_eq!(abc.delete(&x), None);
 }
 
+
+#[test]
+fn test0108_hash_upper_bound() {
+    let (alphabet, alphabet_size) = get_test_alphabet();
+
+    let ab = "ab".anahash(&alphabet);
+    let abc = "abc".anahash(&alphabet);
+    let x = "x".anahash(&alphabet);
+
+    assert_eq!(abc.alphabet_upper_bound(alphabet_size), (2,3)); //indices 0,1,2 -> a,b,c   3 -> 3 characters
+    assert_eq!(ab.alphabet_upper_bound(alphabet_size), (1,2));
+    assert_eq!(x.alphabet_upper_bound(alphabet_size), (23,1));
+}
+
+
+
 #[test]
 fn test0201_iterator_parents() {
     let (alphabet, alphabet_size) = get_test_alphabet();
@@ -300,30 +316,56 @@ fn test0203_iterator_recursive_bfs() {
        depths.push(depth);
     }
     let mut iter = deletions.iter();
+    let mut dpit = depths.iter();
     assert_eq!(iter.next().unwrap(), &"abc".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &1);
     assert_eq!(iter.next().unwrap(), &"abd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &1);
     assert_eq!(iter.next().unwrap(), &"acd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &1);
     assert_eq!(iter.next().unwrap(), &"bcd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &1);
 
     assert_eq!(iter.next().unwrap(), &"ab".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
     assert_eq!(iter.next().unwrap(), &"ac".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
     assert_eq!(iter.next().unwrap(), &"bc".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
 
     assert_eq!(iter.next().unwrap(), &"ab".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
     assert_eq!(iter.next().unwrap(), &"ad".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
     assert_eq!(iter.next().unwrap(), &"bd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
 
     assert_eq!(iter.next().unwrap(), &"ac".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
     assert_eq!(iter.next().unwrap(), &"ad".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
     assert_eq!(iter.next().unwrap(), &"cd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
 
     assert_eq!(iter.next().unwrap(), &"bc".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
     assert_eq!(iter.next().unwrap(), &"bd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
     assert_eq!(iter.next().unwrap(), &"cd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
 
     assert_eq!(iter.next().unwrap(), &"a".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &3);
     assert_eq!(iter.next().unwrap(), &"b".anahash(&alphabet));
-    //.. and more
+    assert_eq!(dpit.next().unwrap(), &3);
+
+    assert_eq!(iter.next().unwrap(), &"a".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &3);
+    assert_eq!(iter.next().unwrap(), &"c".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &3);
+
+    //
+    //.. and way more duplicates!
 }
 
 #[test]
@@ -336,26 +378,146 @@ fn test0203_iterator_recursive_bfs_no_duplicates() {
     for (deletion, depth) in anavalue.iter_recursive(alphabet_size, &SearchParams {
         breadthfirst: true,
         allow_duplicates: false,
+        allow_empty_leaves: false,
         ..Default::default()}) {
        deletions.push(deletion.value.clone());
        depths.push(depth);
     }
     let mut iter = deletions.iter();
+    let mut dpit = depths.iter();
     assert_eq!(iter.next().unwrap(), &"abc".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &1);
     assert_eq!(iter.next().unwrap(), &"abd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &1);
     assert_eq!(iter.next().unwrap(), &"acd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &1);
     assert_eq!(iter.next().unwrap(), &"bcd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &1);
 
     assert_eq!(iter.next().unwrap(), &"ab".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
     assert_eq!(iter.next().unwrap(), &"ac".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
     assert_eq!(iter.next().unwrap(), &"bc".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
 
     assert_eq!(iter.next().unwrap(), &"ad".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
     assert_eq!(iter.next().unwrap(), &"bd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
 
     assert_eq!(iter.next().unwrap(), &"cd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
 
     assert_eq!(iter.next().unwrap(), &"a".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &3);
     assert_eq!(iter.next().unwrap(), &"b".anahash(&alphabet));
-    //.. and more
+    assert_eq!(dpit.next().unwrap(), &3);
+    assert_eq!(iter.next().unwrap(), &"c".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &3);
+    assert_eq!(iter.next().unwrap(), &"d".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &3);
+    assert_eq!(iter.next(), None); //all done!
+    assert_eq!(dpit.next(), None);
 }
+
+#[test]
+fn test0203_iterator_recursive_bfs_max_dist() {
+    //depth first by default
+    let (alphabet, alphabet_size) = get_test_alphabet();
+    let anavalue: AnaValue = "abcd".anahash(&alphabet);
+    let mut depths: Vec<_> = Vec::new();
+    let mut deletions: Vec<AnaValue> = Vec::new();
+    for (deletion, depth) in anavalue.iter_recursive(alphabet_size, &SearchParams {
+        breadthfirst: true,
+        allow_duplicates: false,
+        allow_empty_leaves: false,
+        max_distance: Some(3),
+        ..Default::default()}) {
+       deletions.push(deletion.value.clone());
+       depths.push(depth);
+    }
+    let mut iter = deletions.iter();
+    let mut dpit = depths.iter();
+    assert_eq!(iter.next().unwrap(), &"abc".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &1);
+    assert_eq!(iter.next().unwrap(), &"abd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &1);
+    assert_eq!(iter.next().unwrap(), &"acd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &1);
+    assert_eq!(iter.next().unwrap(), &"bcd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &1);
+
+    assert_eq!(iter.next().unwrap(), &"ab".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
+    assert_eq!(iter.next().unwrap(), &"ac".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
+    assert_eq!(iter.next().unwrap(), &"bc".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
+
+    assert_eq!(iter.next().unwrap(), &"ad".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
+    assert_eq!(iter.next().unwrap(), &"bd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
+
+    assert_eq!(iter.next().unwrap(), &"cd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
+
+    assert_eq!(iter.next().unwrap(), &"a".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &3);
+    assert_eq!(iter.next().unwrap(), &"b".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &3);
+    assert_eq!(iter.next().unwrap(), &"c".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &3);
+    assert_eq!(iter.next().unwrap(), &"d".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &3);
+    assert_eq!(iter.next(), None); //all done!
+    assert_eq!(dpit.next(), None);
+}
+
+#[test]
+fn test0203_iterator_recursive_bfs_max_dist2() {
+    //depth first by default
+    let (alphabet, alphabet_size) = get_test_alphabet();
+    let anavalue: AnaValue = "abcd".anahash(&alphabet);
+    let mut depths: Vec<_> = Vec::new();
+    let mut deletions: Vec<AnaValue> = Vec::new();
+    for (deletion, depth) in anavalue.iter_recursive(alphabet_size, &SearchParams {
+        breadthfirst: true,
+        allow_duplicates: false,
+        allow_empty_leaves: false,
+        max_distance: Some(2),
+        ..Default::default()}) {
+       deletions.push(deletion.value.clone());
+       depths.push(depth);
+    }
+    let mut iter = deletions.iter();
+    let mut dpit = depths.iter();
+    assert_eq!(iter.next().unwrap(), &"abc".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &1);
+    assert_eq!(iter.next().unwrap(), &"abd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &1);
+    assert_eq!(iter.next().unwrap(), &"acd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &1);
+    assert_eq!(iter.next().unwrap(), &"bcd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &1);
+
+    assert_eq!(iter.next().unwrap(), &"ab".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
+    assert_eq!(iter.next().unwrap(), &"ac".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
+    assert_eq!(iter.next().unwrap(), &"bc".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
+
+    assert_eq!(iter.next().unwrap(), &"ad".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
+    assert_eq!(iter.next().unwrap(), &"bd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
+
+    assert_eq!(iter.next().unwrap(), &"cd".anahash(&alphabet));
+    assert_eq!(dpit.next().unwrap(), &2);
+    assert_eq!(iter.next(), None); //all done!
+    assert_eq!(dpit.next(), None);
+}
+
+

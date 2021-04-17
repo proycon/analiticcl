@@ -346,8 +346,9 @@ impl VariantModel {
             nearest.insert(matched_anahash);
         }
 
-        let (focus_alphabet_size, focus_charcount) = focus.alphabet_upper_bound(self.alphabet_size());
-        let focus_highest_alphabet_char = AnaValue::character(focus_alphabet_size);
+        let (focus_upper_bound, focus_charcount) = focus.alphabet_upper_bound(self.alphabet_size());
+        let focus_alphabet_size = focus_upper_bound + 1;
+        let focus_highest_alphabet_char = AnaValue::character(focus_upper_bound);
 
 
         //Find anagrams reachable through insertions within the the maximum distance
@@ -385,7 +386,7 @@ impl VariantModel {
         */
 
         // Do a breadth first search for deletions
-        for (deletion,distance) in focus.iter_recursive(focus_alphabet_size, &SearchParams {
+        for (deletion,distance) in focus.iter_recursive(focus_alphabet_size+1, &SearchParams {
             max_distance: Some(max_distance as u32),
             breadthfirst: true,
             allow_empty_leaves: false,
@@ -405,12 +406,16 @@ impl VariantModel {
 
             if distance == max_distance as u32 { //no need to check for distances that are not the max
                 let mut count = 0;
-                let search_charcount = focus_charcount + distance as u16;
+                let (deletion_upper_bound, deletion_charcount) = deletion.alphabet_upper_bound(self.alphabet_size());
+                let search_charcount = deletion_charcount + distance as u16;
                 let beginlength = nearest.len();
+                if self.debug {
+                    eprintln!("  (testing insertions for distance {} from deletion result anavalue {})", search_charcount, deletion.value);
+                }
                 //Find possible insertions starting from this deletion
                 if let Some(sortedindex) = self.sortedindex.get(&search_charcount) {
                     nearest.extend( sortedindex.iter().filter(|candidate| {
-                        if candidate.contains(focus) {//this is where the magic happens
+                        if candidate.contains(&deletion.value) {//this is where the magic happens
                             count += 1;
                             true
                         } else {
@@ -419,7 +424,7 @@ impl VariantModel {
                     }));
                 }
                 if self.debug {
-                    eprintln!("  (added {} out of {} candidates)", nearest.len() - beginlength , count);
+                    eprintln!("  (added {} out of {} candidates, preventing duplicates)", nearest.len() - beginlength , count);
                 }
             }
 
