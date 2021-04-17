@@ -7,6 +7,7 @@ use std::collections::{HashMap,BTreeMap};
 pub mod types;
 pub mod anahash;
 pub mod index;
+pub mod iterators;
 pub mod vocab;
 pub mod distance;
 pub mod test;
@@ -15,6 +16,7 @@ pub mod test;
 pub use crate::types::*;
 pub use crate::anahash::*;
 pub use crate::index::*;
+pub use crate::iterators::*;
 pub use crate::vocab::*;
 pub use crate::distance::*;
 
