@@ -103,7 +103,7 @@ impl VariantModel {
         }
         eprintln!(" - Found {} instances",tmp_hashes.len());
 
-        eprintln!("Adding all instances to the index");
+        eprintln!("Adding all instances to the index...");
         for (anahash, id) in tmp_hashes {
             //add it to the index
             let node = self.get_or_create_node(&anahash);
@@ -111,7 +111,7 @@ impl VariantModel {
         }
         eprintln!(" - Found {} anagrams", self.index.len() );
 
-        eprintln!("Creating sorted secondary index");
+        eprintln!("Creating sorted secondary index...");
         for (anahash, node) in self.index.iter() {
             if !self.sortedindex.contains_key(&node.charcount) {
                 self.sortedindex.insert(node.charcount, Vec::new());
@@ -120,7 +120,7 @@ impl VariantModel {
             keys.push(anahash.clone());  //TODO: see if we can make this a reference later
         }
 
-        eprintln!("Sorting secondary index");
+        eprintln!("Sorting secondary index...");
         let mut sizes: Vec<u16> = self.sortedindex.keys().map(|x| *x).collect();
         sizes.sort_unstable();
         for size in sizes {
@@ -130,82 +130,9 @@ impl VariantModel {
         }
     }
 
-    /*
-    fn compute_deletions(&self, target: &mut HashMap<AnaValue,Vec<AnaValue>>, queue: &[AnaValue], max_distance: u8)  {
-        //TODO: REMOVE, redundant
-        //
-        //
-        if self.debug {
-            eprintln!("Computing deletions within distance {}...",max_distance);
-        }
-
-        let alphabet_size = self.alphabet_size();
-
-        let mut queue: Vec<AnaValue> = Vec::from(queue);
-
-        // Compute deletions for all instances, expanding
-        // recursively also to anahashes which do not have instances
-        // which are created on the fly
-        for depth in 0..max_distance {
-            queue.sort_unstable();
-            let mut nextqueue: Vec<AnaValue> = Vec::new();
-            let length = queue.len();
-            for (i, anahash) in queue.iter().enumerate() {
-              if !target.contains_key(anahash) {
-                if self.debug {
-                    eprintln!(" - Depth {}: @{}/{}",depth+1, i+1, length );
-                }
-                let newparents: Vec<AnaValue> = anahash.iter_parents(alphabet_size).map(|x| x.clone()).collect();
-                target.insert(anahash.clone(), newparents );
-
-                if depth + 1 < max_distance {
-                    let mut total = 0;
-                    let mut expanded = 0;
-                    for p in target.get(&anahash).unwrap() {
-                        total += 1;
-                        if !target.contains_key(&p) { //no duplicates in the queue
-                            expanded += 1;
-                            nextqueue.push(p.clone());
-                        }
-                    }
-
-                    if self.debug {
-                        eprintln!(" - Queued {} extra nodes (out of {})", expanded, total );
-                    }
-                }
-              }
-            }
-            let _oldqueue = std::mem::replace(&mut queue, nextqueue);
-        }
-
-    }
-    */
-
-
-
-    ///Find all insertions within a certain distance
-    /*
-    fn expand_insertions(&self, target: &mut Vec<AnaValue>, query: AnaValue, hashes: Vec<AnaValue>, max_distance: u8) {
-        merge_while_expanding(target, hashes, |anahash| {
-            if let Some(children) = self.insertions.get(&anahash) {
-                children.iter().map(|x| *x).filter(|x| query.sizediff(*x) <= max_distance).collect::<Vec<AnaValue>>(),
-                self.expand_insertions(target,
-                                       query,
-                                       children.iter().map(|x| *x).filter(|x| query.sizediff(*x) <= max_distance).collect::<Vec<AnaValue>>(),
-                                       max_distance);
-            } else {
-                vec!()
-            }
-        });
-    }
-    */
-
-
-
     pub fn contains_key(&self, key: &AnaValue) -> bool {
         self.index.contains_key(key)
     }
-
 
     ///Read the alphabet from a TSV file
     ///The file contains one alphabet entry per line, but may

@@ -65,10 +65,10 @@ fn main() {
                         .short("D")
                         .help("Debug")
                         .required(false))
-                    .arg(Arg::with_name("printindex")
-                        .long("printindex")
-                        .short("I")
-                        .help("Output the entire index")
+                    .arg(Arg::with_name("outputindex")
+                        .long("outputindex")
+                        .short("O")
+                        .help("Output the entire anagram hash index")
                         .required(false))
                     .arg(Arg::with_name("weight-ld")
                         .long("weight-ld")
@@ -139,7 +139,7 @@ fn main() {
     let max_anagram_distance: u8 = args.value_of("max_anagram_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
     let max_edit_distance: u8 = args.value_of("max_edit_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
 
-    if args.is_present("printindex") {
+    if args.is_present("outputindex") {
         for (anahash, indexnode) in model.index.iter() {
             if !indexnode.instances.is_empty() {
                 print!("{}", anahash);
@@ -156,12 +156,12 @@ fn main() {
         let files: Vec<_> = if args.is_present("files") {
             args.values_of("files").unwrap().collect()
         } else {
-            eprintln!("(accepting standard input)");
             vec!("-")
         };
         for filename in files {
             match filename {
                 "-" | "STDIN" | "stdin"  => {
+                    eprintln!("(accepting standard input)");
                     let stdin = io::stdin();
                     let f_buffer = BufReader::new(stdin);
                     for line in f_buffer.lines() {
