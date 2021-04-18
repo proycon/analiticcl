@@ -24,7 +24,8 @@ pub struct Weights {
     pub lcs: f64,
     pub freq: f64,
     pub prefix: f64,
-    pub suffix: f64
+    pub suffix: f64,
+    pub lex: f64,
 }
 
 impl Default for Weights {
@@ -34,14 +35,15 @@ impl Default for Weights {
            lcs: 1.0,
            freq: 1.0,
            prefix: 1.0,
-           suffix: 1.0
+           suffix: 1.0,
+           lex: 1.0,
         }
    }
 }
 
 impl Weights {
     pub fn sum(&self) -> f64 {
-        self.ld + self.lcs + self.freq + self.prefix + self.suffix
+        self.ld + self.lcs + self.freq + self.prefix + self.suffix + self.lex
     }
 }
 
@@ -62,4 +64,8 @@ pub struct Distance {
 
     ///Absolute frequency count
     pub freq: u32,
+
+    ///Lexicon weight (usually simply 1.0 if an item is in a validated lexicon, and 0.0 if in a
+    ///background corpus)
+    pub lex: f32,
 }

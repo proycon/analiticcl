@@ -48,7 +48,7 @@ pub struct VariantModel {
 }
 
 impl VariantModel {
-    pub fn new(alphabet_file: &str, vocabulary_file: &str, vocabparams: Option<VocabParams>, weights: Weights, debug: bool) -> VariantModel {
+    pub fn new(alphabet_file: &str, weights: Weights, debug: bool) -> VariantModel {
         let mut model = VariantModel {
             alphabet: Vec::new(),
             //encoder: HashMap::new(),
@@ -61,7 +61,6 @@ impl VariantModel {
             debug: debug,
         };
         model.read_alphabet(alphabet_file).expect("Error loading alphabet file");
-        model.read_vocabulary(vocabulary_file, vocabparams).expect("Error loading vocabulary file");
         model
     }
 
@@ -82,6 +81,10 @@ impl VariantModel {
     }
 
     pub fn train(&mut self) {
+        if !self.have_freq {
+            self.weights.freq = 0.0
+        }
+
         eprintln!("Computing anagram values for all items in the lexicon...");
 
         let alphabet_size = self.alphabet_size();
@@ -231,13 +234,14 @@ impl VariantModel {
         Ok(())
     }
 
-    ///Read vocabulary from a TSV file
+
+    ///Read vocabulary (a lexicon or corpus-derived lexicon) from a TSV file
+    ///May contain frequency information
     ///The parameters define what value can be read from what column
-    pub fn read_vocabulary(&mut self, filename: &str, params: Option<VocabParams>) -> Result<(), std::io::Error> {
+    pub fn read_vocabulary(&mut self, filename: &str, params: &VocabParams, lexicon_weight: f32) -> Result<(), std::io::Error> {
         if self.debug {
             eprintln!("Reading vocabulary from {}...", filename);
         }
-        let params = params.unwrap_or_default();
         let f = File::open(filename)?;
         let f_buffer = BufReader::new(f);
         for line in f_buffer.lines() {
@@ -259,7 +263,8 @@ impl VariantModel {
                         text: text.to_string(),
                         norm: text.normalize_to_alphabet(&self.alphabet),
                         frequency: frequency,
-                        tokencount: text.chars().filter(|c| *c == ' ').count() as u8 + 1
+                        tokencount: text.chars().filter(|c| *c == ' ').count() as u8 + 1,
+                        lexweight: lexicon_weight,
                     });
                 }
             }
@@ -415,7 +420,8 @@ impl VariantModel {
                                 lcs: if self.weights.lcs > 0.0 { longest_common_substring_length(querystring, &vocabitem.norm) } else { 0 },
                                 prefixlen: if self.weights.prefix > 0.0 { common_prefix_length(querystring, &vocabitem.norm) } else { 0 },
                                 suffixlen: if self.weights.suffix > 0.0 { common_suffix_length(querystring, &vocabitem.norm) } else { 0 },
-                                freq: if self.weights.freq > 0.0 { vocabitem.frequency } else { 0 }
+                                freq: if self.weights.freq > 0.0 { vocabitem.frequency } else { 0 },
+                                lex: if self.weights.lex > 0.0 { vocabitem.lexweight } else { 0.0 }
                             };
                             found_instances.push((*vocab_id,distance));
                         } else {
@@ -487,10 +493,11 @@ impl VariantModel {
                 };
                 let score = (
                     self.weights.ld * distance_score +
-                    self.weights.freq * freq_score +
+                    self.weights.freq * freq_score +  //weight will be 0 if there are no frequencies
                     self.weights.lcs * lcs_score +
                     self.weights.prefix * prefix_score +
-                    self.weights.suffix * suffix_score
+                    self.weights.suffix * suffix_score +
+                    self.weights.lex * vocabitem.lexweight as f64
                 ) / weights_sum;
                 if self.debug {
                     eprintln!("   (distance={:?}, score={})", distance, score);

@@ -24,9 +24,19 @@ fn main() {
                     .arg(Arg::with_name("lexicon")
                         .long("lexicon")
                         .short("l")
-                        .help("Lexicon against which all matches are made")
+                        .help("Lexicon against which all matches are made (may be used multiple times). The lexicon should only contain validated items, if not, use --corpus instead. The lexicon should be a tab separated file with each entry on one line, columns may be used for frequency information. This option may be used multiple times for multiple lexicons.")
                         .takes_value(true)
-                        .required(true))
+                        .number_of_values(1)
+                        .multiple(true)
+                        .required_unless("corpus"))
+                    .arg(Arg::with_name("corpus")
+                        .long("corpus")
+                        .short("f")
+                        .help("Corpus-derived lexicon against which matches are made (may be used multiple times). Format is the same as for --lexicon. This optionmay be used multiple times.")
+                        .takes_value(true)
+                        .number_of_values(1)
+                        .multiple(true)
+                        .required_unless("lexicon"))
                     .arg(Arg::with_name("alphabet")
                         .long("alphabet")
                         .short("a")
@@ -85,9 +95,14 @@ fn main() {
                         .help("Weight attributed to frequency in scoring")
                         .takes_value(true)
                         .default_value("1.0"))
+                    .arg(Arg::with_name("weight-lex")
+                        .long("weight-lex")
+                        .help("Weight attributed to items that are in the lexicon, will always be 0 for items only in the corpus")
+                        .takes_value(true)
+                        .default_value("1.0"))
                     .get_matches();
 
-    eprintln!("Loading model resources...");
+    eprintln!("Initializing model...");
 
     let weights = Weights {
         ld: args.value_of("weight-ld").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
@@ -95,16 +110,28 @@ fn main() {
         prefix: args.value_of("weight-prefix").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
         suffix: args.value_of("weight-suffix").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
         freq: args.value_of("weight-freq").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
+        lex: args.value_of("weight-lex").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
     };
 
     let mut model = VariantModel::new(
         args.value_of("alphabet").unwrap(),
-        args.value_of("lexicon").unwrap(),
-        Some(VocabParams::default()),
         weights,
         args.is_present("debug")
-
     );
+
+    eprintln!("Loading lexicons...");
+
+    if args.is_present("lexicon") {
+        for filename in args.values_of("lexicon").unwrap().collect::<Vec<&str>>() {
+            model.read_vocabulary(filename, &VocabParams::default(), 1.0).expect(&format!("Error reading {}", filename));
+        }
+    }
+
+    if args.is_present("corpus") {
+        for filename in args.values_of("corpus").unwrap().collect::<Vec<&str>>() {
+            model.read_vocabulary(filename, &VocabParams::default(), 0.0).expect(&format!("Error reading {}", filename));
+        }
+    }
 
     eprintln!("Training model...");
     model.train();
