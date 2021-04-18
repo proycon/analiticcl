@@ -8,4 +8,10 @@ version = "0.1.0"
 clap = "*"
 num-bigint = "*"
 num-traits = "*"
-matches = "*"
+
+[dev-dependencies]
+criterion = "*"
+
+[[bench]]
+name = "benchmarks"
+harness = false
