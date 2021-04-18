@@ -76,7 +76,7 @@ fn main() {
                         .takes_value(true)
                         .default_value("1.0"))
                     .arg(Arg::with_name("weight-suffix")
-                        .long("weight-prefix")
+                        .long("weight-suffix")
                         .help("Weight attributed to longest common suffix length in scoring")
                         .takes_value(true)
                         .default_value("1.0"))

@@ -46,6 +46,7 @@ impl Weights {
 }
 
 
+#[derive(Debug,Clone)]
 pub struct Distance {
     ///Levenshtein (or Damarau-Levenshtein) distance
     pub ld: CharIndexType,

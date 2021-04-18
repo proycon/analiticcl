@@ -569,3 +569,21 @@ fn test0304_lcslen() {
     assert_eq!(longest_common_substring_length(&"abcdefhij".normalize_to_alphabet(&alphabet), &"def".normalize_to_alphabet(&alphabet)), 3);
     assert_eq!(longest_common_substring_length(&"def".normalize_to_alphabet(&alphabet), &"abcdefhij".normalize_to_alphabet(&alphabet)), 3);
 }
+
+#[test]
+fn test0304_prefixlen() {
+    let (alphabet, alphabet_size) = get_test_alphabet();
+    assert_eq!(common_prefix_length(&"test".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 4);
+    assert_eq!(common_prefix_length(&"testable".normalize_to_alphabet(&alphabet), &"test".normalize_to_alphabet(&alphabet)), 4);
+    assert_eq!(common_prefix_length(&"fasttest".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 0);
+    assert_eq!(common_prefix_length(&"fasttest".normalize_to_alphabet(&alphabet), &"test".normalize_to_alphabet(&alphabet)), 0);
+}
+
+#[test]
+fn test0304_suffixlen() {
+    let (alphabet, alphabet_size) = get_test_alphabet();
+    assert_eq!(common_suffix_length(&"test".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 0);
+    assert_eq!(common_suffix_length(&"testable".normalize_to_alphabet(&alphabet), &"test".normalize_to_alphabet(&alphabet)), 0);
+    assert_eq!(common_suffix_length(&"fasttest".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 0);
+    assert_eq!(common_suffix_length(&"fasttest".normalize_to_alphabet(&alphabet), &"test".normalize_to_alphabet(&alphabet)), 4);
+}

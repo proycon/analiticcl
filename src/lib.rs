@@ -281,9 +281,10 @@ impl VariantModel {
         let anahashes = self.find_nearest_anahashes(&anahash, max_anagram_distance);
 
         //Get the instances pertaining to the collected hashes, within a certain maximum distance
+        //and compute distances
         let variants = self.gather_instances(&anahashes, &normstring, max_edit_distance);
 
-        self.score_and_resolve(variants, self.have_freq)
+        self.score_and_rank(variants, self.have_freq)
     }
 
 
@@ -402,13 +403,13 @@ impl VariantModel {
     /// Gather instances and their edit distances, given a search string (normalised to the alphabet) and anagram hashes
     pub fn gather_instances(&self, nearest_anagrams: &HashSet<&AnaValue>, querystring: &[u8], max_edit_distance: u8) -> Vec<(VocabId,Distance)> {
         let mut found_instances = Vec::new();
+        let mut pruned_instances = 0;
         for anahash in nearest_anagrams {
             if let Some(node) = self.index.get(anahash) {
                 for vocab_id in node.instances.iter() {
                     if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
-                        let ld = damerau_levenshtein(querystring, &vocabitem.norm, max_edit_distance);
-                        if let Some(ld) = ld {
-                            //we get here only if we don't reach the max_edit_distance cut-off
+                        if let Some(ld) = damerau_levenshtein(querystring, &vocabitem.norm, max_edit_distance) {
+                            //we only get here if we make the max_edit_distance cut-off
                             let distance = Distance {
                                 ld: ld,
                                 lcs: if self.weights.lcs > 0.0 { longest_common_substring_length(querystring, &vocabitem.norm) } else { 0 },
@@ -417,25 +418,34 @@ impl VariantModel {
                                 freq: if self.weights.freq > 0.0 { vocabitem.frequency } else { 0 }
                             };
                             found_instances.push((*vocab_id,distance));
+                        } else {
+                            pruned_instances += 1;
                         }
                     }
                 }
             }
         }
         //found_instances.sort_unstable_by_key(|k| k.1 ); //sort by distance, ascending order
+        if self.debug {
+            eprintln!("(found {} instances (pruned {}) over {} anagrams)", found_instances.len(), pruned_instances, nearest_anagrams.len());
+        }
         found_instances
     }
 
 
 
-    /// Resolve and score all variants
-    pub fn score_and_resolve(&self, instances: Vec<(VocabId,Distance)>, use_freq: bool) -> Vec<(&str,f64)> {
+    /// Rank and score all variants
+    pub fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, use_freq: bool) -> Vec<(&str,f64)> {
         let mut results: Vec<(&str,f64)> = Vec::new();
         let mut max_distance = 0;
         let mut max_freq = 0;
         let mut max_prefixlen = 0;
         let mut max_suffixlen = 0;
         let weights_sum = self.weights.sum();
+
+        if self.debug {
+            eprintln!("(scoring and ranking {} instances)", instances.len());
+        }
 
         //Collect maximum values
         for (vocab_id, distance) in instances.iter() {
@@ -482,6 +492,9 @@ impl VariantModel {
                     self.weights.prefix * prefix_score +
                     self.weights.suffix * suffix_score
                 ) / weights_sum;
+                if self.debug {
+                    eprintln!("   (distance={:?}, score={})", distance, score);
+                }
                 results.push( (&vocabitem.text, score) );
             }
         }
