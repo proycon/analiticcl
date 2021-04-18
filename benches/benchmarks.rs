@@ -19,6 +19,49 @@ pub fn benchmarks(c: &mut Criterion) {
 
     group.finish();
 
+    let mut group = c.benchmark_group("anahash_insertion_benchmark");
+
+    let input_avs: Vec<AnaValue> = inputs.iter().map(|input| input.anahash(&alphabet)).collect();
+    let change: AnaValue = "change".anahash(&alphabet);
+
+    for (input_av, input) in input_avs.iter().zip(inputs) {
+        group.throughput(Throughput::Bytes(input.len() as u64));
+        group.bench_with_input(BenchmarkId::new("anahash",format!("input {} chars",input.chars().count())), &input_av, |b, input_av| b.iter(||{
+            input_av.insert(black_box(&change));
+        }));
+    }
+
+    group.finish();
+
+    let mut group = c.benchmark_group("anahash_contains_benchmark");
+
+    let input_avs: Vec<AnaValue> = inputs.iter().map(|input| input.anahash(&alphabet)).collect();
+    let change: AnaValue = "change".anahash(&alphabet);
+
+    for (input_av, input) in input_avs.iter().zip(inputs) {
+        group.throughput(Throughput::Bytes(input.len() as u64));
+        group.bench_with_input(BenchmarkId::new("anahash",format!("input {} chars",input.chars().count())), &input_av, |b, input_av| b.iter(||{
+            input_av.contains(black_box(&change));
+        }));
+    }
+
+    group.finish();
+
+    let mut group = c.benchmark_group("anahash_deletion_benchmark");
+
+    let input_avs: Vec<AnaValue> = inputs.iter().map(|input| input.anahash(&alphabet)).collect();
+    let change: AnaValue = "change".anahash(&alphabet);
+
+    for (input_av, input) in input_avs.iter().zip(inputs) {
+        group.throughput(Throughput::Bytes(input.len() as u64));
+        group.bench_with_input(BenchmarkId::new("anahash",format!("input {} chars",input.chars().count())), &input_av, |b, input_av| b.iter(||{
+            input_av.delete(black_box(&change));
+        }));
+    }
+
+    group.finish();
+
+
     let simple_lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
 
     let mut model = VariantModel::new_with_alphabet(get_test_alphabet().0, Weights::default(), false);
