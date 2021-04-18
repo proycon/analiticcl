@@ -19,6 +19,33 @@ pub type AnaValue = BigUint;
 ///in the same way
 pub type Alphabet = Vec<Vec<String>>;
 
+pub struct Weights {
+    pub ld: f64,
+    pub lcs: f64,
+    pub freq: f64,
+    pub prefix: f64,
+    pub suffix: f64
+}
+
+impl Default for Weights {
+   fn default() -> Self {
+       Self {
+           ld: 1.0,
+           lcs: 1.0,
+           freq: 1.0,
+           prefix: 1.0,
+           suffix: 1.0
+        }
+   }
+}
+
+impl Weights {
+    pub fn sum(&self) -> f64 {
+        self.ld + self.lcs + self.freq + self.prefix + self.suffix
+    }
+}
+
+
 pub struct Distance {
     ///Levenshtein (or Damarau-Levenshtein) distance
     pub ld: CharIndexType,
@@ -26,6 +53,12 @@ pub struct Distance {
     ///Longest common substring length
     pub lcs: u16,
 
-    ///Length of the word
-    pub len: u16
+    ///Common prefix length
+    pub prefixlen: u16,
+
+    ///Common suffix length
+    pub suffixlen: u16,
+
+    ///Absolute frequency count
+    pub freq: u32,
 }

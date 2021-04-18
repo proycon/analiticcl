@@ -38,11 +38,17 @@ pub struct VariantModel {
     ///Does the model have frequency information?
     pub have_freq: bool,
 
+    ///Total sum of all frequencies in the lexicon
+    pub freq_sum: usize,
+
+    ///Weights used in scoring
+    pub weights: Weights,
+
     debug: bool
 }
 
 impl VariantModel {
-    pub fn new(alphabet_file: &str, vocabulary_file: &str, vocabparams: Option<VocabParams>, debug: bool) -> VariantModel {
+    pub fn new(alphabet_file: &str, vocabulary_file: &str, vocabparams: Option<VocabParams>, weights: Weights, debug: bool) -> VariantModel {
         let mut model = VariantModel {
             alphabet: Vec::new(),
             //encoder: HashMap::new(),
@@ -50,6 +56,8 @@ impl VariantModel {
             index: HashMap::new(),
             sortedindex: BTreeMap::new(),
             have_freq: false,
+            freq_sum: 0,
+            weights: weights,
             debug: debug,
         };
         model.read_alphabet(alphabet_file).expect("Error loading alphabet file");
@@ -84,6 +92,7 @@ impl VariantModel {
         for (id, value)  in self.decoder.iter().enumerate() {
             //get the anahash
             let anahash = value.text.anahash(&self.alphabet);
+            self.freq_sum += value.frequency as usize;
             if self.debug {
                 eprintln!("   -- Anavalue={} VocabId={} Text={}", &anahash, id, value.text);
             }
@@ -283,9 +292,20 @@ impl VariantModel {
         let mut results: Vec<(&str,f64)> = Vec::new();
         let mut max_distance = 0;
         let mut max_freq = 0;
+        let mut max_prefixlen = 0;
+        let mut max_suffixlen = 0;
+        let weights_sum = self.weights.sum();
+
+        //Collect maximum values
         for (vocab_id, distance) in instances.iter() {
             if distance.ld > max_distance {
                 max_distance = distance.ld;
+            }
+            if distance.prefixlen > max_prefixlen {
+                max_prefixlen = distance.prefixlen;
+            }
+            if distance.suffixlen > max_suffixlen {
+                max_suffixlen = distance.suffixlen;
             }
             if use_freq {
                 if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
@@ -295,16 +315,32 @@ impl VariantModel {
                 }
             }
         }
+
+        //Compute scores
         for (vocab_id, distance) in instances.iter() {
             if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
                 let distance_score: f64 = 1.0 - (distance.ld as f64 / max_distance as f64);
-                let lcs_score: f64 = distance.lcs as f64 / distance.len as f64;
+                let lcs_score: f64 = distance.lcs as f64 / vocabitem.norm.len() as f64;
+                let prefix_score: f64 = match max_prefixlen {
+                    0 => 0.0,
+                    max_prefixlen => distance.prefixlen as f64 / max_prefixlen as f64
+                };
+                let suffix_score: f64 = match max_suffixlen {
+                    0 => 0.0,
+                    max_suffixlen => distance.suffixlen as f64 / max_suffixlen as f64
+                };
                 let freq_score: f64 = if use_freq {
                    vocabitem.frequency as f64 / max_freq as f64
                 } else {
                     1.0
                 };
-                let score = (distance_score + freq_score + lcs_score) / 3.0;
+                let score = (
+                    self.weights.ld * distance_score +
+                    self.weights.freq * freq_score +
+                    self.weights.lcs * lcs_score +
+                    self.weights.prefix * prefix_score +
+                    self.weights.suffix * suffix_score
+                ) / weights_sum;
                 results.push( (&vocabitem.text, score) );
             }
         }
@@ -325,7 +361,9 @@ impl VariantModel {
                             let distance = Distance {
                                 ld: ld,
                                 lcs: longest_common_substring_length(querystring, &vocabitem.norm),
-                                len: vocabitem.norm.len() as u16,
+                                prefixlen: common_prefix_length(querystring, &vocabitem.norm),
+                                suffixlen: common_suffix_length(querystring, &vocabitem.norm),
+                                freq: vocabitem.frequency //TODO: express frequency difference
                             };
                             found_instances.push((*vocab_id,distance));
                         }

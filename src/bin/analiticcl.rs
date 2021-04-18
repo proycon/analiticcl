@@ -19,7 +19,7 @@ fn main() {
     let args = App::new("Analiticcl")
                     .version("0.1")
                     .author("Maarten van Gompel (proycon) <proycon@anaproy.nl>")
-                    .about("Spelling variant matching")
+                    .about("Spelling variant matching / approximate string matching / fuzzy search")
                     //snippet hints --> addargb,addargs,addargi,addargf,addargpos
                     .arg(Arg::with_name("lexicon")
                         .long("lexicon")
@@ -60,13 +60,48 @@ fn main() {
                         .short("I")
                         .help("Output the entire index")
                         .required(false))
+                    .arg(Arg::with_name("weight-ld")
+                        .long("weight-ld")
+                        .help("Weight attributed to Damarau-Levenshtein distance in scoring")
+                        .takes_value(true)
+                        .default_value("1.0"))
+                    .arg(Arg::with_name("weight-lcs")
+                        .long("weight-lcs")
+                        .help("Weight attributed to Longest common substring length in scoring")
+                        .takes_value(true)
+                        .default_value("1.0"))
+                    .arg(Arg::with_name("weight-prefix")
+                        .long("weight-prefix")
+                        .help("Weight attributed to longest common prefix length in scoring")
+                        .takes_value(true)
+                        .default_value("1.0"))
+                    .arg(Arg::with_name("weight-suffix")
+                        .long("weight-prefix")
+                        .help("Weight attributed to longest common suffix length in scoring")
+                        .takes_value(true)
+                        .default_value("1.0"))
+                    .arg(Arg::with_name("weight-freq")
+                        .long("weight-freq")
+                        .help("Weight attributed to frequency in scoring")
+                        .takes_value(true)
+                        .default_value("1.0"))
                     .get_matches();
 
     eprintln!("Loading model resources...");
+
+    let weights = Weights {
+        ld: args.value_of("weight-ld").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
+        lcs: args.value_of("weight-lcs").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
+        prefix: args.value_of("weight-prefix").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
+        suffix: args.value_of("weight-suffix").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
+        freq: args.value_of("weight-freq").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
+    };
+
     let mut model = VariantModel::new(
         args.value_of("alphabet").unwrap(),
         args.value_of("lexicon").unwrap(),
         Some(VocabParams::default()),
+        weights,
         args.is_present("debug")
 
     );

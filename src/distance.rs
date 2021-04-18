@@ -199,6 +199,33 @@ pub fn longest_common_substring_length(s1: &[CharIndexType], s2: &[CharIndexType
     lcs
 }
 
+///Computes if the strings share a common prefix, and if so, how long it is
+pub fn common_prefix_length(s1: &[CharIndexType], s2: &[CharIndexType]) -> u16 {
+    let mut prefixlen = 0;
+    for i in 0..min(s1.len(),s2.len()) {
+        if s1[i] == s2[i] {
+            prefixlen += 1;
+        } else {
+            break;
+        }
+    }
+    prefixlen
+}
+
+///Computes if the strings share a common suffix, and if so, how long it is
+pub fn common_suffix_length(s1: &[CharIndexType], s2: &[CharIndexType]) -> u16 {
+    let mut suffixlen = 0;
+    for i in 0..min(s1.len(),s2.len()) {
+        if s1[s1.len() - i - 1] == s2[s2.len() - i - 1] {
+            suffixlen += 1;
+        } else {
+            break;
+        }
+    }
+    suffixlen
+}
+
+
 #[inline(always)]
 pub fn min4(a: usize, b: usize, c: usize, d: usize) -> usize {
    return min(min(min(a, b), c), d);
