@@ -64,6 +64,19 @@ impl VariantModel {
         model
     }
 
+    pub fn new_with_alphabet(alphabet: Alphabet, weights: Weights, debug: bool) -> VariantModel {
+        VariantModel {
+            alphabet: alphabet,
+            decoder: Vec::new(),
+            index: HashMap::new(),
+            sortedindex: BTreeMap::new(),
+            have_freq: false,
+            freq_sum: 0,
+            weights: weights,
+            debug: debug,
+        }
+    }
+
     pub fn alphabet_size(&self) -> CharIndexType {
         self.alphabet.len() as CharIndexType + 1 //+1 for UNK
     }
@@ -134,6 +147,39 @@ impl VariantModel {
         self.index.contains_key(key)
     }
 
+    ///Get all anagram instances for a specific entry
+    pub fn get_anagram_instances(&self, text: &str) -> Vec<&VocabValue> {
+        let anavalue = text.anahash(&self.alphabet);
+        let mut instances: Vec<&VocabValue> = Vec::new();
+        if let Some(node) = self.index.get(&anavalue) {
+            for vocab_id in node.instances.iter() {
+                instances.push(self.decoder.get(*vocab_id as usize).expect("vocab from decoder"));
+            }
+        }
+        instances
+    }
+
+    ///Get an exact item in the lexicon (if it exists)
+    pub fn get(&self, text: &str) -> Option<&VocabValue> {
+        for instance in self.get_anagram_instances(text) {
+            if instance.text == text {
+                return Some(instance);
+            }
+        }
+        None
+    }
+
+    ///Tests if the lexicon has a specific entry, by text
+    pub fn has(&self, text: &str) -> bool {
+        for instance in self.get_anagram_instances(text) {
+            if instance.text == text {
+                return true;
+            }
+        }
+        false
+    }
+
+
     ///Read the alphabet from a TSV file
     ///The file contains one alphabet entry per line, but may
     ///consist of multiple tab-separated alphabet entries on that line, which
@@ -182,17 +228,7 @@ impl VariantModel {
                     } else {
                         1
                     };
-                    //self.encoder.insert(text.to_string(), self.decoder.len() as u64);
-                    if self.debug {
-                        eprintln!(" -- Adding to vocabulary: {}", text);
-                    }
-                    self.decoder.push(VocabValue {
-                        text: text.to_string(),
-                        norm: text.normalize_to_alphabet(&self.alphabet),
-                        frequency: frequency,
-                        tokencount: text.chars().filter(|c| *c == ' ').count() as u8 + 1,
-                        lexweight: lexicon_weight,
-                    });
+                    self.add_to_vocabulary(text, Some(frequency), Some(lexicon_weight));
                 }
             }
         }
@@ -200,6 +236,22 @@ impl VariantModel {
             eprintln!(" - Read vocabulary of size {}", self.decoder.len());
         }
         Ok(())
+    }
+
+    pub fn add_to_vocabulary(&mut self, text: &str, frequency: Option<u32>, lexicon_weight: Option<f32>) {
+        let frequency = frequency.unwrap_or(1);
+        let lexicon_weight = lexicon_weight.unwrap_or(1.0);
+        if self.debug {
+            eprintln!(" -- Adding to vocabulary: {}", text);
+        }
+        self.decoder.push(VocabValue {
+            text: text.to_string(),
+            norm: text.normalize_to_alphabet(&self.alphabet),
+            frequency: frequency,
+            tokencount: text.chars().filter(|c| *c == ' ').count() as u8 + 1,
+            lexweight: lexicon_weight,
+        });
+        //self.encoder.insert(text.to_string(), self.decoder.len() as u64);
     }
 
     /// Find variants in the vocabulary for a given string (in its totality), returns a vector of string,score pairs

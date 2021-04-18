@@ -587,3 +587,42 @@ fn test0304_suffixlen() {
     assert_eq!(common_suffix_length(&"fasttest".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 0);
     assert_eq!(common_suffix_length(&"fasttest".normalize_to_alphabet(&alphabet), &"test".normalize_to_alphabet(&alphabet)), 4);
 }
+
+#[test]
+fn test0400_model_load() {
+    let (alphabet, alphabet_size) = get_test_alphabet();
+    let model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+}
+
+#[test]
+fn test0401_model_train() {
+    let (alphabet, alphabet_size) = get_test_alphabet();
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
+    for text in lexicon.iter() {
+        model.add_to_vocabulary(text,None,None);
+    }
+    model.train();
+    assert!(model.has(&"rites"));
+    for text in lexicon.iter() {
+        assert!(model.has(text));
+        assert!(model.get(text).is_some());
+    }
+    assert!(!model.has(&"unknown"));
+    assert!(model.get(&"unknown").is_none());
+}
+
+#[test]
+fn test0402_model_anagrams() {
+    let (alphabet, alphabet_size) = get_test_alphabet();
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
+    for text in lexicon.iter() {
+        model.add_to_vocabulary(text,None,None);
+    }
+    model.train();
+    assert!(model.has(&"rites"));
+    assert_eq!(model.get_anagram_instances(&"rites").iter().map(|item| item.text.clone()).collect::<Vec<String>>(),
+             &["rites","tiers","tires","tries"]
+    );
+}

@@ -30,6 +30,7 @@ pub const ALPHABET: &[&[&str]] = &[
    &[".",","],
 ];
 
+
 pub fn get_test_alphabet() -> (Alphabet,CharIndexType) {
     //this is a bit silly to do so verbosely here just to get
     //everything in Vecss and Strings, but it works
@@ -44,3 +45,4 @@ pub fn get_test_alphabet() -> (Alphabet,CharIndexType) {
     let l = alphabet.len();
     (alphabet, l as CharIndexType)
 }
+
