@@ -287,94 +287,6 @@ impl VariantModel {
     }
 
 
-    /// Resolve and score all variants
-    pub fn score_and_resolve(&self, instances: Vec<(VocabId,Distance)>, use_freq: bool) -> Vec<(&str,f64)> {
-        let mut results: Vec<(&str,f64)> = Vec::new();
-        let mut max_distance = 0;
-        let mut max_freq = 0;
-        let mut max_prefixlen = 0;
-        let mut max_suffixlen = 0;
-        let weights_sum = self.weights.sum();
-
-        //Collect maximum values
-        for (vocab_id, distance) in instances.iter() {
-            if distance.ld > max_distance {
-                max_distance = distance.ld;
-            }
-            if distance.prefixlen > max_prefixlen {
-                max_prefixlen = distance.prefixlen;
-            }
-            if distance.suffixlen > max_suffixlen {
-                max_suffixlen = distance.suffixlen;
-            }
-            if use_freq {
-                if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
-                    if vocabitem.frequency > max_freq {
-                        max_freq = vocabitem.frequency;
-                    }
-                }
-            }
-        }
-
-        //Compute scores
-        for (vocab_id, distance) in instances.iter() {
-            if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
-                let distance_score: f64 = 1.0 - (distance.ld as f64 / max_distance as f64);
-                let lcs_score: f64 = distance.lcs as f64 / vocabitem.norm.len() as f64;
-                let prefix_score: f64 = match max_prefixlen {
-                    0 => 0.0,
-                    max_prefixlen => distance.prefixlen as f64 / max_prefixlen as f64
-                };
-                let suffix_score: f64 = match max_suffixlen {
-                    0 => 0.0,
-                    max_suffixlen => distance.suffixlen as f64 / max_suffixlen as f64
-                };
-                let freq_score: f64 = if use_freq {
-                   vocabitem.frequency as f64 / max_freq as f64
-                } else {
-                    1.0
-                };
-                let score = (
-                    self.weights.ld * distance_score +
-                    self.weights.freq * freq_score +
-                    self.weights.lcs * lcs_score +
-                    self.weights.prefix * prefix_score +
-                    self.weights.suffix * suffix_score
-                ) / weights_sum;
-                results.push( (&vocabitem.text, score) );
-            }
-        }
-        results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); //sort by score, descending order
-        results
-    }
-
-    /// Gather instances and their edit distances, given a search string (normalised to the alphabet) and anagram hashes
-    pub fn gather_instances(&self, nearest_anagrams: &HashSet<&AnaValue>, querystring: &[u8], max_edit_distance: u8) -> Vec<(VocabId,Distance)> {
-        let mut found_instances = Vec::new();
-        for anahash in nearest_anagrams {
-            if let Some(node) = self.index.get(anahash) {
-                for vocab_id in node.instances.iter() {
-                    if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
-                        let ld = damerau_levenshtein(querystring, &vocabitem.norm, max_edit_distance);
-                        if let Some(ld) = ld {
-                            //we get here only if we don't reach the max_edit_distance cut-off
-                            let distance = Distance {
-                                ld: ld,
-                                lcs: longest_common_substring_length(querystring, &vocabitem.norm),
-                                prefixlen: common_prefix_length(querystring, &vocabitem.norm),
-                                suffixlen: common_suffix_length(querystring, &vocabitem.norm),
-                                freq: vocabitem.frequency //TODO: express frequency difference
-                            };
-                            found_instances.push((*vocab_id,distance));
-                        }
-                    }
-                }
-            }
-        }
-        //found_instances.sort_unstable_by_key(|k| k.1 ); //sort by distance, ascending order
-        found_instances
-    }
-
     /// Find the nearest anahashes that exists in the model (computing anahashes in the
     /// neigbhourhood if needed). Note: this also returns anahashes that have no instances
     pub fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, max_distance: u8) -> HashSet<&'a AnaValue> {
@@ -486,6 +398,96 @@ impl VariantModel {
         nearest
     }
 
+
+    /// Gather instances and their edit distances, given a search string (normalised to the alphabet) and anagram hashes
+    pub fn gather_instances(&self, nearest_anagrams: &HashSet<&AnaValue>, querystring: &[u8], max_edit_distance: u8) -> Vec<(VocabId,Distance)> {
+        let mut found_instances = Vec::new();
+        for anahash in nearest_anagrams {
+            if let Some(node) = self.index.get(anahash) {
+                for vocab_id in node.instances.iter() {
+                    if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
+                        let ld = damerau_levenshtein(querystring, &vocabitem.norm, max_edit_distance);
+                        if let Some(ld) = ld {
+                            //we get here only if we don't reach the max_edit_distance cut-off
+                            let distance = Distance {
+                                ld: ld,
+                                lcs: longest_common_substring_length(querystring, &vocabitem.norm),
+                                prefixlen: common_prefix_length(querystring, &vocabitem.norm),
+                                suffixlen: common_suffix_length(querystring, &vocabitem.norm),
+                                freq: vocabitem.frequency //TODO: express frequency difference
+                            };
+                            found_instances.push((*vocab_id,distance));
+                        }
+                    }
+                }
+            }
+        }
+        //found_instances.sort_unstable_by_key(|k| k.1 ); //sort by distance, ascending order
+        found_instances
+    }
+
+
+
+    /// Resolve and score all variants
+    pub fn score_and_resolve(&self, instances: Vec<(VocabId,Distance)>, use_freq: bool) -> Vec<(&str,f64)> {
+        let mut results: Vec<(&str,f64)> = Vec::new();
+        let mut max_distance = 0;
+        let mut max_freq = 0;
+        let mut max_prefixlen = 0;
+        let mut max_suffixlen = 0;
+        let weights_sum = self.weights.sum();
+
+        //Collect maximum values
+        for (vocab_id, distance) in instances.iter() {
+            if distance.ld > max_distance {
+                max_distance = distance.ld;
+            }
+            if distance.prefixlen > max_prefixlen {
+                max_prefixlen = distance.prefixlen;
+            }
+            if distance.suffixlen > max_suffixlen {
+                max_suffixlen = distance.suffixlen;
+            }
+            if use_freq {
+                if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
+                    if vocabitem.frequency > max_freq {
+                        max_freq = vocabitem.frequency;
+                    }
+                }
+            }
+        }
+
+        //Compute scores
+        for (vocab_id, distance) in instances.iter() {
+            if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
+                let distance_score: f64 = 1.0 - (distance.ld as f64 / max_distance as f64);
+                let lcs_score: f64 = distance.lcs as f64 / vocabitem.norm.len() as f64;
+                let prefix_score: f64 = match max_prefixlen {
+                    0 => 0.0,
+                    max_prefixlen => distance.prefixlen as f64 / max_prefixlen as f64
+                };
+                let suffix_score: f64 = match max_suffixlen {
+                    0 => 0.0,
+                    max_suffixlen => distance.suffixlen as f64 / max_suffixlen as f64
+                };
+                let freq_score: f64 = if use_freq {
+                   vocabitem.frequency as f64 / max_freq as f64
+                } else {
+                    1.0
+                };
+                let score = (
+                    self.weights.ld * distance_score +
+                    self.weights.freq * freq_score +
+                    self.weights.lcs * lcs_score +
+                    self.weights.prefix * prefix_score +
+                    self.weights.suffix * suffix_score
+                ) / weights_sum;
+                results.push( (&vocabitem.text, score) );
+            }
+        }
+        results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); //sort by score, descending order
+        results
+    }
 
 }
 
