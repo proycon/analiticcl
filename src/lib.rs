@@ -411,10 +411,10 @@ impl VariantModel {
                             //we get here only if we don't reach the max_edit_distance cut-off
                             let distance = Distance {
                                 ld: ld,
-                                lcs: longest_common_substring_length(querystring, &vocabitem.norm),
-                                prefixlen: common_prefix_length(querystring, &vocabitem.norm),
-                                suffixlen: common_suffix_length(querystring, &vocabitem.norm),
-                                freq: vocabitem.frequency //TODO: express frequency difference
+                                lcs: if self.weights.lcs > 0.0 { longest_common_substring_length(querystring, &vocabitem.norm) } else { 0 },
+                                prefixlen: if self.weights.prefix > 0.0 { common_prefix_length(querystring, &vocabitem.norm) } else { 0 },
+                                suffixlen: if self.weights.suffix > 0.0 { common_suffix_length(querystring, &vocabitem.norm) } else { 0 },
+                                freq: if self.weights.freq > 0.0 { vocabitem.frequency } else { 0 }
                             };
                             found_instances.push((*vocab_id,distance));
                         }
