@@ -1,27 +1,56 @@
-use criterion::{BenchmarkId,black_box, criterion_group, criterion_main, Criterion};
+use criterion::{BenchmarkId,Throughput,black_box, criterion_group, criterion_main, Criterion};
 
 use analiticcl::*;
 use analiticcl::test::*;
 
-pub fn anahash_benchmark(c: &mut Criterion) {
+pub fn benchmarks(c: &mut Criterion) {
     let (alphabet, alphabet_size) = get_test_alphabet();
 
-    c.bench_with_input(BenchmarkId::new("anahash_single_char","alphabet"), &alphabet, |b, alphabet| b.iter(||{
-        "a".anahash(&alphabet)
+
+    let inputs: &[&str] = &["a","rat","houses","benchmarking","the lazy dog jumped over the quick brown fox"];
+
+    let mut group = c.benchmark_group("anahash_benchmark");
+    for input in inputs {
+        group.throughput(Throughput::Bytes(input.len() as u64));
+        group.bench_with_input(BenchmarkId::new("anahash",format!("input {} chars",input.chars().count())), &input, |b, input| b.iter(||{
+            input.anahash(&alphabet)
+        }));
+    }
+
+    group.finish();
+
+    let simple_lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
+
+    let mut model = VariantModel::new_with_alphabet(get_test_alphabet().0, Weights::default(), false);
+
+    c.bench_function("model_add_vocab", |b| b.iter(||{
+        for item in black_box(simple_lexicon) {
+            model.add_to_vocabulary(item,None,None);
+        }
     }));
 
-    c.bench_with_input(BenchmarkId::new("anahash_word_6_chars","alphabet"), &alphabet, |b, alphabet| b.iter(||{
-        "houses".anahash(&alphabet)
+
+    c.bench_function("model_init_and_train", |b| b.iter(||{
+        let mut model = VariantModel::new_with_alphabet(get_test_alphabet().0, Weights::default(), false);
+        for item in black_box(simple_lexicon) {
+            model.add_to_vocabulary(item,None,None);
+        }
+        model.train()
     }));
 
-    c.bench_with_input(BenchmarkId::new("anahash_word_12_chars","alphabet"), &alphabet, |b, alphabet| b.iter(||{
-        "benchmarking".anahash(&alphabet)
-    }));
-
-    c.bench_with_input(BenchmarkId::new("anahash_sentence_34_chars","alphabet"), &alphabet, |b, alphabet| b.iter(||{
-        "the lazy dog jumped over the quick brown fox".anahash(&alphabet)
-    }));
 }
 
-criterion_group!(benches, anahash_benchmark);
+/*
+pub fn model_benchmark(c: &mut Criterion) {
+    let (alphabet, alphabet_size) = get_test_alphabet();
+    let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
+
+    c.bench_with_input(BenchmarkId::new("model_load","alphabet"), &alphabet, |b, alphabet| b.iter(||{
+        let model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    }));
+
+}
+*/
+
+criterion_group!(benches, benchmarks);
 criterion_main!(benches);
