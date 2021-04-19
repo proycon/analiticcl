@@ -3,16 +3,49 @@ extern crate clap;
 use std::fs::File;
 use std::io::{self, BufReader,BufRead};
 use clap::{Arg, App};
+use std::collections::HashMap;
 
 use analiticcl::*;
 
-fn process_tsv(model: &VariantModel, input: &str, max_anagram_distance: u8, max_edit_distance: u8) {
-    let variants = model.find_variants(&input, max_anagram_distance, max_edit_distance);
+fn output_matches_as_tsv(model: &VariantModel, input: &str, variants: &Vec<(VocabId, f64)>) {
     print!("{}",input);
-    for (variant, score) in variants {
-        print!("\t{}\t{}\t",variant, score);
+    for (vocab_id, score) in variants {
+        print!("\t{}\t{}\t",model.get_vocab(*vocab_id).expect("getting vocab by id").text, score);
     }
     println!();
+}
+
+fn output_reverse_index(model: &VariantModel, reverseindex: &ReverseIndex) {
+    for (vocab_id, variants) in reverseindex.iter() {
+        print!("{}",model.get_vocab(*vocab_id).expect("getting vocab by id").text);
+        let mut variants: Vec<&(Variant,f64)> = variants.iter().collect();
+        variants.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); //sort by score, descending order
+        for (variant, score) in variants {
+            let variant_text = match variant {
+                Variant::Known(variant_vocab_id) => {
+                    model.get_vocab(*variant_vocab_id).expect("getting variant vocab by id").text.as_str()
+                },
+                Variant::Unknown(variant_text) => {
+                    variant_text.as_str()
+                }
+            };
+            print!("\t{}\t{}\t",variant_text, score);
+        }
+        println!();
+    }
+}
+
+fn process(model: &VariantModel, input: &str, reverseindex: Option<&mut ReverseIndex>, max_anagram_distance: u8, max_edit_distance: u8) {
+    let variants = model.find_variants(&input, max_anagram_distance, max_edit_distance);
+    if let Some(reverseindex) = reverseindex {
+        //we are asked to build a reverse index
+        for (vocab_id,score) in variants.iter() {
+            model.add_to_reverse_index(reverseindex, input, *vocab_id, *score);
+        }
+    } else {
+        //Normal output mode
+        output_matches_as_tsv(model, input, &variants);
+    }
 }
 
 fn main() {
@@ -65,10 +98,15 @@ fn main() {
                         .short("D")
                         .help("Debug")
                         .required(false))
-                    .arg(Arg::with_name("outputindex")
-                        .long("outputindex")
+                    .arg(Arg::with_name("output-index")
+                        .long("output-index")
                         .short("O")
                         .help("Output the entire anagram hash index")
+                        .required(false))
+                    .arg(Arg::with_name("reverse-index")
+                        .long("reverse-index")
+                        .short("r")
+                        .help("Collect and output all variants for each item in the input lexicon")
                         .required(false))
                     .arg(Arg::with_name("weight-ld")
                         .long("weight-ld")
@@ -139,7 +177,13 @@ fn main() {
     let max_anagram_distance: u8 = args.value_of("max_anagram_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
     let max_edit_distance: u8 = args.value_of("max_edit_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
 
-    if args.is_present("outputindex") {
+    let mut reverseindex = if args.is_present("reverse-index") {
+        Some(HashMap::new())
+    } else {
+        None
+    };
+
+    if args.is_present("output-index") {
         for (anahash, indexnode) in model.index.iter() {
             if !indexnode.instances.is_empty() {
                 print!("{}", anahash);
@@ -166,7 +210,7 @@ fn main() {
                     let f_buffer = BufReader::new(stdin);
                     for line in f_buffer.lines() {
                         if let Ok(line) = line {
-                            process_tsv(&model, &line, max_anagram_distance, max_edit_distance);
+                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance);
                         }
                     }
                 },
@@ -175,11 +219,15 @@ fn main() {
                     let f_buffer = BufReader::new(f);
                     for line in f_buffer.lines() {
                         if let Ok(line) = line {
-                            process_tsv(&model, &line, max_anagram_distance, max_edit_distance);
+                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance);
                         }
                     }
                 }
             }
+        }
+
+        if let Some(reverseindex) = reverseindex {
+            output_reverse_index(&model, &reverseindex);
         }
     }
 }

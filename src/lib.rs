@@ -181,6 +181,11 @@ impl VariantModel {
         false
     }
 
+    ///Resolves a vocabulary ID
+    pub fn get_vocab(&self, vocab_id: VocabId) -> Option<&VocabValue> {
+        self.decoder.get(vocab_id as usize)
+    }
+
 
     ///Read the alphabet from a TSV file
     ///The file contains one alphabet entry per line, but may
@@ -265,8 +270,9 @@ impl VariantModel {
         }
     }
 
-    /// Find variants in the vocabulary for a given string (in its totality), returns a vector of string,score pairs
-    pub fn find_variants<'a>(&'a self, s: &str, max_anagram_distance: u8, max_edit_distance: u8) -> Vec<(&'a str, f64)> {
+    /// Find variants in the vocabulary for a given string (in its totality), returns a vector of vocabulaly ID and score pairs
+    /// The resulting vocabulary Ids can be resolved through `get_vocab()`
+    pub fn find_variants(&self, s: &str, max_anagram_distance: u8, max_edit_distance: u8) -> Vec<(VocabId, f64)> {
 
         //Compute the anahash
         let normstring = s.normalize_to_alphabet(&self.alphabet);
@@ -431,8 +437,8 @@ impl VariantModel {
 
 
     /// Rank and score all variants
-    pub fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, use_freq: bool) -> Vec<(&str,f64)> {
-        let mut results: Vec<(&str,f64)> = Vec::new();
+    pub fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, use_freq: bool) -> Vec<(VocabId,f64)> {
+        let mut results: Vec<(VocabId,f64)> = Vec::new();
         let mut max_distance = 0;
         let mut max_freq = 0;
         let mut max_prefixlen = 0;
@@ -492,12 +498,33 @@ impl VariantModel {
                 if self.debug {
                     eprintln!("   (distance={:?}, score={})", distance, score);
                 }
-                results.push( (&vocabitem.text, score) );
+                results.push( (*vocab_id, score) );
             }
         }
         results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); //sort by score, descending order
         results
     }
 
-}
 
+    ///Adds the input item to the reverse index, as instantiation of the given vocabulary id
+    pub fn add_to_reverse_index(&self, reverseindex: &mut ReverseIndex, input: &str, vocab_id: VocabId, score: f64) {
+        let variant = match self.decoder.get(vocab_id as usize) {
+            Some(value) => {
+                if value.text == input {
+                    //we have an exact match with the input, do not add to the index at all
+                    return;
+                } else {
+                    Variant::Known(vocab_id)
+                }
+            },
+            _ => Variant::Unknown(input.to_string())
+        };
+        if let Some(existing_variants) = reverseindex.get_mut(&vocab_id) {
+            existing_variants.push((variant,score));
+        } else {
+            reverseindex.insert(vocab_id, vec!((variant, score)));
+        }
+    }
+
+
+}
