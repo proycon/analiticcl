@@ -35,7 +35,9 @@ lightweight implementation writted in [Rust](https://www.rust-lang.org).
   output a reverse index of all variants found the supplied input data for each item in the lexicon.
 
 * **to be implemented still:**
-    * variant matching on full text documents (rather than delivering the input line by line)
+    * variant matching on full text documents (rather than delivering the input line by line), simple tokenisation
+    * better handling of unknown values
+    * proper handling of n-grams (splits/merges)
     * A Python binding
 
 ## Installation
