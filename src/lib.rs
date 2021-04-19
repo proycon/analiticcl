@@ -3,6 +3,7 @@ extern crate num_bigint;
 use std::fs::File;
 use std::io::{self, Write,Read,BufReader,BufRead,Error};
 use std::collections::{HashMap,HashSet,BTreeMap};
+use std::cmp::max;
 
 pub mod types;
 pub mod anahash;
@@ -23,7 +24,7 @@ pub use crate::distance::*;
 
 pub struct VariantModel {
     pub decoder: VocabDecoder,
-    //pub encoder: VocabEncoder,
+    pub encoder: VocabEncoder,
 
     pub alphabet: Alphabet,
 
@@ -51,7 +52,7 @@ impl VariantModel {
     pub fn new(alphabet_file: &str, weights: Weights, debug: bool) -> VariantModel {
         let mut model = VariantModel {
             alphabet: Vec::new(),
-            //encoder: HashMap::new(),
+            encoder: HashMap::new(),
             decoder: Vec::new(),
             index: HashMap::new(),
             sortedindex: BTreeMap::new(),
@@ -68,6 +69,7 @@ impl VariantModel {
         VariantModel {
             alphabet: alphabet,
             decoder: Vec::new(),
+            encoder: HashMap::new(),
             index: HashMap::new(),
             sortedindex: BTreeMap::new(),
             have_freq: false,
@@ -244,14 +246,23 @@ impl VariantModel {
         if self.debug {
             eprintln!(" -- Adding to vocabulary: {}", text);
         }
-        self.decoder.push(VocabValue {
-            text: text.to_string(),
-            norm: text.normalize_to_alphabet(&self.alphabet),
-            frequency: frequency,
-            tokencount: text.chars().filter(|c| *c == ' ').count() as u8 + 1,
-            lexweight: lexicon_weight,
-        });
-        //self.encoder.insert(text.to_string(), self.decoder.len() as u64);
+        if let Some(vocab_id) = self.encoder.get(text) {
+            let item = self.decoder.get_mut(*vocab_id as usize).expect(&format!("Retrieving existing vocabulary entry {}",vocab_id));
+            item.frequency += frequency;
+            if lexicon_weight > item.lexweight {
+                item.lexweight = lexicon_weight;
+            }
+        } else {
+            //item is new
+            self.encoder.insert(text.to_string(), self.decoder.len() as u64);
+            self.decoder.push(VocabValue {
+                text: text.to_string(),
+                norm: text.normalize_to_alphabet(&self.alphabet),
+                frequency: frequency,
+                tokencount: text.chars().filter(|c| *c == ' ').count() as u8 + 1,
+                lexweight: lexicon_weight,
+            });
+        }
     }
 
     /// Find variants in the vocabulary for a given string (in its totality), returns a vector of string,score pairs
