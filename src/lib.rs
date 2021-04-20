@@ -272,7 +272,7 @@ impl VariantModel {
 
     /// Find variants in the vocabulary for a given string (in its totality), returns a vector of vocabulaly ID and score pairs
     /// The resulting vocabulary Ids can be resolved through `get_vocab()`
-    pub fn find_variants(&self, s: &str, max_anagram_distance: u8, max_edit_distance: u8) -> Vec<(VocabId, f64)> {
+    pub fn find_variants(&self, s: &str, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize) -> Vec<(VocabId, f64)> {
 
         //Compute the anahash
         let normstring = s.normalize_to_alphabet(&self.alphabet);
@@ -285,7 +285,7 @@ impl VariantModel {
         //and compute distances
         let variants = self.gather_instances(&anahashes, &normstring, max_edit_distance);
 
-        self.score_and_rank(variants, self.have_freq)
+        self.score_and_rank(variants, max_matches)
     }
 
 
@@ -437,7 +437,7 @@ impl VariantModel {
 
 
     /// Rank and score all variants
-    pub fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, use_freq: bool) -> Vec<(VocabId,f64)> {
+    pub fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, max_matches: usize ) -> Vec<(VocabId,f64)> {
         let mut results: Vec<(VocabId,f64)> = Vec::new();
         let mut max_distance = 0;
         let mut max_freq = 0;
@@ -460,7 +460,7 @@ impl VariantModel {
             if distance.suffixlen > max_suffixlen {
                 max_suffixlen = distance.suffixlen;
             }
-            if use_freq {
+            if self.have_freq {
                 if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
                     if vocabitem.frequency > max_freq {
                         max_freq = vocabitem.frequency;
@@ -482,7 +482,7 @@ impl VariantModel {
                     0 => 0.0,
                     max_suffixlen => distance.suffixlen as f64 / max_suffixlen as f64
                 };
-                let freq_score: f64 = if use_freq {
+                let freq_score: f64 = if self.have_freq {
                    vocabitem.frequency as f64 / max_freq as f64
                 } else {
                     1.0
@@ -501,7 +501,47 @@ impl VariantModel {
                 results.push( (*vocab_id, score) );
             }
         }
+
+        //Sort the results
         results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); //sort by score, descending order
+
+        //Crop the results at max_matches
+        if max_matches > 0 && results.len() > max_matches {
+            let last_score = results.get(max_matches - 1).expect("get last score").1;
+            let cropped_score = results.get(max_matches).expect("get cropped score").1;
+            if cropped_score < last_score {
+                if self.debug {
+                    eprintln!("   (truncating {} matches to {})", results.len(), max_matches);
+                }
+                //simplest case, crop at the max_matches
+                results.truncate(max_matches);
+            } else {
+                //cropping at max_matches comes at arbitrary of equal scoring items,
+                //we crop earlier instead:
+                let mut early_cutoff = 0;
+                let mut late_cutoff = 0;
+                for (i, result) in results.iter().enumerate() {
+                    if result.1 == cropped_score && early_cutoff == 0 {
+                        early_cutoff = i;
+                    }
+                    if result.1 < cropped_score {
+                        late_cutoff = i;
+                        break;
+                    }
+                }
+                if early_cutoff > 0 {
+                    if self.debug {
+                        eprintln!("   (truncating {} matches (early) to {})", results.len(), early_cutoff+1);
+                    }
+                    results.truncate(early_cutoff+1);
+                } else if late_cutoff > 0 {
+                    if self.debug {
+                        eprintln!("   (truncating {} matches (late) to {})", results.len(), late_cutoff+1);
+                    }
+                    results.truncate(late_cutoff+1);
+                }
+            }
+        }
         results
     }
 

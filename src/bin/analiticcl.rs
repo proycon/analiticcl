@@ -35,8 +35,8 @@ fn output_reverse_index(model: &VariantModel, reverseindex: &ReverseIndex) {
     }
 }
 
-fn process(model: &VariantModel, input: &str, reverseindex: Option<&mut ReverseIndex>, max_anagram_distance: u8, max_edit_distance: u8) {
-    let variants = model.find_variants(&input, max_anagram_distance, max_edit_distance);
+fn process(model: &VariantModel, input: &str, reverseindex: Option<&mut ReverseIndex>, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize) {
+    let variants = model.find_variants(&input, max_anagram_distance, max_edit_distance, max_matches);
     if let Some(reverseindex) = reverseindex {
         //we are asked to build a reverse index
         for (vocab_id,score) in variants.iter() {
@@ -114,6 +114,12 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .help("Maximum edit distance (levenshtein)")
         .takes_value(true)
         .default_value("3"));
+    args.push(Arg::with_name("max_matches")
+        .long("max-matches")
+        .short("n")
+        .help("Number of matches the return per input (set to 0 for unlimited if you want to exhaustively return every possibility within the specified edit distance)")
+        .takes_value(true)
+        .default_value("10"));
     args.push(Arg::with_name("files")
         .help("Input files")
         .takes_value(true)
@@ -174,7 +180,7 @@ fn main() {
     let mut model = VariantModel::new(
         args.value_of("alphabet").unwrap(),
         weights,
-        args.is_present("debug")
+        rootargs.is_present("debug")
     );
 
     eprintln!("Loading lexicons...");
@@ -196,6 +202,7 @@ fn main() {
 
     let max_anagram_distance: u8 = args.value_of("max_anagram_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
     let max_edit_distance: u8 = args.value_of("max_edit_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
+    let max_matches: usize = args.value_of("max_matches").unwrap().parse::<usize>().expect("Maximum matches should should be an integer (0 for unlimited)");
 
 
     if rootargs.subcommand_matches("index").is_some() {
@@ -218,7 +225,7 @@ fn main() {
         } else {
             eprintln!("Collecting variants...");
         }
-        let mut reverseindex = if args.is_present("reverse-index") {
+        let mut reverseindex = if rootargs.subcommand_matches("collect").is_some() {
             Some(HashMap::new())
         } else {
             None
@@ -237,7 +244,7 @@ fn main() {
                     let f_buffer = BufReader::new(stdin);
                     for line in f_buffer.lines() {
                         if let Ok(line) = line {
-                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance);
+                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches);
                         }
                     }
                 },
@@ -246,7 +253,7 @@ fn main() {
                     let f_buffer = BufReader::new(f);
                     for line in f_buffer.lines() {
                         if let Ok(line) = line {
-                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance);
+                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches);
                         }
                     }
                 }
