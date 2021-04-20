@@ -547,22 +547,24 @@ impl VariantModel {
 
 
     ///Adds the input item to the reverse index, as instantiation of the given vocabulary id
-    pub fn add_to_reverse_index(&self, reverseindex: &mut ReverseIndex, input: &str, vocab_id: VocabId, score: f64) {
-        let variant = match self.decoder.get(vocab_id as usize) {
-            Some(value) => {
-                if value.text == input {
-                    //we have an exact match with the input, do not add to the index at all
+    pub fn add_to_reverse_index(&self, reverseindex: &mut ReverseIndex, input: &str, matched_vocab_id: VocabId, score: f64) {
+        let variant = match self.encoder.get(input) {
+            Some(known_vocab_id) => {
+                if *known_vocab_id == matched_vocab_id {
+                    //item is an exact match, add all
                     return;
-                } else {
-                    Variant::Known(vocab_id)
                 }
+                Variant::Known(*known_vocab_id)
             },
             _ => Variant::Unknown(input.to_string())
         };
-        if let Some(existing_variants) = reverseindex.get_mut(&vocab_id) {
+        if self.debug {
+            eprintln!("   (adding variant {:?} to reverse index for match {})", variant, matched_vocab_id);
+        }
+        if let Some(existing_variants) = reverseindex.get_mut(&matched_vocab_id) {
             existing_variants.push((variant,score));
         } else {
-            reverseindex.insert(vocab_id, vec!((variant, score)));
+            reverseindex.insert(matched_vocab_id, vec!((variant, score)));
         }
     }
 

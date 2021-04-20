@@ -13,6 +13,7 @@ pub struct AnaIndexNode {
 }
 
 ///A variant in the reverse index
+#[derive(Debug)]
 pub enum Variant {
     //The variant has an ID only if known in the model
     Known(VocabId),

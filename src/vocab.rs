@@ -24,7 +24,7 @@ pub struct VocabValue {
 pub type VocabDecoder = Vec<VocabValue>;
 
 ///Maps strings to integers
-pub type VocabEncoder = HashMap<String, VocabId>; //TODO: obsolete?
+pub type VocabEncoder = HashMap<String, VocabId>;
 
 pub struct VocabParams {
     ///Column containing the Text (if any, 0-indexed)
