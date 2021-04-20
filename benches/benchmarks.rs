@@ -147,12 +147,12 @@ pub fn benchmarks(c: &mut Criterion) {
     }));
 
 
-    c.bench_function("model_init_and_train", |b| b.iter(||{
+    c.bench_function("model_init_and_build", |b| b.iter(||{
         let mut model = VariantModel::new_with_alphabet(get_test_alphabet().0, Weights::default(), false);
         for item in black_box(simple_lexicon) {
             model.add_to_vocabulary(item,None,None);
         }
-        model.train()
+        model.build()
     }));
 
 }

@@ -2,7 +2,7 @@ extern crate clap;
 
 use std::fs::File;
 use std::io::{self, BufReader,BufRead};
-use clap::{Arg, App};
+use clap::{Arg, App, SubCommand};
 use std::collections::HashMap;
 
 use analiticcl::*;
@@ -48,99 +48,119 @@ fn process(model: &VariantModel, input: &str, reverseindex: Option<&mut ReverseI
     }
 }
 
+pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
+    let mut args: Vec<Arg> = Vec::new();
+    args.push( Arg::with_name("lexicon")
+        .long("lexicon")
+        .short("l")
+        .help("Lexicon against which all matches are made (may be used multiple times). The lexicon should only contain validated items, if not, use --corpus instead. The lexicon should be a tab separated file with each entry on one line, columns may be used for frequency information. This option may be used multiple times for multiple lexicons.")
+        .takes_value(true)
+        .number_of_values(1)
+        .multiple(true)
+        .required_unless("corpus"));
+    args.push(Arg::with_name("corpus")
+        .long("corpus")
+        .short("f")
+        .help("Corpus-derived lexicon against which matches are made (may be used multiple times). Format is the same as for --lexicon. This optionmay be used multiple times.")
+        .takes_value(true)
+        .number_of_values(1)
+        .multiple(true)
+        .required_unless("lexicon"));
+    args.push(Arg::with_name("alphabet")
+        .long("alphabet")
+        .short("a")
+        .help("Alphabet file")
+        .takes_value(true)
+        .required(true));
+    args.push(Arg::with_name("weight-ld")
+        .long("weight-ld")
+        .help("Weight attributed to Damarau-Levenshtein distance in scoring")
+        .takes_value(true)
+        .default_value("1.0"));
+    args.push(Arg::with_name("weight-lcs")
+        .long("weight-lcs")
+        .help("Weight attributed to Longest common substring length in scoring")
+        .takes_value(true)
+        .default_value("1.0"));
+    args.push(Arg::with_name("weight-prefix")
+        .long("weight-prefix")
+        .help("Weight attributed to longest common prefix length in scoring")
+        .takes_value(true)
+        .default_value("1.0"));
+    args.push(Arg::with_name("weight-suffix")
+        .long("weight-suffix")
+        .help("Weight attributed to longest common suffix length in scoring")
+        .takes_value(true)
+        .default_value("1.0"));
+    args.push(Arg::with_name("weight-freq")
+        .long("weight-freq")
+        .help("Weight attributed to frequency in scoring")
+        .takes_value(true)
+        .default_value("1.0"));
+    args.push(Arg::with_name("weight-lex")
+        .long("weight-lex")
+        .help("Weight attributed to items that are in the lexicon, will always be 0 for items only in the corpus")
+        .takes_value(true)
+        .default_value("1.0"));
+    args.push(Arg::with_name("max_anagram_distance")
+        .long("max-anagram-distance")
+        .short("k")
+        .help("Maximum anagram distance. This impacts the size of the search space")
+        .takes_value(true)
+        .default_value("3"));
+    args.push(Arg::with_name("max_edit_distance")
+        .long("max-edit-distance")
+        .short("d")
+        .help("Maximum edit distance (levenshtein)")
+        .takes_value(true)
+        .default_value("3"));
+    args.push(Arg::with_name("files")
+        .help("Input files")
+        .takes_value(true)
+        .multiple(true)
+        .required(false));
+    args
+}
+
+
 fn main() {
-    let args = App::new("Analiticcl")
+    let rootargs = App::new("Analiticcl")
                     .version("0.1")
                     .author("Maarten van Gompel (proycon) <proycon@anaproy.nl>")
                     .about("Spelling variant matching / approximate string matching / fuzzy search")
-                    //snippet hints --> addargb,addargs,addargi,addargf,addargpos
-                    .arg(Arg::with_name("lexicon")
-                        .long("lexicon")
-                        .short("l")
-                        .help("Lexicon against which all matches are made (may be used multiple times). The lexicon should only contain validated items, if not, use --corpus instead. The lexicon should be a tab separated file with each entry on one line, columns may be used for frequency information. This option may be used multiple times for multiple lexicons.")
-                        .takes_value(true)
-                        .number_of_values(1)
-                        .multiple(true)
-                        .required_unless("corpus"))
-                    .arg(Arg::with_name("corpus")
-                        .long("corpus")
-                        .short("f")
-                        .help("Corpus-derived lexicon against which matches are made (may be used multiple times). Format is the same as for --lexicon. This optionmay be used multiple times.")
-                        .takes_value(true)
-                        .number_of_values(1)
-                        .multiple(true)
-                        .required_unless("lexicon"))
-                    .arg(Arg::with_name("alphabet")
-                        .long("alphabet")
-                        .short("a")
-                        .help("Alphabet file")
-                        .takes_value(true)
-                        .required(true))
-                    .arg(Arg::with_name("max_anagram_distance")
-                        .long("max-anagram-distance")
-                        .short("k")
-                        .help("Maximum anagram distance. This impacts the size of the search space")
-                        .takes_value(true)
-                        .default_value("3"))
-                    .arg(Arg::with_name("max_edit_distance")
-                        .long("max-edit-distance")
-                        .short("d")
-                        .help("Maximum edit distance (levenshtein)")
-                        .takes_value(true)
-                        .default_value("3"))
-                    .arg(Arg::with_name("files")
-                        .help("Input files")
-                        .takes_value(true)
-                        .multiple(true)
-                        .required(false))
+                    .subcommand(
+                        SubCommand::with_name("query")
+                            .about("Query the model; find all matches in the lexicon of the variants provided in the input")
+                            .args(&common_arguments())
+                    )
+                    .subcommand(
+                        SubCommand::with_name("index")
+                            .about("Compute and output the anagram index")
+                            .args(&common_arguments())
+                    )
+                    .subcommand(
+                        SubCommand::with_name("collect")
+                            .about("Collect variants from the input data, grouping them for to items in the lexicon")
+                            .args(&common_arguments())
+                    )
                     .arg(Arg::with_name("debug")
                         .long("debug")
                         .short("D")
                         .help("Debug")
                         .required(false))
-                    .arg(Arg::with_name("output-index")
-                        .long("output-index")
-                        .short("O")
-                        .help("Output the entire anagram hash index")
-                        .required(false))
-                    .arg(Arg::with_name("reverse-index")
-                        .long("reverse-index")
-                        .short("r")
-                        .help("Collect and output all variants for each item in the input lexicon")
-                        .required(false))
-                    .arg(Arg::with_name("weight-ld")
-                        .long("weight-ld")
-                        .help("Weight attributed to Damarau-Levenshtein distance in scoring")
-                        .takes_value(true)
-                        .default_value("1.0"))
-                    .arg(Arg::with_name("weight-lcs")
-                        .long("weight-lcs")
-                        .help("Weight attributed to Longest common substring length in scoring")
-                        .takes_value(true)
-                        .default_value("1.0"))
-                    .arg(Arg::with_name("weight-prefix")
-                        .long("weight-prefix")
-                        .help("Weight attributed to longest common prefix length in scoring")
-                        .takes_value(true)
-                        .default_value("1.0"))
-                    .arg(Arg::with_name("weight-suffix")
-                        .long("weight-suffix")
-                        .help("Weight attributed to longest common suffix length in scoring")
-                        .takes_value(true)
-                        .default_value("1.0"))
-                    .arg(Arg::with_name("weight-freq")
-                        .long("weight-freq")
-                        .help("Weight attributed to frequency in scoring")
-                        .takes_value(true)
-                        .default_value("1.0"))
-                    .arg(Arg::with_name("weight-lex")
-                        .long("weight-lex")
-                        .help("Weight attributed to items that are in the lexicon, will always be 0 for items only in the corpus")
-                        .takes_value(true)
-                        .default_value("1.0"))
                     .get_matches();
 
     eprintln!("Initializing model...");
+
+    let args = if let Some(args) = rootargs.subcommand_matches("query") {
+        args
+    } else if let Some(args) = rootargs.subcommand_matches("collect") {
+        args
+    } else if let Some(args) = rootargs.subcommand_matches("index") {
+        args
+    } else {
+       panic!("No command specified");
+    };
 
     let weights = Weights {
         ld: args.value_of("weight-ld").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
@@ -171,19 +191,15 @@ fn main() {
         }
     }
 
-    eprintln!("Training model...");
-    model.train();
+    eprintln!("Building model...");
+    model.build();
 
     let max_anagram_distance: u8 = args.value_of("max_anagram_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
     let max_edit_distance: u8 = args.value_of("max_edit_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
 
-    let mut reverseindex = if args.is_present("reverse-index") {
-        Some(HashMap::new())
-    } else {
-        None
-    };
 
-    if args.is_present("output-index") {
+    if rootargs.subcommand_matches("index").is_some() {
+        eprintln!("Computing and outputting anagram index...");
         for (anahash, indexnode) in model.index.iter() {
             if !indexnode.instances.is_empty() {
                 print!("{}", anahash);
@@ -194,9 +210,20 @@ fn main() {
                 println!()
             }
         }
-
     } else {
-        eprintln!("Testing against model...");
+        //query or collect
+
+        if rootargs.subcommand_matches("query").is_some() {
+            eprintln!("Querying the model...");
+        } else {
+            eprintln!("Collecting variants...");
+        }
+        let mut reverseindex = if args.is_present("reverse-index") {
+            Some(HashMap::new())
+        } else {
+            None
+        };
+
         let files: Vec<_> = if args.is_present("files") {
             args.values_of("files").unwrap().collect()
         } else {
@@ -205,7 +232,7 @@ fn main() {
         for filename in files {
             match filename {
                 "-" | "STDIN" | "stdin"  => {
-                    eprintln!("(accepting standard input)");
+                    eprintln!("(accepting standard input; enter input to match, one per line)");
                     let stdin = io::stdin();
                     let f_buffer = BufReader::new(stdin);
                     for line in f_buffer.lines() {
@@ -227,6 +254,7 @@ fn main() {
         }
 
         if let Some(reverseindex) = reverseindex {
+            eprintln!("Outputting collected variants...");
             output_reverse_index(&model, &reverseindex);
         }
     }

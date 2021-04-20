@@ -95,7 +95,7 @@ impl VariantModel {
             }
     }
 
-    pub fn train(&mut self) {
+    pub fn build(&mut self) {
         if !self.have_freq {
             self.weights.freq = 0.0
         }

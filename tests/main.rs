@@ -595,14 +595,14 @@ fn test0400_model_load() {
 }
 
 #[test]
-fn test0401_model_train() {
+fn test0401_model_build() {
     let (alphabet, alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
     for text in lexicon.iter() {
         model.add_to_vocabulary(text,None,None);
     }
-    model.train();
+    model.build();
     assert!(model.has(&"rites"));
     for text in lexicon.iter() {
         assert!(model.has(text));
@@ -620,7 +620,7 @@ fn test0402_model_anagrams() {
     for text in lexicon.iter() {
         model.add_to_vocabulary(text,None,None);
     }
-    model.train();
+    model.build();
     assert!(model.has(&"rites"));
     assert_eq!(model.get_anagram_instances(&"rites").iter().map(|item| item.text.clone()).collect::<Vec<String>>(),
              &["rites","tiers","tires","tries"]
