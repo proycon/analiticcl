@@ -1,0 +1,61 @@
+name: Rust CI
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - '.github/**'
+
+  pull_request:
+    branches: [master]
+
+jobs:
+  notification:
+    runs-on: ubuntu-latest
+    name: Notify start to ##gitlama
+    steps:
+      - name: IRC notification
+        uses: Gottox/irc-message-action@v1
+        with:
+          server: irc.uvt.nl
+          channel: '#gitlama'
+          nickname: GitHub
+          message: |-
+            ${{ github.actor }} started a build of Analiticcl
+
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Build Environment
+        run: |
+             if [ "$RUNNER_OS" == "Linux" ]; then
+                sudo apt-get install cargo rustc
+             fi
+
+      - name: Build and test
+        run: cargo test .
+        continue-on-error: true
+
+      - name: Notify IRC of failure
+        if: ${{ failure() }}
+        uses: Gottox/irc-message-action@v1
+        with:
+          server: irc.uvt.nl
+          channel: '#gitlama'
+          nickname: GitHub
+          message: |-
+            Building Analiticcl by ${{ github.actor }} on ${{ matrix.os }}: FAILED
+
+      - name: Notify IRC of success
+        if: ${{ success() }}
+        uses: Gottox/irc-message-action@v1
+        with:
+          server: irc.uvt.nl
+          channel: '#gitlama'
+          nickname: GitHub
+          message: |-
+            Building Analiticcl by ${{ github.actor }} on ${{ matrix.os }}: SUCCESS
