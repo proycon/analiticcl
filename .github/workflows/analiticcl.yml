@@ -37,7 +37,7 @@ jobs:
              fi
 
       - name: Build and test
-        run: cargo test .
+        run: cargo test
         continue-on-error: true
 
       - name: Notify IRC of failure
@@ -48,7 +48,7 @@ jobs:
           channel: '#gitlama'
           nickname: GitHub
           message: |-
-            Building Analiticcl by ${{ github.actor }} on ${{ matrix.os }}: FAILED
+            Building and testing Analiticcl by ${{ github.actor }} on ${{ runner.os }}: FAILED
 
       - name: Notify IRC of success
         if: ${{ success() }}
@@ -58,4 +58,4 @@ jobs:
           channel: '#gitlama'
           nickname: GitHub
           message: |-
-            Building Analiticcl by ${{ github.actor }} on ${{ matrix.os }}: SUCCESS
+            Building and testing Analiticcl by ${{ github.actor }} on ${{ runner.os }}: SUCCESS
