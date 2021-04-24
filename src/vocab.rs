@@ -18,6 +18,9 @@ pub struct VocabValue {
     /// The weight assigned by the lexicon as a whole
     /// (usually 1.0 for validated lexicons and 0.0 for backgrond corpora)
     pub lexweight: f32,
+
+    /// The first lexicon index which matches
+    pub lexindex: u8
 }
 
 ///Map integers (indices correspond to VocabId) to string values (and optionally a frequency count)

@@ -1,4 +1,5 @@
 extern crate num_bigint;
+extern crate sesdiff;
 
 use std::fs::File;
 use std::io::{self, Write,Read,BufReader,BufRead,Error};
@@ -11,6 +12,7 @@ pub mod index;
 pub mod iterators;
 pub mod vocab;
 pub mod distance;
+pub mod confusables;
 pub mod test;
 
 
@@ -20,6 +22,7 @@ pub use crate::index::*;
 pub use crate::iterators::*;
 pub use crate::vocab::*;
 pub use crate::distance::*;
+pub use crate::confusables::*;
 
 
 pub struct VariantModel {
@@ -45,6 +48,10 @@ pub struct VariantModel {
     ///Weights used in scoring
     pub weights: Weights,
 
+    /// Stores the names of the loaded lexicons, they will be referenced by index from individual
+    /// items for provenance reasons
+    lexicons: Vec<String>,
+
     debug: bool
 }
 
@@ -59,6 +66,7 @@ impl VariantModel {
             have_freq: false,
             freq_sum: 0,
             weights: weights,
+            lexicons: Vec::new(),
             debug: debug,
         };
         model.read_alphabet(alphabet_file).expect("Error loading alphabet file");
@@ -75,6 +83,7 @@ impl VariantModel {
             have_freq: false,
             freq_sum: 0,
             weights: weights,
+            lexicons: Vec::new(),
             debug: debug,
         }
     }
@@ -235,17 +244,18 @@ impl VariantModel {
                     } else {
                         1
                     };
-                    self.add_to_vocabulary(text, Some(frequency), Some(lexicon_weight));
+                    self.add_to_vocabulary(text, Some(frequency), Some(lexicon_weight), self.lexicons.len() as u8);
                 }
             }
         }
         if self.debug {
             eprintln!(" - Read vocabulary of size {}", self.decoder.len());
         }
+        self.lexicons.push(filename.to_string());
         Ok(())
     }
 
-    pub fn add_to_vocabulary(&mut self, text: &str, frequency: Option<u32>, lexicon_weight: Option<f32>) {
+    pub fn add_to_vocabulary(&mut self, text: &str, frequency: Option<u32>, lexicon_weight: Option<f32>, lexicon_index: u8) {
         let frequency = frequency.unwrap_or(1);
         let lexicon_weight = lexicon_weight.unwrap_or(1.0);
         if self.debug {
@@ -266,6 +276,7 @@ impl VariantModel {
                 frequency: frequency,
                 tokencount: text.chars().filter(|c| *c == ' ').count() as u8 + 1,
                 lexweight: lexicon_weight,
+                lexindex: lexicon_index,
             });
         }
     }
