@@ -561,7 +561,7 @@ impl VariantModel {
                     if distance.samecase { self.weights.case } else { 0.0 }
                 ) / weights_sum;
                 if self.debug {
-                    eprintln!("   (distance={:?}, score={})", distance, score);
+                    eprintln!("   (variant={}, distance={:?}, score={})", vocabitem.text, distance, score);
                 }
                 results.push( (*vocab_id, score) );
             }
@@ -641,6 +641,7 @@ impl VariantModel {
         let mut weight = 1.0;
         if let Some(candidate) = self.decoder.get(candidate as usize) {
             let editscript = shortest_edit_script(input, &candidate.text, false, false, false);
+            eprintln!("   (editscript  {:?})", editscript);
             for confusable in self.confusables.iter() {
                 if confusable.found_in(&editscript) {
                     if self.debug {
