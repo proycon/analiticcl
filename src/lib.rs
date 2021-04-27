@@ -270,18 +270,9 @@ impl VariantModel {
     }
 
     pub fn add_to_confusables(&mut self, editscript: &str, weight: f64) -> Result<(), std::io::Error> {
-        match EditScript::<String>::from_str(editscript) {
-            Ok(editscript) => {
-                self.confusables.push(Confusable {
-                    editscript: editscript,
-                    weight: weight
-                });
-                Ok(())
-            },
-            Err(err) => {
-                return Err(Error::new(ErrorKind::Other, format!("{:?}",err)))
-            }
-        }
+        let confusable = Confusable::new(editscript, weight)?;
+        self.confusables.push(confusable);
+        Ok(())
     }
 
     ///Read vocabulary (a lexicon or corpus-derived lexicon) from a TSV file
@@ -326,6 +317,7 @@ impl VariantModel {
             item.frequency += frequency;
             if lexicon_weight > item.lexweight {
                 item.lexweight = lexicon_weight;
+                item.lexindex = lexicon_index;
             }
         } else {
             //item is new

@@ -234,8 +234,8 @@ which only matches the substituion when it comes after a ``c`` or a ``k``:
 =[c|k]-[y]+[i]	1.1
 ```
 
-See the [sesdiff](https://github.com/proycon/sesdiff) documentation for a more elaborate description of the edit script
-language.
+To force matches on the beginning or end, start or end the pattern with respectively a  ``^`` or a ``$``. A further description of the edit script language
+can be found in the [sesdiff](https://github.com/proycon/sesdiff) documentation.
 
 ## Theoretical Background
 

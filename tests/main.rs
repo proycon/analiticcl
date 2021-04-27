@@ -661,10 +661,7 @@ fn test_0404_score_test() {
 
 #[test]
 fn test_0501_confusable_found_in() {
-    let confusable =  Confusable {
-        editscript: sesdiff::EditScript::from_str("-[y]+[i]").expect("valid script"),
-        weight: 1.1
-    };
+    let confusable =  Confusable::new("-[y]+[i]",1.1).expect("valid script");
     eprintln!("confusable: {:?}", confusable);
     let huis_script = sesdiff::shortest_edit_script("huys","huis", false, false, false);
     eprintln!("huis_script: {:?}", huis_script);
