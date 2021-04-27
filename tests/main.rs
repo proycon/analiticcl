@@ -688,9 +688,6 @@ fn test_0502_confusable_test() {
     assert!( results.get(0).unwrap().1 > results.get(1).unwrap().1, "score of huis should be greater than that of huls" );
 }
 
-/*
- * This test doesn't work because the edit script doesn't match the confusable:
- * EditScript { mode: Normal, distance: 6, instructions: [Deletion("Huy"), Insertion("hul"), Identity("s")] })
 #[test]
 fn test_0503_confusable_test2() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
@@ -706,4 +703,3 @@ fn test_0503_confusable_test2() {
     assert_eq!( model.decoder.get(results.get(1).unwrap().0 as usize).unwrap().text, "huls");
     assert!( results.get(0).unwrap().1 > results.get(1).unwrap().1, "score of huis should be greater than that of huls" );
 }
-*/
