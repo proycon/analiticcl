@@ -32,6 +32,7 @@ lightweight implementation written in [Rust](https://www.rust-lang.org).
     * Longest common prefix/suffix
     * Frequency information
     * Lexicon weight, usually binary (validated or not)
+    * Casing difference (boolean)
 * A confusable list with known confusable patterns and weights can be provided. This is used to favour or penalize certain
   confusables in the ranking stage (this weight is applied to the whole score).
 * Rather than look up words in spelling-correction style, users may also output the entire hashed anagram index, or
@@ -276,6 +277,7 @@ The properties of the anagram values facilitate a much quicker lookup, when give
         * Longest common prefix/suffix
         * Frequency information
         * Lexicon weight, usually binary (validated or not)
+        * Casing difference (binary, different case or not)
     * A score is computed that is an expression of a weighted linear combination of the above items (the actual weights are configurable)
     * A cut-off value prunes the list of candidates that score too low (the parameter ``-n`` expresses how many variants
         we want)

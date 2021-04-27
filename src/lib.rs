@@ -346,7 +346,7 @@ impl VariantModel {
 
         //Get the instances pertaining to the collected hashes, within a certain maximum distance
         //and compute distances
-        let variants = self.gather_instances(&anahashes, &normstring, max_edit_distance);
+        let variants = self.gather_instances(&anahashes, &normstring, input, max_edit_distance);
 
         self.score_and_rank(variants, input, max_matches)
     }
@@ -465,7 +465,7 @@ impl VariantModel {
 
 
     /// Gather instances and their edit distances, given a search string (normalised to the alphabet) and anagram hashes
-    pub fn gather_instances(&self, nearest_anagrams: &HashSet<&AnaValue>, querystring: &[u8], max_edit_distance: u8) -> Vec<(VocabId,Distance)> {
+    pub fn gather_instances(&self, nearest_anagrams: &HashSet<&AnaValue>, querystring: &[u8], query: &str, max_edit_distance: u8) -> Vec<(VocabId,Distance)> {
         let mut found_instances = Vec::new();
         let mut pruned_instances = 0;
         for anahash in nearest_anagrams {
@@ -480,7 +480,8 @@ impl VariantModel {
                                 prefixlen: if self.weights.prefix > 0.0 { common_prefix_length(querystring, &vocabitem.norm) } else { 0 },
                                 suffixlen: if self.weights.suffix > 0.0 { common_suffix_length(querystring, &vocabitem.norm) } else { 0 },
                                 freq: if self.weights.freq > 0.0 { vocabitem.frequency } else { 0 },
-                                lex: if self.weights.lex > 0.0 { vocabitem.lexweight } else { 0.0 }
+                                lex: if self.weights.lex > 0.0 { vocabitem.lexweight } else { 0.0 },
+                                samecase: if self.weights.case > 0.0 { vocabitem.text.chars().next().expect("first char").is_lowercase() == query.chars().next().expect("first char").is_lowercase() } else { true }
                             };
                             found_instances.push((*vocab_id,distance));
                         } else {
@@ -556,7 +557,8 @@ impl VariantModel {
                     self.weights.lcs * lcs_score +
                     self.weights.prefix * prefix_score +
                     self.weights.suffix * suffix_score +
-                    self.weights.lex * vocabitem.lexweight as f64
+                    self.weights.lex * vocabitem.lexweight as f64 +
+                    if distance.samecase { self.weights.case } else { 0.0 }
                 ) / weights_sum;
                 if self.debug {
                     eprintln!("   (distance={:?}, score={})", distance, score);

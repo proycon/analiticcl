@@ -149,6 +149,11 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .help("Weight attributed to items that are in the lexicon, will always be 0 for items only in the corpus")
         .takes_value(true)
         .default_value("1.0"));
+    args.push(Arg::with_name("weight-case")
+        .long("weight-case")
+        .help("Weight attributed to a difference in casing")
+        .takes_value(true)
+        .default_value("0.2"));
     args.push(Arg::with_name("max_anagram_distance")
         .long("max-anagram-distance")
         .short("k")
@@ -222,6 +227,7 @@ fn main() {
         suffix: args.value_of("weight-suffix").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
         freq: args.value_of("weight-freq").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
         lex: args.value_of("weight-lex").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
+        case: args.value_of("weight-case").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
     };
 
     let mut model = VariantModel::new(
