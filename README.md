@@ -15,7 +15,7 @@ quick lookups possible even over larger edit distances. The underlying idea is l
 (Reynaert 2010; Reynaert 2004), which was implemented in [ticcltools](https://github.com/languagemachines/ticcltools).
 This *analiticcl* implementation attempts to re-implement the core of these ideas from scratch, but also introduces some
 novelties, such as the introduction of prime factors for improved anagram hashing. We aim at a high-performant
-lightweight implementation writted in [Rust](https://www.rust-lang.org).
+lightweight implementation written in [Rust](https://www.rust-lang.org).
 
 ## Features
 
@@ -25,8 +25,8 @@ lightweight implementation writted in [Rust](https://www.rust-lang.org).
 * Uses an user-provided alphabet file for anagram hashing, in which multiple characters may be mapped to a single alphabet entry if so
   desired (e.g. for casing or for more phonetic-like lookup behaviour like soundex)
 * Can take into account frequency information from the lexicon
-* Matching against final candidates using a variety of possible distance metrics. Scoring and ranking is implemented a
-  weighted linear combination including the following components:
+* Matching against final candidates using a variety of possible distance metrics. Scoring and ranking is implemented as
+  a weighted linear combination including the following components:
     * Damerau-Levenshtein
     * Longest common substring
     * Longest common prefix/suffix
@@ -193,7 +193,7 @@ It is recommended to order the lines in the alphabet file based on the frequency
 the most optimal performance (i.e. generally smaller anagram values), but this is not a hard requirement by any means.
 
 
-Entries in the alphabet file are not contrained to a single character but may also correspond to multiple characters, for instance:
+Entries in the alphabet file are not constrained to a single character but may also correspond to multiple characters, for instance:
 
 ```
 ae	æ
@@ -239,17 +239,17 @@ language.
 
 ## Theoretical Background
 
-A naive approach to find variants would be to compute the edit distance between the input string and all $n$ items in the
-lexicon. This, however, is prohibitively expensive ($O(mn)$) when $m$ input items need to be compared. Anagram hashing (Reynaert 2010; Reynaert 2004) aims to drastically reduce the variant search space. For all items in the lexicon, an order-independent **anagram value** is computed over all characters that make up the item. All words with the same set of characters (allowing for duplicates) obtain an identical anagram value. This value is subsequently used as a hash in a hash table that maps each anagram value to all variant instances. This is effectively what is outputted when running ``analiticcl index``.
+A naive approach to find variants would be to compute the edit distance between the input string and all ``n`` items in the
+lexicon. This, however, is prohibitively expensive (``O(mn)``) when ``m`` input items need to be compared. Anagram hashing (Reynaert 2010; Reynaert 2004) aims to drastically reduce the variant search space. For all items in the lexicon, an order-independent **anagram value** is computed over all characters that make up the item. All words with the same set of characters (allowing for duplicates) obtain an identical anagram value. This value is subsequently used as a hash in a hash table that maps each anagram value to all variant instances. This is effectively what is outputted when running ``analiticcl index``.
 
 Unlike earlier work, Analiticcl uses prime factors for computation of anagram values. Each character in the alphabet
 gets assigned a prime number (e.g. a=2, b=3, c=5, d=7, e=11) and the product of these forms the anagram value. This
 provides the following useful properties:
 
 * We can multiply any two anagram values to get an anagram that represents the union set of all characters in both
-    (including duplicates): $av(A) \cdot av(B) = av(AB)$
-* If anavalue A can be divided by anavalue B ($av(A) mod av(B) = 0$), then the set of characters represented by B is fully contained within A.
-    * $\frac{av(A)}{av(B)} = av(A-B)$ contains the set difference (aka relative complement). It consists of
+    (including duplicates): ``av(A) ∙ av(B) = av(AB)``
+* If anavalue A can be divided by anavalue B (``av(A) % av(B) = 0``), then the set of characters represented by B is fully contained within A.
+    * ``av(A) / av(B) = av(A-B)`` contains the set difference (aka relative complement). It consists of
         the set of all characters in A that are not in B.
 
 The caveat of this approach is that it results in fairly large anagram values that quickly exceed a 64-bit register, the
@@ -263,7 +263,7 @@ The properties of the anagram values facilitate a much quicker lookup, when give
     anagram value
 * we compute all deletions within a certain distance (e.g. by removing any 2 characters). This is a division operation
     on the anagram values. The maximum distance is set using the ``-k`` parameter.
-* for all of the anagram values resulting from these deletions, we look which anagram values in our index match or contain ($av(A) mod av(B) = 0$) the value under consideration. We again gather the candidates that result from all matches.
+* for all of the anagram values resulting from these deletions, we look which anagram values in our index match or contain (``av(A) % av(B) = 0``) the value under consideration. We again gather the candidates that result from all matches.
     * To facilitate this lookup, we make use of a  *secondary index*, the secondary index is grouped by the number of
         characters. For each length it enumerates, in sorted order, all anagram values that exists for that particular length. This means we
         can use apply a binary search to find the anagrams that we should check our anagram value against (i.e. to check whether it is a subset of the anagram), rather than needing to exhaustively try all anagram values in our index.
