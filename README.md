@@ -265,8 +265,8 @@ The properties of the anagram values facilitate a much quicker lookup, when give
     on the anagram values. The maximum distance is set using the ``-k`` parameter.
 * for all of the anagram values resulting from these deletions, we look which anagram values in our index match or contain (``av(A) % av(B) = 0``) the value under consideration. We again gather the candidates that result from all matches.
     * To facilitate this lookup, we make use of a  *secondary index*, the secondary index is grouped by the number of
-        characters. For each length it enumerates, in sorted order, all anagram values that exists for that particular length. This means we
-        can use apply a binary search to find the anagrams that we should check our anagram value against (i.e. to check whether it is a subset of the anagram), rather than needing to exhaustively try all anagram values in our index.
+        characters. For each length it enumerates, in sorted order, all anagram values that exist for that particular length. This means we
+        can apply a binary search to find the anagrams that we should check our anagram value against (i.e. to check whether it is a subset of the anagram), rather than needing to exhaustively try all anagram values in our index.
 * Via the anagram index, we have collected all possibly relevant variant instances, which is a considerably smaller than
     the entire set we'd get if we didn't have the anagram heuristic. Now the set is reduced we apply more conventional
     measures:
