@@ -56,6 +56,9 @@ pub struct VariantModel {
 
     confusables: Vec<Confusable>,
 
+    ///Process confusables before pruning by max_matches
+    confusables_before_pruning: bool,
+
     debug: bool
 }
 
@@ -72,6 +75,7 @@ impl VariantModel {
             weights: weights,
             lexicons: Vec::new(),
             confusables: Vec::new(),
+            confusables_before_pruning: false,
             debug: debug,
         };
         model.read_alphabet(alphabet_file).expect("Error loading alphabet file");
@@ -90,8 +94,13 @@ impl VariantModel {
             weights: weights,
             lexicons: Vec::new(),
             confusables: Vec::new(),
+            confusables_before_pruning: false,
             debug: debug,
         }
+    }
+
+    pub fn set_confusables_before_pruning(&mut self) {
+        self.confusables_before_pruning = true;
     }
 
     pub fn alphabet_size(&self) -> CharIndexType {
@@ -564,6 +573,11 @@ impl VariantModel {
             }
         }
 
+        //rescore with confusable weights (EARLY)
+        if !self.confusables.is_empty() && self.confusables_before_pruning {
+            self.rescore_confusables(&mut results, input);
+        }
+
         //Sort the results
         results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); //sort by score, descending order
 
@@ -607,18 +621,22 @@ impl VariantModel {
             }
         }
 
-        //rescore with confusable weights
-        if !self.confusables.is_empty() {
-            if self.debug {
-                eprintln!("   (rescoring with confusable weights)");
-            }
-            for (vocab_id, score) in results.iter_mut() {
-                *score *= self.compute_confusable_weight(input, *vocab_id);
-            }
-            results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); //sort by score, descending order
+        //rescore with confusable weights (LATE, default)
+        if !self.confusables.is_empty() && !self.confusables_before_pruning {
+            self.rescore_confusables(&mut results, input);
         }
 
         results
+    }
+
+    pub fn rescore_confusables(&self, results: &mut Vec<(VocabId,f64)>, input: &str) {
+        if self.debug {
+            eprintln!("   (rescoring with confusable weights)");
+        }
+        for (vocab_id, score) in results.iter_mut() {
+            *score *= self.compute_confusable_weight(input, *vocab_id);
+        }
+        results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); //sort by score, descending order
     }
 
     /// compute weight over known confusables

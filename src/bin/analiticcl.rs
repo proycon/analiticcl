@@ -79,6 +79,10 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .number_of_values(1)
         .multiple(true)
         .takes_value(true));
+    args.push(Arg::with_name("early-confusables")
+        .long("early-confusables")
+        .help("Process the confusables before pruning rather than after, may lead to more accurate results but has a performance impact")
+        .required(false));
     args.push(Arg::with_name("weight-ld")
         .long("weight-ld")
         .help("Weight attributed to Damarau-Levenshtein distance in scoring")
@@ -217,6 +221,10 @@ fn main() {
     let max_anagram_distance: u8 = args.value_of("max_anagram_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
     let max_edit_distance: u8 = args.value_of("max_edit_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
     let max_matches: usize = args.value_of("max_matches").unwrap().parse::<usize>().expect("Maximum matches should should be an integer (0 for unlimited)");
+
+    if args.is_present("early-confusables") {
+        model.set_confusables_before_pruning();
+    }
 
 
     if rootargs.subcommand_matches("index").is_some() {
