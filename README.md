@@ -63,15 +63,179 @@ Note that 32-bit architectures are not supported.
 
 ## Usage
 
-(this section is a stub; it is to be written properly very soon)
+Analiticcl is typically used through its command line interface, full syntax help is always available through
+``analiticcl --help``.
 
+Analiticcl can be run in several **modes**, each is invoked through a subcommand:
 
+* **Query mode** - ``analiticcl query`` - Queries the model for variants for the provided input item (one per line)
+* **Index mode** - ``analiticcl index`` - Computes and outputs the anagram index, takes no further input
+* **Collect mode** - ``analiticcl collect`` - Collects variants from the input for each item in the lexicon and outputs this reverse index
+
+### Query Mode
+
+The query mode takes one input item per line and outputs all variants and their scores found for the given input.
+Default output is TSV (tab separated fields) in which the first column contains the input and the variants and scores
+are tab delimited fields in the columns thereafter.
+
+You need to pass at least an [alphabet file](#alphabet-file) and a [lexicon file](#lexicon-file) against which matches
+are made.
+
+Example:
+
+```
+$ analiticcl query --lexicon examples/eng.aspell.lexicon --alphabet examples/simple.alphabet.tsv
+Initializing model...
+Loading lexicons...
+Building model...
+Computing anagram values for all items in the lexicon...
+ - Found 119773 instances
+Adding all instances to the index...
+ - Found 108802 anagrams
+Creating sorted secondary index...
+Sorting secondary index...
+ ...
+Querying the model...
+(accepting standard input; enter input to match, one per line)
+```
+
+The program is now taking standard input, enter a word to query and press ENTER to get the variants and the scores:
+
+```
+seperate
+seperate        separate        0.7666666666666667              desperate       0.6             generate        0.5583333333333333              venerate        0.5583333333333333              federate        0.5583333333333333              exasperate     0.52             sewerage        0.5083333333333334              seatmate        0.5083333333333333              saturate        0.5             prate   0.49333333333333335
+```
+
+Rather than running it interactively, you can use your shell's standard redirection facilities to provide input and output:
+
+```
+$ analiticcl query --lexicon examples/eng.aspell.lexicon --alphabet examples/simple.alphabet.tsv < input.tsv >
+output.tsv
+```
+
+The ``--lexicon`` argument can be specified multiple times for multiple lexicons. When you want to use a corpus-derived
+lexicon, use ``--corpus`` instead (can be used multiple times too). The difference affects only the scoring where
+items from a validated lexicon will be esteemed higher than those from a background corpus. Both types of lexicons may
+contain frequency information (will be used by default when present).
+
+### Index Mode
+
+The index mode simply outputs the anagram index, it takes no further input.
+
+```
+$ analiticcl index --lexicon examples/eng.aspell.lexicon --alphabet examples/simple.alphabet.tsv
+```
+
+It may be insightful to sort on the number of anagrams and show the top 20 , with a bit of awk scripting and some piping:
 
 
 ```
-analiticcl --help
+$ analiticcl index --lexicon examples/eng.aspell.lexicon --alphabet examples/simple.alphabet.tsv | awk -F'\t' '{ print NF-1"\t"$0 }' | sort -rn | head -n 20
+[...]
+8       1227306 least   slate   Stael   stale   steal   tales   teals   Tesla
+7       98028906        elan's  lane's  Lane's  lean's  Lean's  Lena's  Neal's
+7       55133630        actors  castor  Castor  Castro  costar  Croats  scrota
+7       485214  abets   baste   bates   Bates   beast   beats   betas
+7       416874  bares   baser   bears   braes   saber   sabre   Sabre
+7       411761163       luster  lustre  result  rustle  sutler  ulster  Ulster
+7       409102  alts    last    lats    LSAT    salt    SALT    slat
+7       3781815 notes   onset   Seton   steno   stone   Stone   tones
+7       33080178        carets  caster  caters  crates  reacts  recast  traces
+7       2951915777547   luster's        lustre's        result's        rustle's        sutler's        ulster's        Ulster's
+7       286404699       merits  mister  Mister  miters  mitres  remits  timers
+7       28542   east    East    eats    etas    sate    seat    teas
+7       28365   ergo    goer    gore    Gore    ogre    Oreg    Roeg
+7       27489162        capers  crapes  pacers  parsec  recaps  scrape  spacer
+7       1741062 aster   rates   resat   stare   tares   tears   treas
+7       17286   ales    Elsa    lase    leas    Lesa    sale    seal
+7       1446798 pares   parse   pears   rapes   reaps   spare   spear
+7       1403315 opts    post    Post    pots    spot    stop    tops
+7       13674   elan    lane    Lane    lean    Lean    Lena    Neal
+6       96935466        parses  passer  spares  sparse  spears  Spears
 ```
 
+
+### Collect Mode
+
+*(to be written still)*
+
+## Data Formats
+
+All input for analiticcl must be UTF-8 encoded and use unix-style line endings.
+
+### Alphabet File
+
+The alphabet file is a TSV file (tab separated fields) containing all characters of the alphabet. Each line describes a
+single alphabet 'character'. An alphabet file may for example start as follows:
+
+```
+a
+b
+c
+```
+
+Multiple values on a line may be tab separated and are used to denote equivalents. A single line
+representing a single character could for example look like:
+
+```
+a	A	á	à	ä	Á	À	Ä
+```
+
+This means that these are all encoded the same way and are considered identical for all anagram hashing and distance
+metrics. A common situation is that all numerals are encoded indiscriminately, which you can accomplish with an alphabet entry
+like:
+
+```
+0	1	2	3	4	5	6	7	8	9
+```
+
+It is recommended to order the lines in the alphabet file based on the frequency of the character, as this will lead to
+the most optimal performance (i.e. generally smaller anagram values), but this is not a hard requirement by any means.
+
+
+Entries in the alphabet file are not contrained to a single character but may also correspond to multiple characters, for instance:
+
+```
+ae	æ
+```
+
+Encoding always proceeds according to a greedy matching algorithm in the exact order entries are defined in the alphabet
+file.
+
+### Lexicon File
+
+The lexicon is a TSV file (tab separated fields) containing either validated words (``--lexicon``) or corpus-derived
+words (``--corpus``), one lexicon entry per line. The first column typically (this is configurable) contains the word
+and the optional second column contains the absolute frequency count. If no frequency information is available, all
+items in the lexicon carry the exact same weight.
+
+Multiple lexicons may be passed and analiticcl will remember which lexicon was matched against, so you could use this
+information for some simple tagging.
+
+### Confusable List
+
+The confusable list is a TSV file (tab separated fields) containing known confusable patterns and weights to assign to these patterns when they are found. The file contains one confusable pattern per line. The patterns are expressed in the edit script language of [sesdiff](https://github.com/proycon/sesdiff). Consider the following example:
+
+```
+-[y]+[i]	1.1
+```
+
+This pattern expressed a deletion of the letter ``y`` followed by insertion of ``i``, which comes down to substitution
+of ``y`` for  ``i``. Edits that match against this confusable pattern receive the weight *1.1*, meaning such an edit is
+given preference over edits with other confusable patterns, which by definition have weight *1.0*. Weights greater than
+*1.0* are being given preference in the score weighting, weights smaller than ``1.0`` imply a penalty. When multiple
+confusable patterns match, the products of their weights is taken. The final weight is applied to the whole candidate
+score, so weights should be values fairly close to ``1.0`` in order not to introduce too large bonuses/penalties.
+
+The edit script language from sesdiff also allows for matching on immediate context, consider the following variant of the above
+which only matches the substituion when it comes after a ``c`` or a ``k``:
+
+```
+=[c|k]-[y]+[i]	1.1
+```
+
+See the [sesdiff](https://github.com/proycon/sesdiff) documentation for a more elaborate description of the edit script
+language.
 
 ## References
 

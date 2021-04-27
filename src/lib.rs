@@ -54,7 +54,6 @@ pub struct VariantModel {
     /// items for provenance reasons
     lexicons: Vec<String>,
 
-
     confusables: Vec<Confusable>,
 
     debug: bool
