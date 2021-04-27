@@ -37,6 +37,7 @@ jobs:
              fi
 
       - name: Build and test
+        id: test
         run: cargo test
         continue-on-error: true
 
