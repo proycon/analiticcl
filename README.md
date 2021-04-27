@@ -153,7 +153,7 @@ $ analiticcl index --lexicon examples/eng.aspell.lexicon --alphabet examples/sim
 7       13674   elan    lane    Lane    lean    Lean    Lena    Neal
 6       96935466        parses  passer  spares  sparse  spears  Spears
 ```
-
+The large number is the [anagram value](#theoretical-background) of the anagram.
 
 ### Collect Mode
 
@@ -236,6 +236,52 @@ which only matches the substituion when it comes after a ``c`` or a ``k``:
 
 See the [sesdiff](https://github.com/proycon/sesdiff) documentation for a more elaborate description of the edit script
 language.
+
+## Theoretical Background
+
+A naive approach to find variants would be to compute the edit distance between the input string and all $n$ items in the
+lexicon. This, however, is prohibitively expensive ($O(mn)$) when $m$ input items need to be compared. Anagram hashing (Reynaert 2010; Reynaert 2004) aims to drastically reduce the variant search space. For all items in the lexicon, an order-independent **anagram value** is computed over all characters that make up the item. All words with the same set of characters (allowing for duplicates) obtain an identical anagram value. This value is subsequently used as a hash in a hash table that maps each anagram value to all variant instances. This is effectively what is outputted when running ``analiticcl index``.
+
+Unlike earlier work, Analiticcl uses prime factors for computation of anagram values. Each character in the alphabet
+gets assigned a prime number (e.g. a=2, b=3, c=5, d=7, e=11) and the product of these forms the anagram value. This
+provides the following useful properties:
+
+* We can multiply any two anagram values to get an anagram that represents the union set of all characters in both
+    (including duplicates): $av(A) \cdot av(B) = av(AB)$
+* If anavalue A can be divided by anavalue B ($av(A) mod av(B) = 0$), then the set of characters represented by B is fully contained within A.
+    * $\frac{av(A)}{av(B)} = av(A-B)$ contains the set difference (aka relative complement). It consists of
+        the set of all characters in A that are not in B.
+
+The caveat of this approach is that it results in fairly large anagram values that quickly exceed a 64-bit register, the
+analiticcl implementation therefore uses a big-number implementation to deal with arbitrarily large integers.
+
+The properties of the anagram values facilitate a much quicker lookup, when given an input word to seek variants for
+(e.g. using ``analiticcl query``), we take the following steps:
+
+* we compute the anagram value for the input
+* we look up this anagram value in the index (if it exists) and gather the variant candidates associated with the
+    anagram value
+* we compute all deletions within a certain distance (e.g. by removing any 2 characters). This is a division operation
+    on the anagram values. The maximum distance is set using the ``-k`` parameter.
+* for all of the anagram values resulting from these deletions, we look which anagram values in our index match or contain ($av(A) mod av(B) = 0$) the value under consideration. We again gather the candidates that result from all matches.
+    * To facilitate this lookup, we make use of a  *secondary index*, the secondary index is grouped by the number of
+        characters. For each length it enumerates, in sorted order, all anagram values that exists for that particular length. This means we
+        can use apply a binary search to find the anagrams that we should check our anagram value against (i.e. to check whether it is a subset of the anagram), rather than needing to exhaustively try all anagram values in our index.
+* Via the anagram index, we have collected all possibly relevant variant instances, which is a considerably smaller than
+    the entire set we'd get if we didn't have the anagram heuristic. Now the set is reduced we apply more conventional
+    measures:
+    * We compute several metrics between the input and the possible variants:
+        * Damerau-Levenshtein
+        * Longest common substring
+        * Longest common prefix/suffix
+        * Frequency information
+        * Lexicon weight, usually binary (validated or not)
+    * A score is computed that is an expression of a weighted linear combination of the above items (the actual weights are configurable)
+    * A cut-off value prunes the list of candidates that score too low (the parameter ``-n`` expresses how many variants
+        we want)
+    * Optionally, if a confusable list was provided, we compute the edit script between the input and each variant, and
+      rescore when there are known confusables that are either favoured or penalized.
+
 
 ## References
 
