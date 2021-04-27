@@ -600,7 +600,7 @@ fn test0401_model_build() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None);
+        model.add_to_vocabulary(text,None,None, 0);
     }
     model.build();
     assert!(model.has(&"rites"));
@@ -618,7 +618,7 @@ fn test0402_model_anagrams() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None);
+        model.add_to_vocabulary(text,None,None, 0);
     }
     model.build();
     assert!(model.has(&"rites"));

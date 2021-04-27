@@ -41,21 +41,21 @@ jobs:
         continue-on-error: true
 
       - name: Notify IRC of failure
-        if: ${{ failure() }}
+        if: ${{ steps.test.outcome != 'success' }}
         uses: Gottox/irc-message-action@v1
         with:
           server: irc.uvt.nl
           channel: '#gitlama'
           nickname: GitHub
           message: |-
-            Building and testing Analiticcl by ${{ github.actor }} on ${{ runner.os }}: FAILED
+            Building and testing analiticcl by ${{ github.actor }} on ${{ runner.os }}: FAILED
 
       - name: Notify IRC of success
-        if: ${{ success() }}
+        if: ${{ steps.test.outcome == 'success' }}
         uses: Gottox/irc-message-action@v1
         with:
           server: irc.uvt.nl
           channel: '#gitlama'
           nickname: GitHub
           message: |-
-            Building and testing Analiticcl by ${{ github.actor }} on ${{ runner.os }}: SUCCESS
+            Building and testing analiticcl by ${{ github.actor }} on ${{ runner.os }}: SUCCESS
