@@ -237,6 +237,9 @@ impl VariantModel {
     ///favourable confusables have a weight > 1.0, unfavourable ones are < 1.0 (penalties)
     ///Weight values should be relatively close to 1.0 as they are applied to the entire score
     pub fn read_confusablelist(&mut self, filename: &str) -> Result<(), std::io::Error> {
+        if self.debug {
+            eprintln!("Reading confusables from {}...", filename);
+        }
         let f = File::open(filename)?;
         let f_buffer = BufReader::new(f);
         for line in f_buffer.lines() {
@@ -248,22 +251,29 @@ impl VariantModel {
                     } else {
                         1.0
                     };
-                    match EditScript::<String>::from_str(fields.get(0).unwrap()) {
-                        Ok(editscript) => {
-                            self.confusables.push(Confusable {
-                                editscript: editscript,
-                                weight: weight
-                            });
-                        },
-                        Err(err) => {
-                            return Err(Error::new(ErrorKind::Other, format!("{:?}",err)))
-                        }
-                    }
+                    self.add_to_confusables(fields.get(0).unwrap(), weight)?;
                 }
-
             }
         }
+        if self.debug {
+            eprintln!(" -- Read {} confusables", self.confusables.len());
+        }
         Ok(())
+    }
+
+    pub fn add_to_confusables(&mut self, editscript: &str, weight: f64) -> Result<(), std::io::Error> {
+        match EditScript::<String>::from_str(editscript) {
+            Ok(editscript) => {
+                self.confusables.push(Confusable {
+                    editscript: editscript,
+                    weight: weight
+                });
+                Ok(())
+            },
+            Err(err) => {
+                return Err(Error::new(ErrorKind::Other, format!("{:?}",err)))
+            }
+        }
     }
 
     ///Read vocabulary (a lexicon or corpus-derived lexicon) from a TSV file
@@ -598,7 +608,11 @@ impl VariantModel {
             }
         }
 
+        //rescore with confusable weights
         if !self.confusables.is_empty() {
+            if self.debug {
+                eprintln!("   (rescoring with confusable weights)");
+            }
             for (vocab_id, score) in results.iter_mut() {
                 *score *= self.compute_confusable_weight(input, *vocab_id);
             }
@@ -618,6 +632,9 @@ impl VariantModel {
             let editscript = shortest_edit_script(input, &candidate.text, false, false, false);
             for confusable in self.confusables.iter() {
                 if confusable.found_in(&editscript) {
+                    if self.debug {
+                        eprintln!("   (input {} with candidate {} instantiates {:?})", input, &candidate.text, confusable);
+                    }
                     weight *= confusable.weight;
                 }
             }

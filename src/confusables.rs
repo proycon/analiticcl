@@ -64,7 +64,7 @@ impl Confusable {
                     continue; //try again with new reference offset
                 } else {
                     matches += 1;
-                    if matches == l - 1 {
+                    if matches == l {
                         return true;
                     }
                 }

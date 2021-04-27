@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::types::*;
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct VocabValue {
     pub text: String,
 

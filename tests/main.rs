@@ -1,8 +1,9 @@
 //#[macro_use]
 //extern crate matches;
 
-use std::str;
-use std::ops::Deref;
+extern crate sesdiff;
+
+use std::str::FromStr;
 use analiticcl::*;
 use analiticcl::test::*;
 
@@ -522,14 +523,14 @@ fn test0203_iterator_recursive_bfs_max_dist2() {
 
 #[test]
 fn test0301_normalize_to_alphabet() {
-    let (alphabet, alphabet_size) = get_test_alphabet();
+    let (alphabet, _alphabet_size) = get_test_alphabet();
     assert_eq!(&"a".normalize_to_alphabet(&alphabet), &[0]);
     assert_eq!(&"b".normalize_to_alphabet(&alphabet), &[1]);
 }
 
 #[test]
 fn test0302_levenshtein() {
-    let (alphabet, alphabet_size) = get_test_alphabet();
+    let (alphabet, _alphabet_size) = get_test_alphabet();
     assert_eq!(levenshtein(&"a".normalize_to_alphabet(&alphabet), &"a".normalize_to_alphabet(&alphabet),99), Some(0));
     assert_eq!(levenshtein(&"a".normalize_to_alphabet(&alphabet), &"b".normalize_to_alphabet(&alphabet),99), Some(1));
     //substitution
@@ -546,7 +547,7 @@ fn test0302_levenshtein() {
 
 #[test]
 fn test0303_damereau_levenshtein() {
-    let (alphabet, alphabet_size) = get_test_alphabet();
+    let (alphabet, _alphabet_size) = get_test_alphabet();
     assert_eq!(damerau_levenshtein(&"a".normalize_to_alphabet(&alphabet), &"a".normalize_to_alphabet(&alphabet),99), Some(0));
     assert_eq!(damerau_levenshtein(&"a".normalize_to_alphabet(&alphabet), &"b".normalize_to_alphabet(&alphabet),99), Some(1));
     //substitution
@@ -563,7 +564,7 @@ fn test0303_damereau_levenshtein() {
 
 #[test]
 fn test0304_lcslen() {
-    let (alphabet, alphabet_size) = get_test_alphabet();
+    let (alphabet, _alphabet_size) = get_test_alphabet();
     assert_eq!(longest_common_substring_length(&"test".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 4);
     assert_eq!(longest_common_substring_length(&"fasttest".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 4);
     assert_eq!(longest_common_substring_length(&"abcdefhij".normalize_to_alphabet(&alphabet), &"def".normalize_to_alphabet(&alphabet)), 3);
@@ -572,7 +573,7 @@ fn test0304_lcslen() {
 
 #[test]
 fn test0304_prefixlen() {
-    let (alphabet, alphabet_size) = get_test_alphabet();
+    let (alphabet, _alphabet_size) = get_test_alphabet();
     assert_eq!(common_prefix_length(&"test".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 4);
     assert_eq!(common_prefix_length(&"testable".normalize_to_alphabet(&alphabet), &"test".normalize_to_alphabet(&alphabet)), 4);
     assert_eq!(common_prefix_length(&"fasttest".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 0);
@@ -581,22 +582,23 @@ fn test0304_prefixlen() {
 
 #[test]
 fn test0304_suffixlen() {
-    let (alphabet, alphabet_size) = get_test_alphabet();
+    let (alphabet, _alphabet_size) = get_test_alphabet();
     assert_eq!(common_suffix_length(&"test".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 0);
     assert_eq!(common_suffix_length(&"testable".normalize_to_alphabet(&alphabet), &"test".normalize_to_alphabet(&alphabet)), 0);
     assert_eq!(common_suffix_length(&"fasttest".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 0);
     assert_eq!(common_suffix_length(&"fasttest".normalize_to_alphabet(&alphabet), &"test".normalize_to_alphabet(&alphabet)), 4);
 }
 
+
 #[test]
 fn test0400_model_load() {
-    let (alphabet, alphabet_size) = get_test_alphabet();
+    let (alphabet, _alphabet_size) = get_test_alphabet();
     let model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
 }
 
 #[test]
 fn test0401_model_build() {
-    let (alphabet, alphabet_size) = get_test_alphabet();
+    let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
     for text in lexicon.iter() {
@@ -614,7 +616,7 @@ fn test0401_model_build() {
 
 #[test]
 fn test0402_model_anagrams() {
-    let (alphabet, alphabet_size) = get_test_alphabet();
+    let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
     for text in lexicon.iter() {
@@ -625,4 +627,65 @@ fn test0402_model_anagrams() {
     assert_eq!(model.get_anagram_instances(&"rites").iter().map(|item| item.text.clone()).collect::<Vec<String>>(),
              &["rites","tiers","tires","tries"]
     );
+}
+
+#[test]
+fn test0403_model_anagrams() {
+    let (alphabet, _alphabet_size) = get_test_alphabet();
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
+    for text in lexicon.iter() {
+        model.add_to_vocabulary(text,None,None, 0);
+    }
+    model.build();
+    model.find_variants("rite", 2, 2, 10);
+}
+
+#[test]
+fn test_0404_score_test() {
+    let (alphabet, _alphabet_size) = get_test_alphabet();
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let lexicon: &[&str] = &["huis","huls"];
+    for text in lexicon.iter() {
+        model.add_to_vocabulary(text,None,None, 0);
+    }
+    model.build();
+    let results = model.find_variants("huys", 2, 2, 10);
+    //results are a bit indeterministic due to sort_unstable
+    //(order of equal-scoring elements is not fixed)
+    //we just check if we get two results with the same score
+    assert_eq!( results.len(), 2);
+    assert_ne!( results.get(0).unwrap().0, results.get(1).unwrap().0 );
+    assert_eq!( results.get(0).unwrap().1, results.get(1).unwrap().1 );
+}
+
+#[test]
+fn test_0501_confusable_found_in() {
+    let confusable =  Confusable {
+        editscript: sesdiff::EditScript::from_str("-[y]+[i]").expect("valid script"),
+        weight: 1.1
+    };
+    eprintln!("confusable: {:?}", confusable);
+    let huis_script = sesdiff::shortest_edit_script("huys","huis", false, false, false);
+    eprintln!("huis_script: {:?}", huis_script);
+    let huls_script = sesdiff::shortest_edit_script("huys","huls", false, false, false);
+    eprintln!("huls_script: {:?}", huls_script);
+    assert!(confusable.found_in(&huis_script), "confusable should be found in huys->huis");
+    assert!(!confusable.found_in(&huls_script),"confusable should not be found in huys->huls");
+}
+
+#[test]
+fn test_0502_confusable_test() {
+    let (alphabet, _alphabet_size) = get_test_alphabet();
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let lexicon: &[&str] = &["huis","huls"];
+    for text in lexicon.iter() {
+        model.add_to_vocabulary(text,None,None, 0);
+    }
+    model.add_to_confusables("-[y]+[i]",1.1).expect("added to confusables");
+    model.build();
+    let results = model.find_variants("huys", 2, 2, 10);
+    assert_eq!( model.decoder.get(results.get(0).unwrap().0 as usize).unwrap().text, "huis");
+    assert_eq!( model.decoder.get(results.get(1).unwrap().0 as usize).unwrap().text, "huls");
+    assert!( results.get(0).unwrap().1 > results.get(1).unwrap().1, "score of huis should be greater than that of huls" );
 }
