@@ -21,8 +21,8 @@ lightweight implementation writted in [Rust](https://www.rust-lang.org).
 
 * Quick retrieval of spelling variants given an input word due to smart anagram hashing lookup. This is the main feature
   that drastically reduces the search spaces.
-* Works against a lexicon, which can either be a validated lexicon (prefered), or a lexicon derived from a corpus.
-* Uses an user-provided alphabet file for anagram hashing, in which multiple character may be mapped to a single alphabet entry if so
+* Works against a lexicon, which can either be a validated lexicon (preferred), or a lexicon derived from a corpus.
+* Uses an user-provided alphabet file for anagram hashing, in which multiple characters may be mapped to a single alphabet entry if so
   desired (e.g. for casing or for more phonetic-like lookup behaviour like soundex)
 * Can take into account frequency information from the lexicon
 * Matching against final candidates using a variety of possible distance metrics. Scoring and ranking is implemented a
@@ -32,6 +32,8 @@ lightweight implementation writted in [Rust](https://www.rust-lang.org).
     * Longest common prefix/suffix
     * Frequency information
     * Lexicon weight, usually binary (validated or not)
+* A confusable list with known confusable patterns and weights can be provided. This is used to favour or penalize certain
+  confusables in the ranking stage (this weight is applied to the whole score).
 * Rather than look up words in spelling-correction style, users may also output the entire hashed anagram index, or
   output a reverse index of all variants found the supplied input data for each item in the lexicon.
 
