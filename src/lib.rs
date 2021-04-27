@@ -2,9 +2,11 @@ extern crate num_bigint;
 extern crate sesdiff;
 
 use std::fs::File;
-use std::io::{self, Write,Read,BufReader,BufRead,Error};
+use std::io::{self, Write,Read,BufReader,BufRead,Error,ErrorKind};
 use std::collections::{HashMap,HashSet,BTreeMap};
 use std::cmp::max;
+use sesdiff::{EditScript,EditInstruction,shortest_edit_script};
+use std::str::FromStr;
 
 pub mod types;
 pub mod anahash;
@@ -52,6 +54,9 @@ pub struct VariantModel {
     /// items for provenance reasons
     lexicons: Vec<String>,
 
+
+    confusables: Vec<Confusable>,
+
     debug: bool
 }
 
@@ -67,6 +72,7 @@ impl VariantModel {
             freq_sum: 0,
             weights: weights,
             lexicons: Vec::new(),
+            confusables: Vec::new(),
             debug: debug,
         };
         model.read_alphabet(alphabet_file).expect("Error loading alphabet file");
@@ -84,6 +90,7 @@ impl VariantModel {
             freq_sum: 0,
             weights: weights,
             lexicons: Vec::new(),
+            confusables: Vec::new(),
             debug: debug,
         }
     }
@@ -224,6 +231,41 @@ impl VariantModel {
     }
 
 
+    ///Read a confusiblelist from a TSV file
+    ///Contains edit scripts in the first columned (formatted in sesdiff style)
+    ///and optionally a weight in the second column.
+    ///favourable confusables have a weight > 1.0, unfavourable ones are < 1.0 (penalties)
+    ///Weight values should be relatively close to 1.0 as they are applied to the entire score
+    pub fn read_confusablelist(&mut self, filename: &str) -> Result<(), std::io::Error> {
+        let f = File::open(filename)?;
+        let f_buffer = BufReader::new(f);
+        for line in f_buffer.lines() {
+            if let Ok(line) = line {
+                if !line.is_empty() {
+                    let fields: Vec<&str> = line.split("\t").collect();
+                    let weight = if fields.len() >= 2 {
+                        fields.get(1).unwrap().parse::<f64>().expect("score should be a float")
+                    } else {
+                        1.0
+                    };
+                    match EditScript::<String>::from_str(fields.get(0).unwrap()) {
+                        Ok(editscript) => {
+                            self.confusables.push(Confusable {
+                                editscript: editscript,
+                                weight: weight
+                            });
+                        },
+                        Err(err) => {
+                            return Err(Error::new(ErrorKind::Other, format!("{:?}",err)))
+                        }
+                    }
+                }
+
+            }
+        }
+        Ok(())
+    }
+
     ///Read vocabulary (a lexicon or corpus-derived lexicon) from a TSV file
     ///May contain frequency information
     ///The parameters define what value can be read from what column
@@ -283,11 +325,11 @@ impl VariantModel {
 
     /// Find variants in the vocabulary for a given string (in its totality), returns a vector of vocabulaly ID and score pairs
     /// The resulting vocabulary Ids can be resolved through `get_vocab()`
-    pub fn find_variants(&self, s: &str, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize) -> Vec<(VocabId, f64)> {
+    pub fn find_variants(&self, input: &str, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize) -> Vec<(VocabId, f64)> {
 
         //Compute the anahash
-        let normstring = s.normalize_to_alphabet(&self.alphabet);
-        let anahash = s.anahash(&self.alphabet);
+        let normstring = input.normalize_to_alphabet(&self.alphabet);
+        let anahash = input.anahash(&self.alphabet);
 
         //Compute neighbouring anahashes and find the nearest anahashes in the model
         let anahashes = self.find_nearest_anahashes(&anahash, max_anagram_distance);
@@ -296,7 +338,7 @@ impl VariantModel {
         //and compute distances
         let variants = self.gather_instances(&anahashes, &normstring, max_edit_distance);
 
-        self.score_and_rank(variants, max_matches)
+        self.score_and_rank(variants, input, max_matches)
     }
 
 
@@ -448,7 +490,7 @@ impl VariantModel {
 
 
     /// Rank and score all variants
-    pub fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, max_matches: usize ) -> Vec<(VocabId,f64)> {
+    pub fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, input: &str, max_matches: usize ) -> Vec<(VocabId,f64)> {
         let mut results: Vec<(VocabId,f64)> = Vec::new();
         let mut max_distance = 0;
         let mut max_freq = 0;
@@ -516,6 +558,8 @@ impl VariantModel {
         //Sort the results
         results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); //sort by score, descending order
 
+
+
         //Crop the results at max_matches
         if max_matches > 0 && results.len() > max_matches {
             let last_score = results.get(max_matches - 1).expect("get last score").1;
@@ -553,7 +597,32 @@ impl VariantModel {
                 }
             }
         }
+
+        if !self.confusables.is_empty() {
+            for (vocab_id, score) in results.iter_mut() {
+                *score *= self.compute_confusable_weight(input, *vocab_id);
+            }
+            results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); //sort by score, descending order
+        }
+
         results
+    }
+
+    /// compute weight over known confusables
+    /// Should return 1.0 when there are no known confusables
+    /// < 1.0 when there are unfavourable confusables
+    /// > 1.0 when there are favourable confusables
+    pub fn compute_confusable_weight(&self, input: &str, candidate: VocabId) -> f64 {
+        let mut weight = 1.0;
+        if let Some(candidate) = self.decoder.get(candidate as usize) {
+            let editscript = shortest_edit_script(input, &candidate.text, false, false, false);
+            for confusable in self.confusables.iter() {
+                if confusable.found_in(&editscript) {
+                    weight *= confusable.weight;
+                }
+            }
+        }
+        weight
     }
 
 

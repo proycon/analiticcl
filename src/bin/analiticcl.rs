@@ -72,6 +72,13 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .help("Alphabet file")
         .takes_value(true)
         .required(true));
+    args.push(Arg::with_name("confusables")
+        .long("confusables")
+        .short("C")
+        .help("Confusable list with weights. This is an optional TSV file with confusables in sesdiff-format in the first column, and weights in the second column. A weight of > 1.0 will favour a confusable over others, a weight of < 1.0 will penalize a confusable. Confusable weights should be kept close to 1.0 as they will be applied over the whole ranking score.")
+        .number_of_values(1)
+        .multiple(true)
+        .takes_value(true));
     args.push(Arg::with_name("weight-ld")
         .long("weight-ld")
         .help("Weight attributed to Damarau-Levenshtein distance in scoring")
@@ -187,13 +194,20 @@ fn main() {
 
     if args.is_present("lexicon") {
         for filename in args.values_of("lexicon").unwrap().collect::<Vec<&str>>() {
-            model.read_vocabulary(filename, &VocabParams::default(), 1.0).expect(&format!("Error reading {}", filename));
+            model.read_vocabulary(filename, &VocabParams::default(), 1.0).expect(&format!("Error reading lexicon {}", filename));
         }
     }
 
     if args.is_present("corpus") {
         for filename in args.values_of("corpus").unwrap().collect::<Vec<&str>>() {
-            model.read_vocabulary(filename, &VocabParams::default(), 0.0).expect(&format!("Error reading {}", filename));
+            model.read_vocabulary(filename, &VocabParams::default(), 0.0).expect(&format!("Error reading corpus lexicon {}", filename));
+        }
+    }
+
+    if args.is_present("confusables") {
+        eprintln!("Loading confusable lists...");
+        for filename in args.values_of("confusables").unwrap().collect::<Vec<&str>>() {
+            model.read_confusablelist(filename).expect(&format!("Error reading confusable list {}", filename));
         }
     }
 
