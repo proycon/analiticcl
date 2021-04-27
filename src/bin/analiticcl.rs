@@ -7,12 +7,37 @@ use std::collections::HashMap;
 
 use analiticcl::*;
 
-fn output_matches_as_tsv(model: &VariantModel, input: &str, variants: &Vec<(VocabId, f64)>) {
+fn output_matches_as_tsv(model: &VariantModel, input: &str, variants: &Vec<(VocabId, f64)>, output_lexmatch: bool) {
     print!("{}",input);
     for (vocab_id, score) in variants {
-        print!("\t{}\t{}\t",model.get_vocab(*vocab_id).expect("getting vocab by id").text, score);
+        let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
+        print!("\t{}\t{}\t", vocabvalue.text, score);
+        if  output_lexmatch {
+            print!("\t{}", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
+        }
     }
     println!();
+}
+
+fn output_matches_as_json(model: &VariantModel, input: &str, variants: &Vec<(VocabId, f64)>, output_lexmatch: bool, seqnr: usize) {
+    if seqnr > 1 {
+        println!(",")
+    }
+    println!("    {{ \"input\": \"{}\", \"variants\": [ ", input.replace("\"","\\\"").as_str());
+    let l = variants.len();
+    for (i, (vocab_id, score)) in variants.iter().enumerate() {
+        let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
+        print!("        {{ \"text\": \"{}\", \"score\": {}", vocabvalue.text.replace("\"","\\\""), score);
+        if  output_lexmatch {
+            print!(", \"lexicon\": \"{}\"", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
+        }
+        if i < l - 1 {
+            println!(" }},");
+        } else {
+            println!(" }}");
+        }
+    }
+    println!("    ]}}");
 }
 
 fn output_reverse_index(model: &VariantModel, reverseindex: &ReverseIndex) {
@@ -35,16 +60,18 @@ fn output_reverse_index(model: &VariantModel, reverseindex: &ReverseIndex) {
     }
 }
 
-fn process(model: &VariantModel, input: &str, reverseindex: Option<&mut ReverseIndex>, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize) {
+fn process(model: &VariantModel, input: &str, reverseindex: Option<&mut ReverseIndex>, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, output_lexmatch: bool, json: bool, seqnr: usize) {
     let variants = model.find_variants(&input, max_anagram_distance, max_edit_distance, max_matches);
     if let Some(reverseindex) = reverseindex {
         //we are asked to build a reverse index
         for (vocab_id,score) in variants.iter() {
             model.add_to_reverse_index(reverseindex, input, *vocab_id, *score);
         }
+    } else if json {
+        output_matches_as_json(model, input, &variants, output_lexmatch, seqnr);
     } else {
         //Normal output mode
-        output_matches_as_tsv(model, input, &variants);
+        output_matches_as_tsv(model, input, &variants, output_lexmatch);
     }
 }
 
@@ -82,6 +109,15 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
     args.push(Arg::with_name("early-confusables")
         .long("early-confusables")
         .help("Process the confusables before pruning rather than after, may lead to more accurate results but has a performance impact")
+        .required(false));
+    args.push(Arg::with_name("output-lexmatch")
+        .long("output-lexmatch")
+        .help("Output the matching lexicon name for each variant match")
+        .required(false));
+    args.push(Arg::with_name("json")
+        .long("json")
+        .short("j")
+        .help("Output json instead of tsv")
         .required(false));
     args.push(Arg::with_name("weight-ld")
         .long("weight-ld")
@@ -221,6 +257,8 @@ fn main() {
     let max_anagram_distance: u8 = args.value_of("max_anagram_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
     let max_edit_distance: u8 = args.value_of("max_edit_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
     let max_matches: usize = args.value_of("max_matches").unwrap().parse::<usize>().expect("Maximum matches should should be an integer (0 for unlimited)");
+    let output_lexmatch = args.is_present("output-lexmatch");
+    let json = args.is_present("json");
 
     if args.is_present("early-confusables") {
         model.set_confusables_before_pruning();
@@ -253,11 +291,16 @@ fn main() {
             None
         };
 
+        if json && reverseindex.is_none() {
+            println!("[");
+        }
+
         let files: Vec<_> = if args.is_present("files") {
             args.values_of("files").unwrap().collect()
         } else {
             vec!("-")
         };
+        let mut seqnr = 0;
         for filename in files {
             match filename {
                 "-" | "STDIN" | "stdin"  => {
@@ -266,7 +309,8 @@ fn main() {
                     let f_buffer = BufReader::new(stdin);
                     for line in f_buffer.lines() {
                         if let Ok(line) = line {
-                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches);
+                            seqnr += 1;
+                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches, output_lexmatch, json, seqnr);
                         }
                     }
                 },
@@ -275,11 +319,16 @@ fn main() {
                     let f_buffer = BufReader::new(f);
                     for line in f_buffer.lines() {
                         if let Ok(line) = line {
-                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches);
+                            seqnr += 1;
+                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches, output_lexmatch, json, seqnr);
                         }
                     }
                 }
             }
+        }
+
+        if json && reverseindex.is_none() {
+            println!("]");
         }
 
         if let Some(reverseindex) = reverseindex {

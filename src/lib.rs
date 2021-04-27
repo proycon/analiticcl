@@ -52,14 +52,14 @@ pub struct VariantModel {
 
     /// Stores the names of the loaded lexicons, they will be referenced by index from individual
     /// items for provenance reasons
-    lexicons: Vec<String>,
+    pub lexicons: Vec<String>,
 
-    confusables: Vec<Confusable>,
+    pub confusables: Vec<Confusable>,
 
     ///Process confusables before pruning by max_matches
-    confusables_before_pruning: bool,
+    pub confusables_before_pruning: bool,
 
-    debug: bool
+    pub debug: bool
 }
 
 impl VariantModel {
