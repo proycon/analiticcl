@@ -141,6 +141,8 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .long("score-threshold")
         .short("x")
         .help("Require scores to meet this threshold, they are pruned otherwise")
+        .takes_value(true)
+        .default_value("0.25")
         .required(false));
     args.push(Arg::with_name("weight-ld")
         .long("weight-ld")
