@@ -385,7 +385,7 @@ impl VariantModel {
 
         let (focus_upper_bound, focus_charcount) = focus.alphabet_upper_bound(self.alphabet_size());
         let focus_alphabet_size = focus_upper_bound + 1;
-        let focus_highest_alphabet_char = AnaValue::character(focus_upper_bound);
+        let highest_alphabet_char = AnaValue::character(self.alphabet_size()+1);
 
 
         //Find anagrams reachable through insertions within the the maximum distance
@@ -410,17 +410,35 @@ impl VariantModel {
             }
         }
 
-        /*
-        //Compute upper bounds for each of the distances
-        let mut av_upper_bounds: Vec<AnaValue>; //indices correspond to distance - 1  (so 0 for AV distance 1)
-        let mut av_lower_bounds: Vec<AnaValue>; //indices correspond to distance - 1  (so 0 for AV distance 1)
-        let mut upperbound_value = *focus;
+        //Compute upper bounds and lower bounds for each of the distances
+        let mut av_upper_bounds: Vec<AnaValue> = Vec::new(); //indices correspond to distance - 1  (so 0 for AV distance 1)
+        let mut av_lower_bounds: Vec<AnaValue> = Vec::new(); //indices correspond to distance - 1  (so 0 for AV distance 1)
+        let mut upperbound_value: AnaValue = AnaValue::empty();
+        let mut lowerbound_value: AnaValue = AnaValue::empty();
+        let mut lowerbound_highest_alphabet_char = AnaValue::character(focus_upper_bound);
+        let mut lowerbound_alphabet_size = focus_alphabet_size;
         for i in 0..max_distance {
-            upperbound_value = upperbound_value.insert(&focus_highest_alphabet_char);
-            lowerbound_value = lowerbound_value.delete(&focus_highest_alphabet_char);
-            av_upper_bounds.push(upperbound_value);
+            upperbound_value = if i == 0 {
+                focus.insert(&highest_alphabet_char)
+            } else {
+                upperbound_value.insert(&highest_alphabet_char)
+            };
+            lowerbound_value = if i == 0 {
+                focus.delete(&lowerbound_highest_alphabet_char).expect("deletion")
+            } else {
+                lowerbound_value.delete(&lowerbound_highest_alphabet_char).expect("deletion")
+            };
+            let x = lowerbound_value.alphabet_upper_bound(lowerbound_alphabet_size);
+            lowerbound_highest_alphabet_char = AnaValue::character(x.0);
+            lowerbound_alphabet_size = x.1 as u8 + 1;
+            av_upper_bounds.push(upperbound_value.clone());
+            av_lower_bounds.push(lowerbound_value.clone());
         }
-        */
+
+        if self.debug {
+            eprintln!(" (Computed upper bounds: {:?})", av_upper_bounds);
+            eprintln!(" (Computed lower bounds: {:?})", av_lower_bounds);
+        }
 
         // Do a breadth first search for deletions
         for (deletion,distance) in focus.iter_recursive(focus_alphabet_size+1, &SearchParams {
@@ -451,6 +469,18 @@ impl VariantModel {
                 }
                 //Find possible insertions starting from this deletion
                 if let Some(sortedindex) = self.sortedindex.get(&search_charcount) {
+                    for candidate in sortedindex.iter() {
+                        if candidate > &av_upper_bounds[distance as usize -1] {
+                            break;
+                        } else if candidate >= &av_lower_bounds[distance as usize - 1] {
+                            if candidate.contains(&deletion.value) {//this is where the magic happens
+                                count += 1;
+                                nearest.insert(candidate);
+                            }
+                        }
+                    }
+
+                    /*
                     nearest.extend( sortedindex.iter().filter(|candidate| {
                         if candidate.contains(&deletion.value) {//this is where the magic happens
                             count += 1;
@@ -458,7 +488,7 @@ impl VariantModel {
                         } else {
                             false
                         }
-                    }));
+                    }));*/
                 }
                 if self.debug {
                     eprintln!("  (added {} out of {} candidates, preventing duplicates)", nearest.len() - beginlength , count);
