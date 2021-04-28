@@ -82,9 +82,9 @@ fn show_progress(seqnr: usize, lasttime: SystemTime) -> SystemTime {
     if lasttime >= now || seqnr <= 1 {
         eprintln!("@ {}", seqnr);
     } else {
-        let elapsed = now.duration_since(lasttime).expect("clock can't go backwards").as_secs();
-        let rate = 1000.0 / elapsed as f64;
-        eprintln!("@ {} - processed {:.1} items per second", seqnr, rate);
+        let elapsed = now.duration_since(lasttime).expect("clock can't go backwards").as_millis();
+        let rate = 1000.0 / (elapsed as f64 / 1000.0);
+        eprintln!("@ {} - processing speed was {:.0} items per second", seqnr, rate);
     }
     now
 }

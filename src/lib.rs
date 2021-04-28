@@ -424,9 +424,9 @@ impl VariantModel {
                 upperbound_value.insert(&highest_alphabet_char)
             };
             lowerbound_value = if i == 0 {
-                focus.delete(&lowerbound_highest_alphabet_char).expect("deletion")
+                focus.delete(&lowerbound_highest_alphabet_char).unwrap_or(AnaValue::empty())
             } else {
-                lowerbound_value.delete(&lowerbound_highest_alphabet_char).expect("deletion")
+                lowerbound_value.delete(&lowerbound_highest_alphabet_char).unwrap_or(AnaValue::empty())
             };
             let x = lowerbound_value.alphabet_upper_bound(lowerbound_alphabet_size);
             lowerbound_highest_alphabet_char = AnaValue::character(x.0);
