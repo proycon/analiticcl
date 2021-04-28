@@ -336,7 +336,7 @@ impl VariantModel {
 
     /// Find variants in the vocabulary for a given string (in its totality), returns a vector of vocabulaly ID and score pairs
     /// The resulting vocabulary Ids can be resolved through `get_vocab()`
-    pub fn find_variants(&self, input: &str, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64) -> Vec<(VocabId, f64)> {
+    pub fn find_variants(&self, input: &str, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_early: bool) -> Vec<(VocabId, f64)> {
 
         //Compute the anahash
         let normstring = input.normalize_to_alphabet(&self.alphabet);
@@ -347,7 +347,7 @@ impl VariantModel {
         let max_dynamic_distance: u8 = (normstring.len() as f64 / 2.0).floor() as u8;
 
         //Compute neighbouring anahashes and find the nearest anahashes in the model
-        let anahashes = self.find_nearest_anahashes(&anahash, min(max_anagram_distance, max_dynamic_distance));
+        let anahashes = self.find_nearest_anahashes(&anahash, min(max_anagram_distance, max_dynamic_distance), stop_early);
 
         //Get the instances pertaining to the collected hashes, within a certain maximum distance
         //and compute distances
@@ -358,8 +358,8 @@ impl VariantModel {
 
 
     /// Find the nearest anahashes that exists in the model (computing anahashes in the
-    /// neigbhourhood if needed). Note: this also returns anahashes that have no instances
-    pub fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, max_distance: u8) -> HashSet<&'a AnaValue> {
+    /// neigbhourhood if needed).
+    pub fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, max_distance: u8, stop_early: bool) -> HashSet<&'a AnaValue> {
         let mut nearest: HashSet<&AnaValue> = HashSet::new();
 
         let begintime = if self.debug {
@@ -375,6 +375,12 @@ impl VariantModel {
                 eprintln!(" (found exact match)");
             }
             nearest.insert(matched_anahash);
+            if stop_early {
+                if self.debug {
+                    eprintln!(" (stopping early)");
+                }
+                return nearest;
+            }
         }
 
         let (focus_upper_bound, focus_charcount) = focus.alphabet_upper_bound(self.alphabet_size());
