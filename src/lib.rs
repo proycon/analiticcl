@@ -335,7 +335,7 @@ impl VariantModel {
 
     /// Find variants in the vocabulary for a given string (in its totality), returns a vector of vocabulaly ID and score pairs
     /// The resulting vocabulary Ids can be resolved through `get_vocab()`
-    pub fn find_variants(&self, input: &str, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize) -> Vec<(VocabId, f64)> {
+    pub fn find_variants(&self, input: &str, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64) -> Vec<(VocabId, f64)> {
 
         //Compute the anahash
         let normstring = input.normalize_to_alphabet(&self.alphabet);
@@ -352,7 +352,7 @@ impl VariantModel {
         //and compute distances
         let variants = self.gather_instances(&anahashes, &normstring, input, min(max_edit_distance, max_dynamic_distance));
 
-        self.score_and_rank(variants, input, max_matches)
+        self.score_and_rank(variants, input, max_matches, score_threshold)
     }
 
 
@@ -506,7 +506,7 @@ impl VariantModel {
 
 
     /// Rank and score all variants
-    pub fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, input: &str, max_matches: usize ) -> Vec<(VocabId,f64)> {
+    pub fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, input: &str, max_matches: usize, score_threshold: f64 ) -> Vec<(VocabId,f64)> {
         let mut results: Vec<(VocabId,f64)> = Vec::new();
         let mut max_distance = 0;
         let mut max_freq = 0;
@@ -541,7 +541,11 @@ impl VariantModel {
         //Compute scores
         for (vocab_id, distance) in instances.iter() {
             if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
-                let distance_score: f64 = 1.0 - (distance.ld as f64 / max_distance as f64);
+                let distance_score: f64 = if max_distance == 0 {
+                    0.0
+                } else {
+                    1.0 - (distance.ld as f64 / max_distance as f64)
+                };
                 let lcs_score: f64 = distance.lcs as f64 / vocabitem.norm.len() as f64;
                 let prefix_score: f64 = match max_prefixlen {
                     0 => 0.0,
@@ -551,7 +555,7 @@ impl VariantModel {
                     0 => 0.0,
                     max_suffixlen => distance.suffixlen as f64 / max_suffixlen as f64
                 };
-                let freq_score: f64 = if self.have_freq {
+                let freq_score: f64 = if self.have_freq && max_freq > 0 {
                    vocabitem.frequency as f64 / max_freq as f64
                 } else {
                     1.0
@@ -565,10 +569,16 @@ impl VariantModel {
                     self.weights.lex * vocabitem.lexweight as f64 +
                     if distance.samecase { self.weights.case } else { 0.0 }
                 ) / weights_sum;
+                if score.is_nan() {
+                    //should never happen
+                    panic!("Invalid score (NaN) computed for variant={}, distance={:?}, score={}", vocabitem.text, distance, score);
+                }
                 if self.debug {
                     eprintln!("   (variant={}, distance={:?}, score={})", vocabitem.text, distance, score);
                 }
-                results.push( (*vocab_id, score) );
+                if score >= score_threshold {
+                    results.push( (*vocab_id, score) );
+                }
             }
         }
 
@@ -578,7 +588,7 @@ impl VariantModel {
         }
 
         //Sort the results
-        results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); //sort by score, descending order
+        results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).expect(format!("partial cmp of {} and {}",a.1,b.1).as_str())); //sort by score, descending order
 
 
 
@@ -635,7 +645,7 @@ impl VariantModel {
         for (vocab_id, score) in results.iter_mut() {
             *score *= self.compute_confusable_weight(input, *vocab_id);
         }
-        results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); //sort by score, descending order
+        results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).expect(format!("partial cmp of {} and {}",a.1,b.1).as_str())); //sort by score, descending order
     }
 
     /// compute weight over known confusables

@@ -60,8 +60,8 @@ fn output_reverse_index(model: &VariantModel, reverseindex: &ReverseIndex) {
     }
 }
 
-fn process(model: &VariantModel, input: &str, reverseindex: Option<&mut ReverseIndex>, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, output_lexmatch: bool, json: bool, seqnr: usize) {
-    let variants = model.find_variants(&input, max_anagram_distance, max_edit_distance, max_matches);
+fn process(model: &VariantModel, input: &str, reverseindex: Option<&mut ReverseIndex>, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, output_lexmatch: bool, json: bool, seqnr: usize) {
+    let variants = model.find_variants(&input, max_anagram_distance, max_edit_distance, max_matches, score_threshold);
     if let Some(reverseindex) = reverseindex {
         //we are asked to build a reverse index
         for (vocab_id,score) in variants.iter() {
@@ -118,6 +118,11 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .long("json")
         .short("j")
         .help("Output json instead of tsv")
+        .required(false));
+    args.push(Arg::with_name("score-threshold")
+        .long("score-threshold")
+        .short("x")
+        .help("Require scores to meet this threshold, they are pruned otherwise")
         .required(false));
     args.push(Arg::with_name("weight-ld")
         .long("weight-ld")
@@ -263,6 +268,7 @@ fn main() {
     let max_anagram_distance: u8 = args.value_of("max_anagram_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
     let max_edit_distance: u8 = args.value_of("max_edit_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
     let max_matches: usize = args.value_of("max_matches").unwrap().parse::<usize>().expect("Maximum matches should should be an integer (0 for unlimited)");
+    let score_threshold: f64 = args.value_of("max_matches").unwrap().parse::<f64>().expect("Score threshold should be a floating point number");
     let output_lexmatch = args.is_present("output-lexmatch");
     let json = args.is_present("json");
 
@@ -316,7 +322,7 @@ fn main() {
                     for line in f_buffer.lines() {
                         if let Ok(line) = line {
                             seqnr += 1;
-                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches, output_lexmatch, json, seqnr);
+                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches, score_threshold, output_lexmatch, json, seqnr);
                         }
                     }
                 },
@@ -326,7 +332,7 @@ fn main() {
                     for line in f_buffer.lines() {
                         if let Ok(line) = line {
                             seqnr += 1;
-                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches, output_lexmatch, json, seqnr);
+                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches, score_threshold, output_lexmatch, json, seqnr);
                         }
                     }
                 }
