@@ -738,7 +738,9 @@ impl VariantModel {
         let mut weight = 1.0;
         if let Some(candidate) = self.decoder.get(candidate as usize) {
             let editscript = shortest_edit_script(input, &candidate.text, false, false, false);
-            eprintln!("   (editscript  {:?})", editscript);
+            if self.debug {
+                eprintln!("   (editscript {} -> {}: {:?})", input, candidate.text, editscript);
+            }
             for confusable in self.confusables.iter() {
                 if confusable.found_in(&editscript) {
                     if self.debug {
