@@ -4,7 +4,7 @@ extern crate sesdiff;
 use std::fs::File;
 use std::io::{self, Write,Read,BufReader,BufRead,Error,ErrorKind};
 use std::collections::{HashMap,HashSet,BTreeMap};
-use std::cmp::max;
+use std::cmp::{max,min};
 use sesdiff::{EditScript,EditInstruction,shortest_edit_script};
 use std::str::FromStr;
 
@@ -341,12 +341,16 @@ impl VariantModel {
         let normstring = input.normalize_to_alphabet(&self.alphabet);
         let anahash = input.anahash(&self.alphabet);
 
+        //dynamically computed maximum distance, this will override max_edit_distance
+        //when the number is smaller (for short input strings)
+        let max_dynamic_distance: u8 = (normstring.len() as f64 / 2.0).floor() as u8;
+
         //Compute neighbouring anahashes and find the nearest anahashes in the model
-        let anahashes = self.find_nearest_anahashes(&anahash, max_anagram_distance);
+        let anahashes = self.find_nearest_anahashes(&anahash, min(max_anagram_distance, max_dynamic_distance));
 
         //Get the instances pertaining to the collected hashes, within a certain maximum distance
         //and compute distances
-        let variants = self.gather_instances(&anahashes, &normstring, input, max_edit_distance);
+        let variants = self.gather_instances(&anahashes, &normstring, input, min(max_edit_distance, max_dynamic_distance));
 
         self.score_and_rank(variants, input, max_matches)
     }
@@ -468,6 +472,7 @@ impl VariantModel {
     pub fn gather_instances(&self, nearest_anagrams: &HashSet<&AnaValue>, querystring: &[u8], query: &str, max_edit_distance: u8) -> Vec<(VocabId,Distance)> {
         let mut found_instances = Vec::new();
         let mut pruned_instances = 0;
+
         for anahash in nearest_anagrams {
             if let Some(node) = self.index.get(anahash) {
                 for vocab_id in node.instances.iter() {
