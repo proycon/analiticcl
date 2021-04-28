@@ -118,7 +118,11 @@ output.tsv
 The ``--lexicon`` argument can be specified multiple times for multiple lexicons. When you want to use a corpus-derived
 lexicon, use ``--corpus`` instead (can be used multiple times too). The difference affects only the scoring where
 items from a validated lexicon will be esteemed higher than those from a background corpus. Both types of lexicons may
-contain frequency information (will be used by default when present).
+contain frequency information (will be used by default when present). In case you are using multiple lexicons, you can
+get analiticcl to output information on which lexicon a match was found in by setting. ``--output-lexmatch``.
+
+If you want JSON output rather than TSV, use the ``--json`` flag.
+
 
 ### Index Mode
 
