@@ -80,11 +80,11 @@ fn process(model: &VariantModel, input: &str, reverseindex: Option<&mut ReverseI
 fn show_progress(seqnr: usize, lasttime: SystemTime) -> SystemTime {
     let now = SystemTime::now();
     if lasttime >= now || seqnr <= 1 {
-        eprintln!("@{}", seqnr);
+        eprintln!("@ {}", seqnr);
     } else {
         let elapsed = now.duration_since(lasttime).expect("clock can't go backwards").as_secs();
         let rate = 1000.0 / elapsed as f64;
-        eprintln!("@{} - processed {:.1} items per second", seqnr, rate);
+        eprintln!("@ {} - processed {:.1} items per second", seqnr, rate);
     }
     now
 }

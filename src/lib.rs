@@ -6,6 +6,7 @@ use std::io::{self, Write,Read,BufReader,BufRead,Error,ErrorKind};
 use std::collections::{HashMap,HashSet,BTreeMap};
 use std::cmp::{max,min};
 use sesdiff::{EditScript,EditInstruction,shortest_edit_script};
+use std::time::SystemTime;
 use std::str::FromStr;
 
 pub mod types;
@@ -361,9 +362,12 @@ impl VariantModel {
     pub fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, max_distance: u8) -> HashSet<&'a AnaValue> {
         let mut nearest: HashSet<&AnaValue> = HashSet::new();
 
-        if self.debug {
+        let begintime = if self.debug {
             eprintln!("(finding nearest anagram matches for focus anavalue {})", focus);
-        }
+            Some(SystemTime::now())
+        } else {
+            None
+        };
 
         if let Some((matched_anahash, _node)) = self.index.get_key_value(focus) {
             //the easiest case, this anahash exists in the model!
@@ -458,7 +462,9 @@ impl VariantModel {
         }
 
         if self.debug {
-            eprint!("(found {} anagram matches in total for focus anavalue {}: ", nearest.len(), focus);
+            let endtime = SystemTime::now();
+            let duration = endtime.duration_since(begintime.expect("begintime")).expect("clock can't go backwards").as_micros();
+            eprint!("(found {} anagram matches in total (in {} μs) for focus anavalue {}: ", nearest.len(), duration, focus);
             for av in nearest.iter() {
                 eprint!(" {}", av);
             }
@@ -472,6 +478,12 @@ impl VariantModel {
     pub fn gather_instances(&self, nearest_anagrams: &HashSet<&AnaValue>, querystring: &[u8], query: &str, max_edit_distance: u8) -> Vec<(VocabId,Distance)> {
         let mut found_instances = Vec::new();
         let mut pruned_instances = 0;
+
+        let begintime = if self.debug {
+            Some(SystemTime::now())
+        } else {
+            None
+        };
 
         for anahash in nearest_anagrams {
             if let Some(node) = self.index.get(anahash) {
@@ -498,7 +510,9 @@ impl VariantModel {
         }
         //found_instances.sort_unstable_by_key(|k| k.1 ); //sort by distance, ascending order
         if self.debug {
-            eprintln!("(found {} instances (pruned {}) over {} anagrams)", found_instances.len(), pruned_instances, nearest_anagrams.len());
+            let endtime = SystemTime::now();
+            let duration = endtime.duration_since(begintime.expect("begintime")).expect("clock can't go backwards").as_micros();
+            eprintln!("(found {} instances (pruned {}) over {} anagrams in {} μs)", found_instances.len(), pruned_instances, nearest_anagrams.len(), duration);
         }
         found_instances
     }
@@ -514,9 +528,12 @@ impl VariantModel {
         let mut max_suffixlen = 0;
         let weights_sum = self.weights.sum();
 
-        if self.debug {
+        let begintime = if self.debug {
             eprintln!("(scoring and ranking {} instances)", instances.len());
-        }
+            Some(SystemTime::now())
+        } else {
+            None
+        };
 
         //Collect maximum values
         for (vocab_id, distance) in instances.iter() {
@@ -633,6 +650,12 @@ impl VariantModel {
         //rescore with confusable weights (LATE, default)
         if !self.confusables.is_empty() && !self.confusables_before_pruning {
             self.rescore_confusables(&mut results, input);
+        }
+
+        if self.debug {
+            let endtime = SystemTime::now();
+            let duration = endtime.duration_since(begintime.expect("begintime")).expect("clock can't go backwards").as_micros();
+            eprintln!(" (scored and ranked {} results in {} μs)", results.len(), duration);
         }
 
         results
