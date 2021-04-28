@@ -62,8 +62,8 @@ fn output_reverse_index(model: &VariantModel, reverseindex: &ReverseIndex) {
     }
 }
 
-fn process(model: &VariantModel, input: &str, reverseindex: Option<&mut ReverseIndex>, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop: bool, output_lexmatch: bool, json: bool, seqnr: usize) {
-    let variants = model.find_variants(&input, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop);
+fn process(model: &VariantModel, input: &str, reverseindex: Option<&mut ReverseIndex>, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, seqnr: usize) {
+    let variants = model.find_variants(&input, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion);
     if let Some(reverseindex) = reverseindex {
         //we are asked to build a reverse index
         for (vocab_id,score) in variants.iter() {
@@ -137,10 +137,16 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .long("progress")
         .help("Show progress")
         .required(false));
-    args.push(Arg::with_name("stop")
+    args.push(Arg::with_name("stop-exact")
         .short("s")
-        .long("stop")
+        .long("stop-exact")
         .help("Do not continue looking for variants once an exact match has been found. This significantly speeds up the process")
+        .required(false));
+    args.push(Arg::with_name("stop-iterative")
+        .short("S")
+        .long("stop-iterative")
+        .help("Seek iteratively and stop after gathering enough matches, as represented by this threshold")
+        .takes_value(true)
         .required(false));
     args.push(Arg::with_name("score_threshold")
         .long("score-threshold")
@@ -296,7 +302,12 @@ fn main() {
     let score_threshold: f64 = args.value_of("score_threshold").unwrap().parse::<f64>().expect("Score threshold should be a floating point number");
     let output_lexmatch = args.is_present("output-lexmatch");
     let progress = args.is_present("progress");
-    let stop = args.is_present("stop");
+    let stop_criterion = match (args.is_present("stop-exact"), args.is_present("stop-iterative")) {
+        (true, true) => StopCriterion::IterativeStopAtExactMatch(args.value_of("stop-iterative").unwrap().parse::<usize>().expect("Cut-off value should be an integer")),
+        (false, true) => StopCriterion::Iterative(args.value_of("stop-iterative").unwrap().parse::<usize>().expect("Stop-iterative threshold should be an integer")),
+        (true, false) => StopCriterion::StopAtExactMatch,
+        (false, false) => StopCriterion::Exhaustive
+    };
     let json = args.is_present("json");
 
     if args.is_present("early-confusables") {
@@ -353,7 +364,7 @@ fn main() {
                             if progress && seqnr % 1000 == 1 {
                                 progresstime = show_progress(seqnr, progresstime);
                             }
-                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop, output_lexmatch, json, seqnr);
+                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, seqnr);
                         }
                     }
                 },
@@ -366,7 +377,7 @@ fn main() {
                             if progress && seqnr % 1000 == 1 {
                                 progresstime = show_progress(seqnr, progresstime);
                             }
-                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop, output_lexmatch, json, seqnr);
+                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, seqnr);
                         }
                     }
                 }

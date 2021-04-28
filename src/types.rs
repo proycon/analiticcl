@@ -74,3 +74,27 @@ pub struct Distance {
     ///Is the casing different or not?
     pub samecase: bool,
 }
+
+#[derive(Debug,Clone,Copy)]
+pub enum StopCriterion {
+    Exhaustive,
+    StopAtExactMatch,
+    Iterative(usize),
+    IterativeStopAtExactMatch(usize),
+}
+
+impl StopCriterion {
+    pub fn stop_at_exact_match(&self) -> bool {
+        match self {
+            Self::StopAtExactMatch | Self::IterativeStopAtExactMatch(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn iterative(&self) -> usize {
+        match self {
+            Self::Iterative(matches) | Self::IterativeStopAtExactMatch(matches) => *matches,
+            _ => 0
+        }
+    }
+}

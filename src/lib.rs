@@ -336,7 +336,7 @@ impl VariantModel {
 
     /// Find variants in the vocabulary for a given string (in its totality), returns a vector of vocabulaly ID and score pairs
     /// The resulting vocabulary Ids can be resolved through `get_vocab()`
-    pub fn find_variants(&self, input: &str, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_early: bool) -> Vec<(VocabId, f64)> {
+    pub fn find_variants(&self, input: &str, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion) -> Vec<(VocabId, f64)> {
 
         //Compute the anahash
         let normstring = input.normalize_to_alphabet(&self.alphabet);
@@ -347,7 +347,7 @@ impl VariantModel {
         let max_dynamic_distance: u8 = (normstring.len() as f64 / 2.0).floor() as u8;
 
         //Compute neighbouring anahashes and find the nearest anahashes in the model
-        let anahashes = self.find_nearest_anahashes(&anahash, min(max_anagram_distance, max_dynamic_distance), stop_early);
+        let anahashes = self.find_nearest_anahashes(&anahash, min(max_anagram_distance, max_dynamic_distance), stop_criterion);
 
         //Get the instances pertaining to the collected hashes, within a certain maximum distance
         //and compute distances
@@ -359,7 +359,7 @@ impl VariantModel {
 
     /// Find the nearest anahashes that exists in the model (computing anahashes in the
     /// neigbhourhood if needed).
-    pub fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, max_distance: u8, stop_early: bool) -> HashSet<&'a AnaValue> {
+    pub fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, max_distance: u8,  stop_criterion: StopCriterion) -> HashSet<&'a AnaValue> {
         let mut nearest: HashSet<&AnaValue> = HashSet::new();
 
         let begintime = if self.debug {
@@ -375,7 +375,7 @@ impl VariantModel {
                 eprintln!(" (found exact match)");
             }
             nearest.insert(matched_anahash);
-            if stop_early {
+            if stop_criterion.stop_at_exact_match() {
                 if self.debug {
                     eprintln!(" (stopping early)");
                 }
@@ -440,6 +440,8 @@ impl VariantModel {
             eprintln!(" (Computed lower bounds: {:?})", av_lower_bounds);
         }
 
+        let mut lastdistance = 0;
+
         // Do a breadth first search for deletions
         for (deletion,distance) in focus.iter_recursive(focus_alphabet_size+1, &SearchParams {
             max_distance: Some(max_distance as u32),
@@ -451,6 +453,7 @@ impl VariantModel {
             if self.debug {
                 eprintln!(" (testing deletion at distance {} for anavalue {})", distance, deletion.value);
             }
+
             if let Some((matched_anahash, _node)) = self.index.get_key_value(&deletion) {
                 if self.debug {
                     eprintln!("  (deletion matches)");
@@ -459,7 +462,17 @@ impl VariantModel {
                 nearest.insert(matched_anahash);
             }
 
-            if distance == max_distance as u32 { //no need to check for distances that are not the max
+            if stop_criterion.iterative() > 0 && lastdistance < distance {
+                //have we gathered enough candidates already?
+                if nearest.len() >= stop_criterion.iterative() {
+                    if self.debug {
+                        eprintln!("  (stopping early after distance {}, we have enough matches)", lastdistance);
+                    }
+                    break;
+                }
+            }
+
+            if stop_criterion.iterative() > 0 || distance == max_distance as u32 { //no need to check for distances that are not the max
                 let mut count = 0;
                 let (deletion_upper_bound, deletion_charcount) = deletion.alphabet_upper_bound(self.alphabet_size());
                 let search_charcount = deletion_charcount + distance as u16;
@@ -494,7 +507,7 @@ impl VariantModel {
                     eprintln!("  (added {} out of {} candidates, preventing duplicates)", nearest.len() - beginlength , count);
                 }
             }
-
+            lastdistance = distance;
         }
 
         if self.debug {
