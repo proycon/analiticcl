@@ -642,7 +642,7 @@ fn test0403_model_anagrams() {
 }
 
 #[test]
-fn test_0404_score_test() {
+fn test0404_score_test() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["huis","huls"];
@@ -661,7 +661,7 @@ fn test_0404_score_test() {
 
 
 #[test]
-fn test_0501_confusable_found_in() {
+fn test0501_confusable_found_in() {
     let confusable =  Confusable::new("-[y]+[i]",1.1).expect("valid script");
     eprintln!("confusable: {:?}", confusable);
     let huis_script = sesdiff::shortest_edit_script("huys","huis", false, false, false);
@@ -673,7 +673,7 @@ fn test_0501_confusable_found_in() {
 }
 
 #[test]
-fn test_0502_confusable_test() {
+fn test0502_confusable_test() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["huis","huls"];
@@ -689,7 +689,7 @@ fn test_0502_confusable_test() {
 }
 
 #[test]
-fn test_0503_confusable_test2() {
+fn test0503_confusable_test2() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["huis","huls"];
@@ -702,4 +702,19 @@ fn test_0503_confusable_test2() {
     assert_eq!( model.decoder.get(results.get(0).unwrap().0 as usize).unwrap().text, "huis");
     assert_eq!( model.decoder.get(results.get(1).unwrap().0 as usize).unwrap().text, "huls");
     assert!( results.get(0).unwrap().1 > results.get(1).unwrap().1, "score of huis should be greater than that of huls" );
+}
+
+#[test]
+fn test0504_confusable_nomatch() {
+    let (alphabet, _alphabet_size) = get_test_alphabet();
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let lexicon: &[&str] = &["huis","huls"];
+    for text in lexicon.iter() {
+        model.add_to_vocabulary(text,None,None, 0);
+    }
+    model.add_to_confusables("-[y]+[p]",1.1).expect("added to confusables");
+    model.build();
+    let results = model.find_variants("Huys", 2, 2, 10);
+    assert_eq!( results.len() , 2 );
+    assert_eq!( results.get(0).unwrap().1,results.get(1).unwrap().1, "score of huis should be equal to that of huls" );
 }

@@ -54,50 +54,34 @@ impl Confusable {
             if let Some(instruction) = self.editscript.instructions.get(matches) {
                 let foundinstruction = match (instruction, refinstruction) {
                     (EditInstruction::Insertion(s), EditInstruction::Insertion(sref)) |  (EditInstruction::Deletion(s), EditInstruction::Deletion(sref)) => {
-                        if i == 0 && i == l -1 {
+                        sref.ends_with(s)
+                    },
+                    (EditInstruction::Identity(s), EditInstruction::Identity(sref)) => {
+                        if matches == 0 && matches == l -1 {
                             s == sref
-                        } else if i == 0 {
+                        } else if matches == 0 {
                             sref.ends_with(s)
-                        } else if i == l - 1 {
+                        } else if matches == l - 1 {
                             sref.starts_with(s)
                         } else {
                             s == sref
                         }
                     },
-                    (EditInstruction::Identity(s), EditInstruction::Identity(sref)) => {
-                        if i == 0 && i == l -1 {
-                            s == sref
-                        } else if i == 0 {
-                            sref.ends_with(s)
-                        } else if i == l - 1 {
-                            sref.starts_with(s)
-                        } else {
-                            s == sref
+                    (EditInstruction::InsertionOptions(v), EditInstruction::Insertion(sref)) | (EditInstruction::DeletionOptions(v), EditInstruction::Deletion(sref)) => {
+                        let mut foundoption = false;
+                        for s in v.iter() {
+                            if sref.ends_with(s) { foundoption = true; break; }
                         }
+                        foundoption
                     },
                     (EditInstruction::IdentityOptions(v), EditInstruction::Identity(sref)) => {
                         let mut foundoption = false;
                         for s in v.iter() {
-                            if i == 0 && i == l -1 {
+                            if matches == 0 && matches == l -1 {
                                 if s == sref { foundoption = true; break; }
-                            } else if i == 0 {
+                            } else if matches == 0 {
                                 if sref.ends_with(s) { foundoption = true; break; }
-                            } else if i == l - 1 {
-                                if sref.starts_with(s) { foundoption = true; break; }
-                            } else {
-                                if s == sref { foundoption = true; break; }
-                            }
-                        }
-                        foundoption
-                    }
-                    (EditInstruction::InsertionOptions(v), EditInstruction::Insertion(sref)) | (EditInstruction::DeletionOptions(v), EditInstruction::Deletion(sref)) => {
-                        let mut foundoption = false;
-                        for s in v.iter() {
-                            if i == 0 && i == l -1 {
-                                if s == sref { foundoption = true; break; }
-                            } else if i == 0 {
-                                if sref.ends_with(s) { foundoption = true; break; }
-                            } else if i == l - 1 {
+                            } else if matches == l - 1 {
                                 if sref.starts_with(s) { foundoption = true; break; }
                             } else {
                                 if s == sref { foundoption = true; break; }
@@ -105,7 +89,7 @@ impl Confusable {
                         }
                         foundoption
                     },
-                    _ => false
+                    _ => { false }
                 };
                 if !foundinstruction {
                     matches = 0;
