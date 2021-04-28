@@ -347,7 +347,7 @@ impl VariantModel {
         let max_dynamic_distance: u8 = (normstring.len() as f64 / 2.0).floor() as u8;
 
         //Compute neighbouring anahashes and find the nearest anahashes in the model
-        let anahashes = self.find_nearest_anahashes(&anahash, min(max_anagram_distance, max_dynamic_distance), stop_criterion);
+        let anahashes = self.find_nearest_anahashes(&anahash, &normstring, min(max_anagram_distance, max_dynamic_distance), stop_criterion);
 
         //Get the instances pertaining to the collected hashes, within a certain maximum distance
         //and compute distances
@@ -359,7 +359,7 @@ impl VariantModel {
 
     /// Find the nearest anahashes that exists in the model (computing anahashes in the
     /// neigbhourhood if needed).
-    pub fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, max_distance: u8,  stop_criterion: StopCriterion) -> HashSet<&'a AnaValue> {
+    pub fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, normstring: &Vec<u8>, max_distance: u8,  stop_criterion: StopCriterion) -> HashSet<&'a AnaValue> {
         let mut nearest: HashSet<&AnaValue> = HashSet::new();
 
         let begintime = if self.debug {
@@ -369,17 +369,23 @@ impl VariantModel {
             None
         };
 
-        if let Some((matched_anahash, _node)) = self.index.get_key_value(focus) {
+        if let Some((matched_anahash, node)) = self.index.get_key_value(focus) {
             //the easiest case, this anahash exists in the model!
             if self.debug {
                 eprintln!(" (found exact match)");
             }
             nearest.insert(matched_anahash);
             if stop_criterion.stop_at_exact_match() {
-                if self.debug {
-                    eprintln!(" (stopping early)");
+                for vocab_id in node.instances.iter() {
+                    if let Some(value) = self.decoder.get(*vocab_id as usize) {
+                        if &value.norm == normstring {
+                            if self.debug {
+                                eprintln!(" (stopping early)");
+                            }
+                            return nearest;
+                        }
+                    }
                 }
-                return nearest;
             }
         }
 
