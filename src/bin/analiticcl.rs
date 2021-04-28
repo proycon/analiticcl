@@ -4,6 +4,8 @@ use std::fs::File;
 use std::io::{self, BufReader,BufRead};
 use clap::{Arg, App, SubCommand};
 use std::collections::HashMap;
+use std::time::SystemTime;
+
 
 use analiticcl::*;
 
@@ -75,6 +77,18 @@ fn process(model: &VariantModel, input: &str, reverseindex: Option<&mut ReverseI
     }
 }
 
+fn show_progress(seqnr: usize, lasttime: SystemTime) -> SystemTime {
+    let now = SystemTime::now();
+    if lasttime >= now || seqnr <= 1 {
+        eprintln!("@{}", seqnr);
+    } else {
+        let elapsed = now.duration_since(lasttime).expect("clock can't go backwards").as_secs();
+        let rate = 1000.0 / elapsed as f64;
+        eprintln!("@{} - processed {:.1} items per second", seqnr, rate);
+    }
+    now
+}
+
 pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
     let mut args: Vec<Arg> = Vec::new();
     args.push( Arg::with_name("lexicon")
@@ -118,6 +132,10 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .long("json")
         .short("j")
         .help("Output json instead of tsv")
+        .required(false));
+    args.push(Arg::with_name("progress")
+        .long("progress")
+        .help("Show progress")
         .required(false));
     args.push(Arg::with_name("score-threshold")
         .long("score-threshold")
@@ -270,6 +288,7 @@ fn main() {
     let max_matches: usize = args.value_of("max_matches").unwrap().parse::<usize>().expect("Maximum matches should should be an integer (0 for unlimited)");
     let score_threshold: f64 = args.value_of("max_matches").unwrap().parse::<f64>().expect("Score threshold should be a floating point number");
     let output_lexmatch = args.is_present("output-lexmatch");
+    let progress = args.is_present("progress");
     let json = args.is_present("json");
 
     if args.is_present("early-confusables") {
@@ -312,6 +331,7 @@ fn main() {
         } else {
             vec!("-")
         };
+        let mut progresstime = SystemTime::now();
         let mut seqnr = 0;
         for filename in files {
             match filename {
@@ -322,6 +342,9 @@ fn main() {
                     for line in f_buffer.lines() {
                         if let Ok(line) = line {
                             seqnr += 1;
+                            if progress && seqnr % 1000 == 1 {
+                                progresstime = show_progress(seqnr, progresstime);
+                            }
                             process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches, score_threshold, output_lexmatch, json, seqnr);
                         }
                     }
@@ -332,6 +355,9 @@ fn main() {
                     for line in f_buffer.lines() {
                         if let Ok(line) = line {
                             seqnr += 1;
+                            if progress && seqnr % 1000 == 1 {
+                                progresstime = show_progress(seqnr, progresstime);
+                            }
                             process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches, score_threshold, output_lexmatch, json, seqnr);
                         }
                     }
