@@ -590,11 +590,15 @@ impl VariantModel {
                     //should never happen
                     panic!("Invalid score (NaN) computed for variant={}, distance={:?}, score={}", vocabitem.text, distance, score);
                 }
-                if self.debug {
-                    eprintln!("   (variant={}, distance={:?}, score={})", vocabitem.text, distance, score);
-                }
                 if score >= score_threshold {
                     results.push( (*vocab_id, score) );
+                    if self.debug {
+                        eprintln!("   (variant={}, distance={:?}, score={})", vocabitem.text, distance, score);
+                    }
+                } else {
+                    if self.debug {
+                        eprintln!("   (PRUNED variant={}, distance={:?}, score={})", vocabitem.text, distance, score);
+                    }
                 }
             }
         }

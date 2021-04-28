@@ -137,7 +137,7 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .long("progress")
         .help("Show progress")
         .required(false));
-    args.push(Arg::with_name("score-threshold")
+    args.push(Arg::with_name("score_threshold")
         .long("score-threshold")
         .short("x")
         .help("Require scores to meet this threshold, they are pruned otherwise")
@@ -288,7 +288,7 @@ fn main() {
     let max_anagram_distance: u8 = args.value_of("max_anagram_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
     let max_edit_distance: u8 = args.value_of("max_edit_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
     let max_matches: usize = args.value_of("max_matches").unwrap().parse::<usize>().expect("Maximum matches should should be an integer (0 for unlimited)");
-    let score_threshold: f64 = args.value_of("max_matches").unwrap().parse::<f64>().expect("Score threshold should be a floating point number");
+    let score_threshold: f64 = args.value_of("score_threshold").unwrap().parse::<f64>().expect("Score threshold should be a floating point number");
     let output_lexmatch = args.is_present("output-lexmatch");
     let progress = args.is_present("progress");
     let json = args.is_present("json");
