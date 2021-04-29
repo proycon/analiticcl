@@ -511,6 +511,7 @@ impl VariantModel {
                 }
                 //Find possible insertions starting from this deletion
                 if let Some(sortedindex) = self.sortedindex.get(&search_charcount) {
+                    /*
                     for candidate in sortedindex.iter() {
                         if candidate > &av_upper_bounds[distance as usize -1] {
                             break;
@@ -520,17 +521,21 @@ impl VariantModel {
                                 nearest.insert(candidate);
                             }
                         }
-                    }
+                    }*/
 
-                    /*
-                    nearest.extend( sortedindex.iter().filter(|candidate| {
-                        if candidate.contains(&deletion.value) {//this is where the magic happens
-                            count += 1;
-                            true
+                    let precount = nearest.len();
+                    nearest.par_extend( sortedindex.par_iter().filter(|candidate| {
+                        if *candidate >= &av_lower_bounds[distance as usize -1] && *candidate < &av_upper_bounds[distance as usize - 1]{
+                            if candidate.contains(&deletion.value) {//this is where the magic happens
+                                true
+                            } else {
+                                false
+                            }
                         } else {
                             false
                         }
-                    }));*/
+                    }));
+                    count += nearest.len() - precount;
                 }
                 if self.debug {
                     eprintln!("  (added {} out of {} candidates, preventing duplicates)", nearest.len() - beginlength , count);
