@@ -62,8 +62,8 @@ fn output_reverse_index(model: &VariantModel, reverseindex: &ReverseIndex) {
     }
 }
 
-fn process(model: &VariantModel, input: &str, reverseindex: Option<&mut ReverseIndex>, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, seqnr: usize) {
-    let variants = model.find_variants(&input, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion);
+fn process(model: &VariantModel, input: &str, reverseindex: Option<&mut ReverseIndex>, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, seqnr: usize, cache: &mut Option<Cache>) {
+    let variants = model.find_variants(&input, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, cache.as_mut());
     if let Some(reverseindex) = reverseindex {
         //we are asked to build a reverse index
         for (vocab_id,score) in variants.iter() {
@@ -74,6 +74,9 @@ fn process(model: &VariantModel, input: &str, reverseindex: Option<&mut ReverseI
     } else {
         //Normal output mode
         output_matches_as_tsv(model, input, &variants, output_lexmatch);
+    }
+    if let Some(x) = cache {
+        x.check();
     }
 }
 
@@ -154,6 +157,11 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .help("Require scores to meet this threshold, they are pruned otherwise")
         .takes_value(true)
         .default_value("0.25")
+        .required(false));
+    args.push(Arg::with_name("cache_search")
+        .long("cache-search")
+        .help("Cache visited nodes between searches to speed up the search at the cost of more memory. The value corresponds to the maximum number of anagram values to cache, this should be set to a fairly high number, depending on memory availability, such as 100000")
+        .takes_value(true)
         .required(false));
     args.push(Arg::with_name("weight-ld")
         .long("weight-ld")
@@ -266,6 +274,13 @@ fn main() {
         case: args.value_of("weight-case").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
     };
 
+    let mut cache = if let Some(visited_max_size) = args.value_of("cache_search") {
+        let visited_max_size = visited_max_size.parse::<usize>().expect("Cache size should be a large integer");
+        Some(Cache::new(visited_max_size))
+    } else {
+        None
+    };
+
     let mut model = VariantModel::new(
         args.value_of("alphabet").unwrap(),
         weights,
@@ -364,7 +379,7 @@ fn main() {
                             if progress && seqnr % 1000 == 1 {
                                 progresstime = show_progress(seqnr, progresstime);
                             }
-                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, seqnr);
+                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, seqnr, &mut cache);
                         }
                     }
                 },
@@ -377,7 +392,7 @@ fn main() {
                             if progress && seqnr % 1000 == 1 {
                                 progresstime = show_progress(seqnr, progresstime);
                             }
-                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, seqnr);
+                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, seqnr, &mut cache);
                         }
                     }
                 }

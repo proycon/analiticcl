@@ -73,7 +73,29 @@ impl<'a> Iterator for DeletionIterator<'a> {
 
 ///////////////////////////////////////////////////////////////////////////////////////
 
-pub struct RecurseDeletionIterator {
+pub enum VisitedMap<'a> {
+    Internal(HashSet<AnaValue>),
+    External(&'a mut HashSet<AnaValue>)
+}
+
+impl VisitedMap<'_> {
+    pub fn contains(&self, key: &AnaValue) -> bool {
+        match self {
+            VisitedMap::Internal(map) => map.contains(key),
+            VisitedMap::External(map) => map.contains(key),
+        }
+    }
+
+    pub fn insert(&mut self, key: AnaValue) -> bool {
+        match self {
+            VisitedMap::Internal(map) => map.insert(key),
+            VisitedMap::External(map) => map.insert(key),
+        }
+    }
+}
+
+
+pub struct RecurseDeletionIterator<'a> {
     queue: VecDeque<(DeletionResult,u32)>, //second tuple argument is the depth at which the iterator starts
     alphabet_size: CharIndexType,
     singlebeam: bool, //caps the queue at every expansion
@@ -89,11 +111,11 @@ pub struct RecurseDeletionIterator {
     unique: bool,
 
     ///Used to keep track of visited values if unique is set
-    visited: HashSet<AnaValue>,
+    visited: VisitedMap<'a>,
 }
 
-impl RecurseDeletionIterator {
-    pub fn new(value: AnaValue, alphabet_size: CharIndexType, singlebeam: bool, mindepth: Option<u32>, maxdepth: Option<u32>, breadthfirst: bool, unique: bool, empty_leaves: bool) -> RecurseDeletionIterator {
+impl<'a> RecurseDeletionIterator<'a> {
+    pub fn new(value: AnaValue, alphabet_size: CharIndexType, singlebeam: bool, mindepth: Option<u32>, maxdepth: Option<u32>, breadthfirst: bool, unique: bool, empty_leaves: bool, external_visited_map: Option<&'a mut HashSet<AnaValue>>) -> RecurseDeletionIterator<'a> {
         let queue: Vec<(DeletionResult,u32)> =  vec!((DeletionResult { value: value, charindex: 0 },0));
         RecurseDeletionIterator {
             queue: VecDeque::from(queue),
@@ -104,13 +126,16 @@ impl RecurseDeletionIterator {
             maxdepth: maxdepth,
             unique: unique,
             empty_leaves: empty_leaves,
-            visited: HashSet::new()
+            visited: match external_visited_map {
+                Some(mapref) => VisitedMap::External(mapref),
+                None => VisitedMap::Internal(HashSet::new())
+            }
         }
     }
 }
 
 
-impl Iterator for RecurseDeletionIterator {
+impl Iterator for RecurseDeletionIterator<'_> {
     type Item = (DeletionResult,u32);
 
     fn next(&mut self) -> Option<Self::Item> {

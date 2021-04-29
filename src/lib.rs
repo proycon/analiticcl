@@ -8,6 +8,7 @@ use std::cmp::{max,min};
 use sesdiff::{EditScript,EditInstruction,shortest_edit_script};
 use std::time::SystemTime;
 use std::str::FromStr;
+use std::thread;
 
 pub mod types;
 pub mod anahash;
@@ -16,6 +17,7 @@ pub mod iterators;
 pub mod vocab;
 pub mod distance;
 pub mod confusables;
+pub mod cache;
 pub mod test;
 
 
@@ -26,6 +28,7 @@ pub use crate::iterators::*;
 pub use crate::vocab::*;
 pub use crate::distance::*;
 pub use crate::confusables::*;
+pub use crate::cache::*;
 
 
 pub struct VariantModel {
@@ -336,7 +339,7 @@ impl VariantModel {
 
     /// Find variants in the vocabulary for a given string (in its totality), returns a vector of vocabulaly ID and score pairs
     /// The resulting vocabulary Ids can be resolved through `get_vocab()`
-    pub fn find_variants(&self, input: &str, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion) -> Vec<(VocabId, f64)> {
+    pub fn find_variants(&self, input: &str, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, cache: Option<&mut Cache>) -> Vec<(VocabId, f64)> {
 
         //Compute the anahash
         let normstring = input.normalize_to_alphabet(&self.alphabet);
@@ -347,7 +350,14 @@ impl VariantModel {
         let max_dynamic_distance: u8 = (normstring.len() as f64 / 2.0).floor() as u8;
 
         //Compute neighbouring anahashes and find the nearest anahashes in the model
-        let anahashes = self.find_nearest_anahashes(&anahash, &normstring, min(max_anagram_distance, max_dynamic_distance), stop_criterion);
+        let anahashes = self.find_nearest_anahashes(&anahash, &normstring,
+                                                    min(max_anagram_distance, max_dynamic_distance),
+                                                    stop_criterion,
+                                                    if let Some(cache) = cache {
+                                                       Some(&mut cache.visited)
+                                                    } else {
+                                                       None
+                                                    });
 
         //Get the instances pertaining to the collected hashes, within a certain maximum distance
         //and compute distances
@@ -359,7 +369,7 @@ impl VariantModel {
 
     /// Find the nearest anahashes that exists in the model (computing anahashes in the
     /// neigbhourhood if needed).
-    pub fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, normstring: &Vec<u8>, max_distance: u8,  stop_criterion: StopCriterion) -> HashSet<&'a AnaValue> {
+    pub fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, normstring: &Vec<u8>, max_distance: u8,  stop_criterion: StopCriterion, cache: Option<&mut HashSet<AnaValue>>) -> HashSet<&'a AnaValue> {
         let mut nearest: HashSet<&AnaValue> = HashSet::new();
 
         let begintime = if self.debug {
@@ -440,6 +450,8 @@ impl VariantModel {
             av_upper_bounds.push(upperbound_value.clone());
             av_lower_bounds.push(lowerbound_value.clone());
         }
+        let av_upper_bounds: Vec<AnaValue> = av_upper_bounds;
+        let av_lower_bounds: Vec<AnaValue> = av_lower_bounds;
 
         if self.debug {
             eprintln!(" (Computed upper bounds: {:?})", av_upper_bounds);
@@ -447,15 +459,23 @@ impl VariantModel {
         }
 
         let mut lastdistance = 0;
-
-        // Do a breadth first search for deletions
-        for (deletion,distance) in focus.iter_recursive(focus_alphabet_size+1, &SearchParams {
+        let searchparams = SearchParams {
             max_distance: Some(max_distance as u32),
             breadthfirst: true,
             allow_empty_leaves: false,
             allow_duplicates: false,
             ..Default::default()
-        }) {
+        };
+
+
+        let iterator = if let Some(cache) = cache {
+            focus.iter_recursive_external_cache(focus_alphabet_size+1, &searchparams, cache)
+        } else {
+            focus.iter_recursive(focus_alphabet_size+1, &searchparams)
+        };
+
+        // Do a breadth first search for deletions
+        for (deletion,distance) in iterator {
             if self.debug {
                 eprintln!(" (testing deletion at distance {} for anavalue {})", distance, deletion.value);
             }

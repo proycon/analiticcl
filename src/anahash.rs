@@ -1,5 +1,6 @@
 use num_bigint::BigUint;
 use num_traits::{Zero, One};
+use std::collections::HashSet;
 
 use crate::types::*;
 use crate::iterators::*;
@@ -93,6 +94,7 @@ pub trait Anahash: One + Zero {
     fn iter(&self, alphabet_size: CharIndexType) -> RecurseDeletionIterator;
     fn iter_parents(&self, alphabet_size: CharIndexType) -> DeletionIterator;
     fn iter_recursive(&self, alphabet_size: CharIndexType, params: &SearchParams) -> RecurseDeletionIterator;
+    fn iter_recursive_external_cache<'a>(&self, alphabet_size: CharIndexType, params: &SearchParams, cache: &'a mut HashSet<AnaValue>) -> RecurseDeletionIterator<'a>;
     fn char_count(&self, alphabet_size: CharIndexType) -> u16;
     fn alphabet_upper_bound(&self, alphabet_size: CharIndexType) -> (CharIndexType, u16);
 }
@@ -151,7 +153,7 @@ impl Anahash for AnaValue {
     /// }
     /// ```
     fn iter(&self, alphabet_size: CharIndexType) -> RecurseDeletionIterator {
-        RecurseDeletionIterator::new(self.clone(), alphabet_size, true, None, None, false,false,true)
+        RecurseDeletionIterator::new(self.clone(), alphabet_size, true, None, None, false,false,true, None)
     }
 
     /// Iterator over all the parents that are generated when applying all deletions within edit distance 1
@@ -161,7 +163,12 @@ impl Anahash for AnaValue {
 
     /// Iterator over all the possible deletions within the specified anagram distance
     fn iter_recursive(&self, alphabet_size: CharIndexType, params: &SearchParams) -> RecurseDeletionIterator {
-        RecurseDeletionIterator::new(self.clone(), alphabet_size, false, params.min_distance, params.max_distance, params.breadthfirst, !params.allow_duplicates, params.allow_empty_leaves )
+        RecurseDeletionIterator::new(self.clone(), alphabet_size, false, params.min_distance, params.max_distance, params.breadthfirst, !params.allow_duplicates, params.allow_empty_leaves, None )
+    }
+
+    /// Iterator over all the possible deletions within the specified anagram distance
+    fn iter_recursive_external_cache<'a>(&self, alphabet_size: CharIndexType, params: &SearchParams, cache: &'a mut HashSet<AnaValue>) -> RecurseDeletionIterator<'a> {
+        RecurseDeletionIterator::new(self.clone(), alphabet_size, false, params.min_distance, params.max_distance, params.breadthfirst, !params.allow_duplicates, params.allow_empty_leaves, Some(cache) )
     }
 
     /// The value of an empty anahash
