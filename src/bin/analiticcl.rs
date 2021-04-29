@@ -1,7 +1,7 @@
 extern crate clap;
 
 use std::fs::File;
-use std::io::{self, BufReader,BufRead};
+use std::io::{self, BufReader,BufRead,Read};
 use clap::{Arg, App, SubCommand};
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -62,21 +62,32 @@ fn output_reverse_index(model: &VariantModel, reverseindex: &ReverseIndex) {
     }
 }
 
-fn process(model: &VariantModel, input: &str, reverseindex: Option<&mut ReverseIndex>, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, seqnr: usize, cache: &mut Option<Cache>) {
-    let variants = model.find_variants(&input, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, cache.as_mut());
-    if let Some(reverseindex) = reverseindex {
-        //we are asked to build a reverse index
-        for (vocab_id,score) in variants.iter() {
-            model.add_to_reverse_index(reverseindex, input, *vocab_id, *score);
+fn process(model: &VariantModel, inputstream: impl Read, reverseindex: &mut Option<ReverseIndex>, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, cache: &mut Option<Cache>, progress: bool) {
+    let mut seqnr = 0;
+    let mut progresstime = SystemTime::now();
+    let f_buffer = BufReader::new(inputstream);
+    for line in f_buffer.lines() {
+        if let Ok(input) = line {
+            seqnr += 1;
+            if progress && seqnr % 1000 == 1 {
+                progresstime = show_progress(seqnr, progresstime);
+            }
+            let variants = model.find_variants(&input, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, cache.as_mut());
+            if let Some(reverseindex) = reverseindex.as_mut() {
+                //we are asked to build a reverse index
+                for (vocab_id,score) in variants.iter() {
+                    model.add_to_reverse_index(reverseindex, &input, *vocab_id, *score);
+                }
+            } else if json {
+                output_matches_as_json(model, &input, &variants, output_lexmatch, seqnr);
+            } else {
+                //Normal output mode
+                output_matches_as_tsv(model, &input, &variants, output_lexmatch);
+            }
+            if let Some(cache) = cache {
+                cache.check();
+            }
         }
-    } else if json {
-        output_matches_as_json(model, input, &variants, output_lexmatch, seqnr);
-    } else {
-        //Normal output mode
-        output_matches_as_tsv(model, input, &variants, output_lexmatch);
-    }
-    if let Some(cache) = cache {
-        cache.check();
     }
 }
 
@@ -160,8 +171,9 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .required(false));
     args.push(Arg::with_name("cache_search")
         .long("cache-search")
-        .help("Cache visited nodes between searches to speed up the search at the cost of more memory. The value corresponds to the maximum number of anagram values to cache, this should be set to a fairly high number, depending on memory availability, such as 100000")
+        .help("Cache visited nodes between searches to speed up the search at the cost of more memory. The value corresponds to the maximum number of anagram values to cache, this should be set to a fairly high number, depending on memory availability, such as 100000. Set to 0 to disable the cache")
         .takes_value(true)
+        .default_value("100000")
         .required(false));
     args.push(Arg::with_name("weight-ld")
         .long("weight-ld")
@@ -276,7 +288,11 @@ fn main() {
 
     let mut cache = if let Some(visited_max_size) = args.value_of("cache_search") {
         let visited_max_size = visited_max_size.parse::<usize>().expect("Cache size should be a large integer");
-        Some(Cache::new(visited_max_size))
+        if visited_max_size > 0 {
+            Some(Cache::new(visited_max_size))
+        } else {
+            None
+        }
     } else {
         None
     };
@@ -365,36 +381,16 @@ fn main() {
         } else {
             vec!("-")
         };
-        let mut progresstime = SystemTime::now();
-        let mut seqnr = 0;
         for filename in files {
             match filename {
                 "-" | "STDIN" | "stdin"  => {
                     eprintln!("(accepting standard input; enter input to match, one per line)");
                     let stdin = io::stdin();
-                    let f_buffer = BufReader::new(stdin);
-                    for line in f_buffer.lines() {
-                        if let Ok(line) = line {
-                            seqnr += 1;
-                            if progress && seqnr % 1000 == 1 {
-                                progresstime = show_progress(seqnr, progresstime);
-                            }
-                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, seqnr, &mut cache);
-                        }
-                    }
+                    process(&model, stdin, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
                 },
                 _ =>  {
                     let f = File::open(filename).expect(format!("ERROR: Unable to open file {}", filename).as_str());
-                    let f_buffer = BufReader::new(f);
-                    for line in f_buffer.lines() {
-                        if let Ok(line) = line {
-                            seqnr += 1;
-                            if progress && seqnr % 1000 == 1 {
-                                progresstime = show_progress(seqnr, progresstime);
-                            }
-                            process(&model, &line, reverseindex.as_mut(), max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, seqnr, &mut cache);
-                        }
-                    }
+                    process(&model, f, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
                 }
             }
         }
