@@ -208,7 +208,7 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .help("Seek iteratively and stop after gathering enough matches, as represented by this threshold")
         .takes_value(true)
         .required(false));
-    args.push(Arg::with_name("score_threshold")
+    args.push(Arg::with_name("score-threshold")
         .long("score-threshold")
         .short("x")
         .help("Require scores to meet this threshold, they are pruned otherwise")
@@ -261,19 +261,19 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .help("Weight attributed to a difference in casing")
         .takes_value(true)
         .default_value("0.2"));
-    args.push(Arg::with_name("max_anagram_distance")
+    args.push(Arg::with_name("max-anagram-distance")
         .long("max-anagram-distance")
         .short("k")
         .help("Maximum anagram distance. This impacts the size of the search space")
         .takes_value(true)
         .default_value("3"));
-    args.push(Arg::with_name("max_edit_distance")
+    args.push(Arg::with_name("max-edit-distance")
         .long("max-edit-distance")
         .short("d")
         .help("Maximum edit distance (levenshtein)")
         .takes_value(true)
         .default_value("3"));
-    args.push(Arg::with_name("max_matches")
+    args.push(Arg::with_name("max-matches")
         .long("max-matches")
         .short("n")
         .help("Number of matches the return per input (set to 0 for unlimited if you want to exhaustively return every possibility within the specified edit distance)")
@@ -378,10 +378,10 @@ fn main() {
     eprintln!("Building model...");
     model.build();
 
-    let max_anagram_distance: u8 = args.value_of("max_anagram_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
-    let max_edit_distance: u8 = args.value_of("max_edit_distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
-    let max_matches: usize = args.value_of("max_matches").unwrap().parse::<usize>().expect("Maximum matches should should be an integer (0 for unlimited)");
-    let score_threshold: f64 = args.value_of("score_threshold").unwrap().parse::<f64>().expect("Score threshold should be a floating point number");
+    let max_anagram_distance: u8 = args.value_of("max-anagram-distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
+    let max_edit_distance: u8 = args.value_of("max-edit-distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
+    let max_matches: usize = args.value_of("max-matches").unwrap().parse::<usize>().expect("Maximum matches should should be an integer (0 for unlimited)");
+    let score_threshold: f64 = args.value_of("score-threshold").unwrap().parse::<f64>().expect("Score threshold should be a floating point number");
     let output_lexmatch = args.is_present("output-lexmatch");
     let progress = args.is_present("progress");
     let stop_criterion = match (args.is_present("stop-exact"), args.is_present("stop-iterative")) {
