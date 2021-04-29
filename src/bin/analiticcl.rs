@@ -75,8 +75,8 @@ fn process(model: &VariantModel, input: &str, reverseindex: Option<&mut ReverseI
         //Normal output mode
         output_matches_as_tsv(model, input, &variants, output_lexmatch);
     }
-    if let Some(x) = cache {
-        x.check();
+    if let Some(cache) = cache {
+        cache.check();
     }
 }
 

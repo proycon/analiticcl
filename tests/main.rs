@@ -638,7 +638,7 @@ fn test0403_model_anagrams() {
         model.add_to_vocabulary(text,None,None, 0);
     }
     model.build();
-    model.find_variants("rite", 2, 2, 10, 0.0, StopCriterion::Exhaustive);
+    model.find_variants("rite", 2, 2, 10, 0.0, StopCriterion::Exhaustive, None);
 }
 
 #[test]
@@ -650,7 +650,7 @@ fn test0404_score_test() {
         model.add_to_vocabulary(text,None,None, 0);
     }
     model.build();
-    let results = model.find_variants("huys", 2, 2, 10, 0.0, StopCriterion::Exhaustive);
+    let results = model.find_variants("huys", 2, 2, 10, 0.0, StopCriterion::Exhaustive, None);
     //results are a bit indeterministic due to sort_unstable
     //(order of equal-scoring elements is not fixed)
     //we just check if we get two results with the same score
@@ -682,7 +682,7 @@ fn test0502_confusable_test() {
     }
     model.add_to_confusables("-[y]+[i]",1.1).expect("added to confusables");
     model.build();
-    let results = model.find_variants("huys", 2, 2, 10, 0.0, StopCriterion::Exhaustive);
+    let results = model.find_variants("huys", 2, 2, 10, 0.0, StopCriterion::Exhaustive, None);
     assert_eq!( model.decoder.get(results.get(0).unwrap().0 as usize).unwrap().text, "huis");
     assert_eq!( model.decoder.get(results.get(1).unwrap().0 as usize).unwrap().text, "huls");
     assert!( results.get(0).unwrap().1 > results.get(1).unwrap().1, "score of huis should be greater than that of huls" );
@@ -698,7 +698,7 @@ fn test0503_confusable_test2() {
     }
     model.add_to_confusables("-[y]+[i]",1.1).expect("added to confusables");
     model.build();
-    let results = model.find_variants("Huys", 2, 2, 10, 0.0, StopCriterion::Exhaustive);
+    let results = model.find_variants("Huys", 2, 2, 10, 0.0, StopCriterion::Exhaustive, None);
     assert_eq!( model.decoder.get(results.get(0).unwrap().0 as usize).unwrap().text, "huis");
     assert_eq!( model.decoder.get(results.get(1).unwrap().0 as usize).unwrap().text, "huls");
     assert!( results.get(0).unwrap().1 > results.get(1).unwrap().1, "score of huis should be greater than that of huls" );
@@ -714,7 +714,7 @@ fn test0504_confusable_nomatch() {
     }
     model.add_to_confusables("-[y]+[p]",1.1).expect("added to confusables");
     model.build();
-    let results = model.find_variants("Huys", 2, 2, 10, 0.0, StopCriterion::Exhaustive);
+    let results = model.find_variants("Huys", 2, 2, 10, 0.0, StopCriterion::Exhaustive, None);
     assert_eq!( results.len() , 2 );
     assert_eq!( results.get(0).unwrap().1,results.get(1).unwrap().1, "score of huis should be equal to that of huls" );
 }
