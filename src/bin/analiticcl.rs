@@ -95,18 +95,20 @@ fn process(model: &VariantModel, inputstream: impl Read, reverseindex: &mut Opti
 
 const BATCHSIZE: usize = 1000;
 
-fn process_par(model: &VariantModel, inputstream: impl Read, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, cache: &mut Option<Cache>, progress: bool) -> io::Result<()> {
+fn process_par(model: &VariantModel, inputstream: impl Read, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, progress: bool) -> io::Result<()> {
     let mut seqnr = 0;
     let mut batchnum = 0;
     let f_buffer = BufReader::new(inputstream);
     let mut progresstime = SystemTime::now();
     let mut line_iter = f_buffer.lines();
-    loop {
+    let mut eof = false;
+    while !eof {
         let mut batch = vec![];
         for _ in 0..BATCHSIZE {
             if let Some(input) = line_iter.next() {
                 batch.push(input?);
             } else {
+                eof = true;
                 break;
             }
             if batch.is_empty() {
@@ -116,7 +118,7 @@ fn process_par(model: &VariantModel, inputstream: impl Read, max_anagram_distanc
         let output: Vec<_> = batch
             .par_iter()
             .map(|input| {
-                (input, model.find_variants(&input, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, None)) // cache.as_mut()))
+                (input, model.find_variants(&input, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, None))
             }).collect();
         for (input, variants) in output {
             if json {
@@ -125,9 +127,6 @@ fn process_par(model: &VariantModel, inputstream: impl Read, max_anagram_distanc
                 //Normal output mode
                 output_matches_as_tsv(model, &input, &variants, output_lexmatch);
             }
-            if let Some(cache) = cache {
-                cache.check();
-            }
         }
         if progress {
             seqnr = BATCHSIZE * (batchnum + 1) + 1;
@@ -135,6 +134,7 @@ fn process_par(model: &VariantModel, inputstream: impl Read, max_anagram_distanc
         }
         batchnum += 1;
     }
+    Ok(())
 }
 
 fn show_progress(seqnr: usize, lasttime: SystemTime) -> SystemTime {
@@ -215,11 +215,16 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .takes_value(true)
         .default_value("0.25")
         .required(false));
-    args.push(Arg::with_name("cache_search")
-        .long("cache-search")
-        .help("Cache visited nodes between searches to speed up the search at the cost of more memory. The value corresponds to the maximum number of anagram values to cache, this should be set to a fairly high number, depending on memory availability, such as 100000. Set to 0 to disable the cache")
+    args.push(Arg::with_name("search-cache")
+        .long("search-cache")
+        .help("Cache visited nodes between searches to speed up the search at the cost of increased memory. Only works for single core currently where it is enabled by default. The value corresponds to the maximum number of anagram values to cache, this should be set to a fairly high number, depending on memory availability, such as 100000. Set to 0 to disable the cache.")
         .takes_value(true)
         .default_value("100000")
+        .required(false));
+    args.push(Arg::with_name("single-core")
+        .long("single-core")
+        .short("1")
+        .help("Run with a single core, when running this way you can benefit from the --search-cache. If you want more than one core but less than all available cores, set environment variable RAYON_NUM_THREADS")
         .required(false));
     args.push(Arg::with_name("weight-ld")
         .long("weight-ld")
@@ -300,7 +305,7 @@ fn main() {
                     )
                     .subcommand(
                         SubCommand::with_name("collect")
-                            .about("Collect variants from the input data, grouping them for to items in the lexicon")
+                            .about("Collect variants from the input data, grouping them for to items in the lexicon. Note that this forces single-core more for now.")
                             .args(&common_arguments())
                     )
                     .arg(Arg::with_name("debug")
@@ -332,7 +337,7 @@ fn main() {
         case: args.value_of("weight-case").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
     };
 
-    let mut cache = if let Some(visited_max_size) = args.value_of("cache_search") {
+    let mut cache = if let Some(visited_max_size) = args.value_of("search-cache") {
         let visited_max_size = visited_max_size.parse::<usize>().expect("Cache size should be a large integer");
         if visited_max_size > 0 {
             Some(Cache::new(visited_max_size))
@@ -386,6 +391,7 @@ fn main() {
         (false, false) => StopCriterion::Exhaustive
     };
     let json = args.is_present("json");
+    let singlecore = args.is_present("single-core");
 
     if args.is_present("early-confusables") {
         model.set_confusables_before_pruning();
@@ -432,12 +438,21 @@ fn main() {
                 "-" | "STDIN" | "stdin"  => {
                     eprintln!("(accepting standard input; enter input to match, one per line)");
                     let stdin = io::stdin();
-                    process_par(&model, stdin, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
-                    //process(&model, stdin, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
+                    if singlecore || reverseindex.is_some()  {
+                        process(&model, stdin, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
+                    } else {
+                        //normal parallel behaviour
+                        process_par(&model, stdin, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress).expect("I/O Error");
+                    }
                 },
                 _ =>  {
                     let f = File::open(filename).expect(format!("ERROR: Unable to open file {}", filename).as_str());
-                    process(&model, f, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
+                    if singlecore || reverseindex.is_some() {
+                        process(&model, f, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
+                    } else {
+                        //normal parallel behaviour
+                        process_par(&model, f, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress).expect("I/O Error");
+                    }
                 }
             }
         }
