@@ -19,7 +19,6 @@ pub mod vocab;
 pub mod distance;
 pub mod confusables;
 pub mod cache;
-pub mod threading;
 pub mod test;
 
 
@@ -604,7 +603,6 @@ impl VariantModel {
 
     /// Rank and score all variants
     pub fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, input: &str, max_matches: usize, score_threshold: f64 ) -> Vec<(VocabId,f64)> {
-        let mut results: Vec<(VocabId,f64)> = Vec::new();
         let mut max_distance = 0;
         let mut max_freq = 0;
         let mut max_prefixlen = 0;
@@ -639,7 +637,7 @@ impl VariantModel {
         }
 
         //Compute scores
-        for (vocab_id, distance) in instances.iter() {
+        let mut results: Vec<(VocabId,f64)>  = instances.par_iter().filter_map(|(vocab_id, distance)| {
             if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
                 let distance_score: f64 = if max_distance == 0 {
                     0.0
@@ -674,17 +672,20 @@ impl VariantModel {
                     panic!("Invalid score (NaN) computed for variant={}, distance={:?}, score={}", vocabitem.text, distance, score);
                 }
                 if score >= score_threshold {
-                    results.push( (*vocab_id, score) );
                     if self.debug {
                         eprintln!("   (variant={}, distance={:?}, score={})", vocabitem.text, distance, score);
                     }
+                    Some((*vocab_id, score))
                 } else {
                     if self.debug {
                         eprintln!("   (PRUNED variant={}, distance={:?}, score={})", vocabitem.text, distance, score);
                     }
+                    None
                 }
+            } else {
+                None
             }
-        }
+        }).collect();
 
         //rescore with confusable weights (EARLY)
         if !self.confusables.is_empty() && self.confusables_before_pruning {
