@@ -1,10 +1,12 @@
 extern crate clap;
+extern crate rayon;
 
 use std::fs::File;
 use std::io::{self, BufReader,BufRead,Read};
 use clap::{Arg, App, SubCommand};
 use std::collections::HashMap;
 use std::time::SystemTime;
+use rayon::prelude::*;
 
 
 use analiticcl::*;
@@ -64,8 +66,8 @@ fn output_reverse_index(model: &VariantModel, reverseindex: &ReverseIndex) {
 
 fn process(model: &VariantModel, inputstream: impl Read, reverseindex: &mut Option<ReverseIndex>, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, cache: &mut Option<Cache>, progress: bool) {
     let mut seqnr = 0;
-    let mut progresstime = SystemTime::now();
     let f_buffer = BufReader::new(inputstream);
+    let mut progresstime = SystemTime::now();
     for line in f_buffer.lines() {
         if let Ok(input) = line {
             seqnr += 1;
@@ -88,6 +90,50 @@ fn process(model: &VariantModel, inputstream: impl Read, reverseindex: &mut Opti
                 cache.check();
             }
         }
+    }
+}
+
+const BATCHSIZE: usize = 1000;
+
+fn process_par(model: &VariantModel, inputstream: impl Read, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, cache: &mut Option<Cache>, progress: bool) -> io::Result<()> {
+    let mut seqnr = 0;
+    let mut batchnum = 0;
+    let f_buffer = BufReader::new(inputstream);
+    let mut progresstime = SystemTime::now();
+    let mut line_iter = f_buffer.lines();
+    loop {
+        let mut batch = vec![];
+        for _ in 0..BATCHSIZE {
+            if let Some(input) = line_iter.next() {
+                batch.push(input?);
+            } else {
+                break;
+            }
+            if batch.is_empty() {
+                break;
+            }
+        }
+        let output: Vec<_> = batch
+            .par_iter()
+            .map(|input| {
+                (input, model.find_variants(&input, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, None)) // cache.as_mut()))
+            }).collect();
+        for (input, variants) in output {
+            if json {
+                output_matches_as_json(model, &input, &variants, output_lexmatch, seqnr);
+            } else {
+                //Normal output mode
+                output_matches_as_tsv(model, &input, &variants, output_lexmatch);
+            }
+            if let Some(cache) = cache {
+                cache.check();
+            }
+        }
+        if progress {
+            seqnr = BATCHSIZE * (batchnum + 1) + 1;
+            progresstime = show_progress(seqnr, progresstime);
+        }
+        batchnum += 1;
     }
 }
 
@@ -386,7 +432,8 @@ fn main() {
                 "-" | "STDIN" | "stdin"  => {
                     eprintln!("(accepting standard input; enter input to match, one per line)");
                     let stdin = io::stdin();
-                    process(&model, stdin, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
+                    process_par(&model, stdin, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
+                    //process(&model, stdin, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
                 },
                 _ =>  {
                     let f = File::open(filename).expect(format!("ERROR: Unable to open file {}", filename).as_str());
