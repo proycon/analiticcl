@@ -3,16 +3,16 @@ authors = ["Maarten van Gompel <proycon@anaproy.nl>"]
 edition = "2018"
 name = "analiticcl"
 version = "0.1.0"
+[[bench]]
+harness = false
+name = "benchmarks"
 
 [dependencies]
 clap = "*"
 num-bigint = "*"
 num-traits = "*"
+rayon = "*"
 sesdiff = "*"
 
 [dev-dependencies]
 criterion = "*"
-
-[[bench]]
-name = "benchmarks"
-harness = false

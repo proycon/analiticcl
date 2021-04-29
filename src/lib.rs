@@ -1,5 +1,6 @@
 extern crate num_bigint;
 extern crate sesdiff;
+extern crate rayon;
 
 use std::fs::File;
 use std::io::{self, Write,Read,BufReader,BufRead,Error,ErrorKind};
@@ -8,7 +9,7 @@ use std::cmp::{max,min};
 use sesdiff::{EditScript,EditInstruction,shortest_edit_script};
 use std::time::SystemTime;
 use std::str::FromStr;
-use std::thread;
+use rayon::prelude::*;
 
 pub mod types;
 pub mod anahash;
@@ -18,6 +19,7 @@ pub mod vocab;
 pub mod distance;
 pub mod confusables;
 pub mod cache;
+pub mod threading;
 pub mod test;
 
 
@@ -412,14 +414,15 @@ impl VariantModel {
                 eprintln!(" (testing insertion at distance {}, charcount {})", distance, search_charcount);
             }
             if let Some(sortedindex) = self.sortedindex.get(&search_charcount) {
-                nearest.extend( sortedindex.iter().filter(|candidate| {
+                let precount = nearest.len();
+                nearest.par_extend( sortedindex.par_iter().filter(|candidate| {
                     if candidate.contains(focus) {//this is where the magic happens
-                        count += 1;
                         true
                     } else {
                         false
                     }
                 }));
+                count += nearest.len() - precount;
             }
             if self.debug {
                 eprintln!(" (found {} candidates)", count);
