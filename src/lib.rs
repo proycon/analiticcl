@@ -558,18 +558,15 @@ impl VariantModel {
 
     /// Gather instances and their edit distances, given a search string (normalised to the alphabet) and anagram hashes
     pub fn gather_instances(&self, nearest_anagrams: &HashSet<&AnaValue>, querystring: &[u8], query: &str, max_edit_distance: u8) -> Vec<(VocabId,Distance)> {
-        let mut found_instances = Vec::new();
-        let mut pruned_instances = 0;
-
         let begintime = if self.debug {
             Some(SystemTime::now())
         } else {
             None
         };
 
-        for anahash in nearest_anagrams {
+        let found_instances: Vec<(VocabId,Distance)> = nearest_anagrams.par_iter().filter_map(|anahash| {
             if let Some(node) = self.index.get(anahash) {
-                for vocab_id in node.instances.iter() {
+                let subresults: Vec<(VocabId,Distance)> = node.instances.iter().filter_map(|vocab_id| {
                     if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
                         if let Some(ld) = damerau_levenshtein(querystring, &vocabitem.norm, max_edit_distance) {
                             //we only get here if we make the max_edit_distance cut-off
@@ -582,19 +579,28 @@ impl VariantModel {
                                 lex: if self.weights.lex > 0.0 { vocabitem.lexweight } else { 0.0 },
                                 samecase: if self.weights.case > 0.0 { vocabitem.text.chars().next().expect("first char").is_lowercase() == query.chars().next().expect("first char").is_lowercase() } else { true }
                             };
-                            found_instances.push((*vocab_id,distance));
+                            Some( (*vocab_id,distance))
                         } else {
-                            pruned_instances += 1;
+                            None
                         }
+                    } else {
+                        None
                     }
+                }).collect();
+                if subresults.is_empty() {
+                    None
+                } else {
+                    Some(subresults)
                 }
+            } else {
+                None
             }
-        }
+        }).flatten().collect();
         //found_instances.sort_unstable_by_key(|k| k.1 ); //sort by distance, ascending order
         if self.debug {
             let endtime = SystemTime::now();
             let duration = endtime.duration_since(begintime.expect("begintime")).expect("clock can't go backwards").as_micros();
-            eprintln!("(found {} instances (pruned {}) over {} anagrams in {} μs)", found_instances.len(), pruned_instances, nearest_anagrams.len(), duration);
+            eprintln!("(found {} instances over {} anagrams in {} μs)", found_instances.len(), nearest_anagrams.len(), duration);
         }
         found_instances
     }
