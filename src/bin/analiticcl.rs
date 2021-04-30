@@ -97,7 +97,6 @@ const BATCHSIZE: usize = 1000;
 
 fn process_par(model: &VariantModel, inputstream: impl Read, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, progress: bool) -> io::Result<()> {
     let mut seqnr = 0;
-    let mut batchnum = 0;
     let f_buffer = BufReader::new(inputstream);
     let mut progresstime = SystemTime::now();
     let mut line_iter = f_buffer.lines();
@@ -121,6 +120,7 @@ fn process_par(model: &VariantModel, inputstream: impl Read, max_anagram_distanc
                 (input, model.find_variants(&input, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, None))
             }).collect();
         for (input, variants) in output {
+            seqnr += 1;
             if json {
                 output_matches_as_json(model, &input, &variants, output_lexmatch, seqnr);
             } else {
@@ -129,10 +129,8 @@ fn process_par(model: &VariantModel, inputstream: impl Read, max_anagram_distanc
             }
         }
         if progress {
-            seqnr = BATCHSIZE * (batchnum + 1) + 1;
             progresstime = show_progress(seqnr, progresstime);
         }
-        batchnum += 1;
     }
     Ok(())
 }
@@ -225,6 +223,11 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .long("single-thread")
         .short("1")
         .help("Run in a single thread, when running this way you can benefit from the --search-cache. If you want more than one thread but less than all available cores, set environment variable RAYON_NUM_THREADS")
+        .required(false));
+    args.push(Arg::with_name("interactive")
+        .long("interactive")
+        .short("x")
+        .help("Interactive mode, basically just an alias for single-thread mode. Use this when reading from stdin one by one in a terminal.")
         .required(false));
     args.push(Arg::with_name("weight-ld")
         .long("weight-ld")
@@ -391,7 +394,7 @@ fn main() {
         (false, false) => StopCriterion::Exhaustive
     };
     let json = args.is_present("json");
-    let singlethread = args.is_present("single-thread");
+    let singlethread = args.is_present("single-thread") || args.is_present("debug") || args.is_present("interactive");
 
     if args.is_present("early-confusables") {
         model.set_confusables_before_pruning();

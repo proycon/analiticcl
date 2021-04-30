@@ -87,7 +87,7 @@ are made.
 Example:
 
 ```
-$ analiticcl query --lexicon examples/eng.aspell.lexicon --alphabet examples/simple.alphabet.tsv
+$ analiticcl query --interactive --lexicon examples/eng.aspell.lexicon --alphabet examples/simple.alphabet.tsv
 Initializing model...
 Loading lexicons...
 Building model...
@@ -102,14 +102,16 @@ Querying the model...
 (accepting standard input; enter input to match, one per line)
 ```
 
-The program is now taking standard input, enter a word to query and press ENTER to get the variants and the scores:
+The program is now taking standard input, enter a word to query and press ENTER to get the variants and the scores.
+Specify the ``--interactive`` parameter otherwise output may not be returned immediately but will be buffered for
+parallellisation:
 
 ```
 seperate
 seperate        separate        0.7666666666666667              desperate       0.6             generate        0.5583333333333333              venerate        0.5583333333333333              federate        0.5583333333333333              exasperate     0.52             sewerage        0.5083333333333334              seatmate        0.5083333333333333              saturate        0.5             prate   0.49333333333333335
 ```
 
-Rather than running it interactively, you can use your shell's standard redirection facilities to provide input and output:
+Rather than running it interactively, you can use your shell's standard redirection facilities to provide input and output, multiple variants will be processed in parallel.
 
 ```
 $ analiticcl query --lexicon examples/eng.aspell.lexicon --alphabet examples/simple.alphabet.tsv < input.tsv >
