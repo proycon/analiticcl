@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use crate::types::*;
-use crate::vocab::*;
 
 pub type AnaIndex = HashMap<AnaValue,AnaIndexNode>;
 

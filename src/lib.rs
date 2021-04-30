@@ -2,12 +2,11 @@ extern crate num_bigint;
 extern crate sesdiff;
 
 use std::fs::File;
-use std::io::{self, Write,Read,BufReader,BufRead,Error,ErrorKind};
+use std::io::{BufReader,BufRead};
 use std::collections::{HashMap,HashSet,BTreeMap};
-use std::cmp::{max,min};
-use sesdiff::{EditScript,EditInstruction,shortest_edit_script};
+use std::cmp::min;
+use sesdiff::shortest_edit_script;
 use std::time::SystemTime;
-use std::str::FromStr;
 
 pub mod types;
 pub mod anahash;
@@ -128,8 +127,6 @@ impl VariantModel {
         }
 
         eprintln!("Computing anagram values for all items in the lexicon...");
-
-        let alphabet_size = self.alphabet_size();
 
         // Hash all strings in the lexicon
         // and add them to the index
@@ -499,7 +496,7 @@ impl VariantModel {
 
             if stop_criterion.iterative() > 0 || distance == max_distance as u32 { //no need to check for distances that are not the max
                 let mut count = 0;
-                let (deletion_upper_bound, deletion_charcount) = deletion.alphabet_upper_bound(self.alphabet_size());
+                let (_deletion_upper_bound, deletion_charcount) = deletion.alphabet_upper_bound(self.alphabet_size());
                 let search_charcount = deletion_charcount + distance as u16;
                 let beginlength = nearest.len();
                 if self.debug {

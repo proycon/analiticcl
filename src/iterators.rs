@@ -1,8 +1,7 @@
 use std::collections::{VecDeque,HashSet};
 use std::ops::Deref;
-use num_bigint::BigUint;
-use num_traits::{Zero, One};
-use std::iter::{FromIterator,IntoIterator};
+use num_traits::{One};
+use std::iter::IntoIterator;
 
 use crate::types::*;
 use crate::anahash::*;

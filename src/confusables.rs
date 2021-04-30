@@ -1,9 +1,6 @@
 use sesdiff::{EditScript,EditInstruction};
 use std::str::FromStr;
-use std::io::{self, Write,Read,BufReader,BufRead,Error,ErrorKind};
-
-use crate::types::*;
-use crate::anahash::*;
+use std::io::{Error,ErrorKind};
 
 #[derive(Debug)]
 pub struct Confusable {

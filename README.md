@@ -38,6 +38,7 @@ lightweight implementation written in [Rust](https://www.rust-lang.org).
   confusables in the ranking stage (this weight is applied to the whole score).
 * Rather than look up words in spelling-correction style, users may also output the entire hashed anagram index, or
   output a reverse index of all variants found the supplied input data for each item in the lexicon.
+* Multi-threading support
 
 * **to be implemented still:**
     * variant matching on full text documents (rather than delivering the input line by line), simple tokenisation

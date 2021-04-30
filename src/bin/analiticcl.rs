@@ -221,10 +221,10 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .takes_value(true)
         .default_value("100000")
         .required(false));
-    args.push(Arg::with_name("single-core")
-        .long("single-core")
+    args.push(Arg::with_name("single-thread")
+        .long("single-thread")
         .short("1")
-        .help("Run with a single core, when running this way you can benefit from the --search-cache. If you want more than one core but less than all available cores, set environment variable RAYON_NUM_THREADS")
+        .help("Run in a single thread, when running this way you can benefit from the --search-cache. If you want more than one thread but less than all available cores, set environment variable RAYON_NUM_THREADS")
         .required(false));
     args.push(Arg::with_name("weight-ld")
         .long("weight-ld")
@@ -391,7 +391,7 @@ fn main() {
         (false, false) => StopCriterion::Exhaustive
     };
     let json = args.is_present("json");
-    let singlecore = args.is_present("single-core");
+    let singlethread = args.is_present("single-thread");
 
     if args.is_present("early-confusables") {
         model.set_confusables_before_pruning();
@@ -438,7 +438,7 @@ fn main() {
                 "-" | "STDIN" | "stdin"  => {
                     eprintln!("(accepting standard input; enter input to match, one per line)");
                     let stdin = io::stdin();
-                    if singlecore || reverseindex.is_some()  {
+                    if singlethread || reverseindex.is_some()  {
                         process(&model, stdin, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
                     } else {
                         //normal parallel behaviour
@@ -447,7 +447,7 @@ fn main() {
                 },
                 _ =>  {
                     let f = File::open(filename).expect(format!("ERROR: Unable to open file {}", filename).as_str());
-                    if singlecore || reverseindex.is_some() {
+                    if singlethread || reverseindex.is_some() {
                         process(&model, f, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
                     } else {
                         //normal parallel behaviour
