@@ -7,7 +7,7 @@ version = "0.1.0"
 homepage = "https://github.com/proycon/analiticcl"
 repository = "https://github.com/proycon/analiticcl"
 documentation = "https://docs.rs/analiticcl"
-keywords = ["nlp","text-processing","spelling correction","linguistics","spellcheck"]
+keywords = ["nlp","text-processing","spelling-correction","linguistics","spellcheck"]
 license = "GPL-3.0+"
 readme = "README.md"
 
@@ -16,11 +16,11 @@ harness = false
 name = "benchmarks"
 
 [dependencies]
-clap = "*"
-num-bigint = "*"
-num-traits = "*"
-rayon = "*"
-sesdiff = "*"
+clap = "2.33.0"
+num-bigint = "0.4.0"
+num-traits = "0.2.14"
+rayon = "1.5.0"
+sesdiff = "0.3.0"
 
 [dev-dependencies]
-criterion = "*"
+criterion = "0.3.4"
