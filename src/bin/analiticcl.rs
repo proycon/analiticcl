@@ -210,7 +210,7 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .required(false));
     args.push(Arg::with_name("score-threshold")
         .long("score-threshold")
-        .short("x")
+        .short("t")
         .help("Require scores to meet this threshold, they are pruned otherwise")
         .takes_value(true)
         .default_value("0.25")
