@@ -8,7 +8,6 @@ use std::cmp::{max,min};
 use sesdiff::{EditScript,EditInstruction,shortest_edit_script};
 use std::time::SystemTime;
 use std::str::FromStr;
-use std::thread;
 
 pub mod types;
 pub mod anahash;
