@@ -230,12 +230,13 @@ impl VariantModel {
                 if !line.is_empty() {
                     self.alphabet.push(line.split("\t").map(|x|
                             match x {
-                                "\\s" => " ".to_owned()
-                                "\\t" => "\t".to_owned()
-                                "\\n" => "\n".to_owned()
+                                "\\s" => " ".to_owned(),
+                                "\\t" => "\t".to_owned(),
+                                "\\n" => "\n".to_owned(),
                                 _ => x.to_owned()
                             }).collect());
                 }
+
             }
         }
         if self.debug {
