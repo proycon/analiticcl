@@ -1,5 +1,4 @@
 use ibig::UBig;
-use ibig::ops::DivRem;
 use num_traits::{Zero, One};
 use std::collections::HashSet;
 
@@ -118,9 +117,8 @@ impl Anahash for AnaValue {
     /// Delete the characters represented by the anagram value, returning the result
     /// Returns None of the anagram was not found
     fn delete(&self, value: &AnaValue) -> Option<AnaValue> {
-        let (result, remainder) = self.div_rem(value);
-        if remainder == AnaValue::zero() {
-            Some(result)
+        if self.contains(value) {
+            Some(self / value)
         } else {
             None
         }
