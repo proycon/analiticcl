@@ -1,4 +1,4 @@
-use num_bigint::BigUint;
+use ibig::UBig;
 use num_traits::{Zero, One};
 use std::collections::HashSet;
 
@@ -102,7 +102,7 @@ pub trait Anahash: One + Zero {
 impl Anahash for AnaValue {
     /// Computes the Anagram value for the n'th entry in the alphabet
     fn character(seqnr: CharIndexType) -> AnaValue {
-        BigUint::from(PRIMES[seqnr as usize])
+        UBig::from(PRIMES[seqnr as usize])
     }
 
     /// Insert the characters represented by the anagram value, returning the result

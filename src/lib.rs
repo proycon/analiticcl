@@ -1,4 +1,5 @@
-extern crate num_bigint;
+extern crate ibig;
+extern crate num_traits;
 extern crate sesdiff;
 
 use std::fs::File;
