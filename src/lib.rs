@@ -712,12 +712,11 @@ impl VariantModel {
                                         }
                                     }
                                 }
+                            }
 
-                                //add the original match
-                                if !vocabitem.intermediate {
-                                    found_instances.push((*vocab_id,distance));
-                                }
-
+                            //add the original match
+                            if !vocabitem.intermediate {
+                                found_instances.push((*vocab_id,distance));
                             }
                         } else {
                             pruned_instances += 1;
