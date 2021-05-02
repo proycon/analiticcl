@@ -57,10 +57,15 @@ pub struct VariantModel {
     /// items for provenance reasons
     pub lexicons: Vec<String>,
 
+    /// Holds weighted confusable recipes that can be used in scoring and ranking
     pub confusables: Vec<Confusable>,
 
     ///Process confusables before pruning by max_matches
     pub confusables_before_pruning: bool,
+
+    /// Groups clusters of variants (either from explicitly loaded variant files or in a later
+    /// stage perhaps also computed)
+    pub variantclusters: VariantClusterMap,
 
     pub debug: bool
 }
@@ -75,11 +80,12 @@ impl VariantModel {
             sortedindex: BTreeMap::new(),
             have_freq: false,
             freq_sum: 0,
-            weights: weights,
+            weights,
             lexicons: Vec::new(),
             confusables: Vec::new(),
             confusables_before_pruning: false,
-            debug: debug,
+            variantclusters: HashMap::new(),
+            debug,
         };
         model.read_alphabet(alphabet_file).expect("Error loading alphabet file");
         model
@@ -94,11 +100,12 @@ impl VariantModel {
             sortedindex: BTreeMap::new(),
             have_freq: false,
             freq_sum: 0,
-            weights: weights,
+            weights,
             lexicons: Vec::new(),
             confusables: Vec::new(),
             confusables_before_pruning: false,
-            debug: debug,
+            variantclusters: HashMap::new(),
+            debug,
         }
     }
 
@@ -289,6 +296,7 @@ impl VariantModel {
         if self.debug {
             eprintln!("Reading vocabulary from {}...", filename);
         }
+        let beginlen = self.decoder.len();
         let f = File::open(filename)?;
         let f_buffer = BufReader::new(f);
         for line in f_buffer.lines() {
@@ -307,13 +315,106 @@ impl VariantModel {
             }
         }
         if self.debug {
-            eprintln!(" - Read vocabulary of size {}", self.decoder.len());
+            eprintln!(" - Read vocabulary of size {}", self.decoder.len() - beginlen);
         }
         self.lexicons.push(filename.to_string());
         Ok(())
     }
 
-    pub fn add_to_vocabulary(&mut self, text: &str, frequency: Option<u32>, lexicon_weight: Option<f32>, lexicon_index: u8) {
+    ///Read a variants list of equally weighted variants from a TSV file
+    ///Each line simply contains tab-separated variants and all entries on a single line are
+    ///considered variants. Consumed much less memory than weighted variants.
+    pub fn read_variants(&mut self, filename: &str, lexicon_weight: f32) -> Result<(), std::io::Error> {
+        if self.debug {
+            eprintln!("Reading variants from {}...", filename);
+        }
+        let beginlen = self.variantclusters.len();
+        let f = File::open(filename)?;
+        let f_buffer = BufReader::new(f);
+        for line in f_buffer.lines() {
+            if let Ok(line) = line {
+                if !line.is_empty() {
+                    let variants: Vec<&str> = line.split("\t").collect();
+                    let mut ids: Vec<VocabId> = Vec::new();
+                    let clusterid = self.variantclusters.len() as VariantClusterId;
+                    for variant in variants.iter() {
+                        //all variants by definition are added to the combined lexicon
+                        let variantid = self.add_to_vocabulary(variant, None, Some(lexicon_weight), self.lexicons.len() as u8);
+                        ids.push(variantid);
+                        if let Some(vocabvalue) = self.decoder.get_mut(variantid as usize) {
+                            let variantref = VariantReference::VariantCluster(clusterid);
+                            if vocabvalue.variants.is_none() {
+                                vocabvalue.variants = Some(vec!(variantref));
+                            } else if let Some(variantrefs) = vocabvalue.variants.as_mut() {
+                                if !variantrefs.contains(&variantref) {
+                                    variantrefs.push(variantref);
+                                }
+                            }
+                        }
+                    }
+                    self.variantclusters.insert(clusterid, ids);
+                }
+            }
+        }
+        if self.debug {
+            eprintln!(" - Read variants list, added {} new variant clusters", self.variantclusters.len() - beginlen);
+        }
+        self.lexicons.push(filename.to_string());
+        Ok(())
+    }
+
+    ///Read a weighted variant list from a TSV file. Contains a canonical/reference form in the
+    ///first column, and variants with score (two columns) in the following columns. Consumes much more
+    ///memory than equally weighted variants.
+    pub fn read_weighted_variants(&mut self, filename: &str, lexicon_weight: f32, intermediate: bool) -> Result<(), std::io::Error> {
+        if self.debug {
+            eprintln!("Reading variants from {}...", filename);
+        }
+        let mut count = 0;
+        let f = File::open(filename)?;
+        let f_buffer = BufReader::new(f);
+        for line in f_buffer.lines() {
+            if let Ok(line) = line {
+                if !line.is_empty() {
+                    let fields: Vec<&str> = line.split("\t").collect();
+
+                    let reference = fields.get(0).expect("first item");
+                    let ref_id = self.add_to_vocabulary(reference, None, Some(lexicon_weight), self.lexicons.len() as u8);
+                    let mut iter = fields.iter();
+
+                    while let (Some(variant), Some(score)) = (iter.next(), iter.next()) {
+                        let score = score.parse::<f64>().expect("Scores must be a floating point value");
+                        //all variants by definition are added to the lexicon
+                        let variantid = self.add_to_vocabulary(variant, None, Some(lexicon_weight), self.lexicons.len() as u8);
+                        if variantid != ref_id {
+                            if let Some(vocabvalue) = self.decoder.get_mut(ref_id as usize) {
+                                let variantref = VariantReference::WeightedVariant((variantid,score) );
+                                vocabvalue.intermediate = intermediate;
+                                if vocabvalue.variants.is_none() {
+                                    vocabvalue.variants = Some(vec!(variantref));
+                                    count += 1;
+                                } else if let Some(variantrefs) = vocabvalue.variants.as_mut() {
+                                    if !variantrefs.contains(&variantref) {
+                                        variantrefs.push(variantref);
+                                        count += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if self.debug {
+            eprintln!(" - Read weighted variants list, added {} references", count);
+        }
+        self.lexicons.push(filename.to_string());
+        Ok(())
+    }
+
+
+
+    pub fn add_to_vocabulary(&mut self, text: &str, frequency: Option<u32>, lexicon_weight: Option<f32>, lexicon_index: u8) -> VocabId {
         let frequency = frequency.unwrap_or(1);
         let lexicon_weight = lexicon_weight.unwrap_or(1.0);
         if self.debug {
@@ -326,6 +427,7 @@ impl VariantModel {
                 item.lexweight = lexicon_weight;
                 item.lexindex = lexicon_index;
             }
+            *vocab_id
         } else {
             //item is new
             self.encoder.insert(text.to_string(), self.decoder.len() as u64);
@@ -336,7 +438,10 @@ impl VariantModel {
                 tokencount: text.chars().filter(|c| *c == ' ').count() as u8 + 1,
                 lexweight: lexicon_weight,
                 lexindex: lexicon_index,
+                variants: None,
+                intermediate: false,
             });
+            self.decoder.len() as VocabId - 1
         }
     }
 
@@ -576,9 +681,44 @@ impl VariantModel {
                                 suffixlen: if self.weights.suffix > 0.0 { common_suffix_length(querystring, &vocabitem.norm) } else { 0 },
                                 freq: if self.weights.freq > 0.0 { vocabitem.frequency } else { 0 },
                                 lex: if self.weights.lex > 0.0 { vocabitem.lexweight } else { 0.0 },
-                                samecase: if self.weights.case > 0.0 { vocabitem.text.chars().next().expect("first char").is_lowercase() == query.chars().next().expect("first char").is_lowercase() } else { true }
+                                samecase: if self.weights.case > 0.0 { vocabitem.text.chars().next().expect("first char").is_lowercase() == query.chars().next().expect("first char").is_lowercase() } else { true },
+                                prescore: None,
                             };
-                            found_instances.push((*vocab_id,distance));
+                            //match will be added to found_instances at the end of the block (we
+                            //need to borrow the distance for a bit still)
+
+                            //Does this vocabulary item make explicit references to variants?
+                            //If so, we add those too. This is only the case if the user loaded
+                            //variantlists/error lists.
+                            if let Some(variantrefs) = &vocabitem.variants {
+                                for variantref in variantrefs.iter() {
+                                    match variantref {
+                                        VariantReference::VariantCluster(cluster_id) => {
+                                            if let Some(variants) = self.variantclusters.get(cluster_id) {
+                                                //add all variants in the cluster
+                                                for variant_id in variants.iter() {
+                                                    //we clone do not recompute the distance to the
+                                                    //variant, all variants are considered of
+                                                    //equal-weight, we use the originally computed
+                                                    //distance:
+                                                    found_instances.push((*variant_id, distance.clone()));
+                                                }
+                                            }
+                                        },
+                                        VariantReference::WeightedVariant((vocab_id, score)) => {
+                                            let mut variantdistance = distance.clone();
+                                            variantdistance.prescore = Some(*score);
+                                            found_instances.push((*vocab_id,variantdistance));
+                                        }
+                                    }
+                                }
+
+                                //add the original match
+                                if !vocabitem.intermediate {
+                                    found_instances.push((*vocab_id,distance));
+                                }
+
+                            }
                         } else {
                             pruned_instances += 1;
                         }
@@ -655,7 +795,7 @@ impl VariantModel {
                 } else {
                     1.0
                 };
-                let score = (
+                let mut score = (
                     self.weights.ld * distance_score +
                     self.weights.freq * freq_score +  //weight will be 0 if there are no frequencies
                     self.weights.lcs * lcs_score +
@@ -664,6 +804,10 @@ impl VariantModel {
                     self.weights.lex * vocabitem.lexweight as f64 +
                     if distance.samecase { self.weights.case } else { 0.0 }
                 ) / weights_sum;
+                if let Some(prescore) = distance.prescore {
+                    //variant is already pre-scored (it comes from an explicit weighted variant list), take the prescore into consideration:
+                    score = (score + prescore) / 2.0;
+                }
                 if score.is_nan() {
                     //should never happen
                     panic!("Invalid score (NaN) computed for variant={}, distance={:?}, score={}", vocabitem.text, distance, score);

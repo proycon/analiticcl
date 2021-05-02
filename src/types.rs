@@ -1,4 +1,5 @@
 use ibig::UBig;
+use std::collections::HashMap;
 
 ///Each type gets assigned an ID integer, carries no further meaning
 pub type VocabId = u64;
@@ -73,6 +74,10 @@ pub struct Distance {
 
     ///Is the casing different or not?
     pub samecase: bool,
+
+    ///Some variants may be pre-scored already if they were found in an explicit variant list, the
+    ///prescore component will be as a component in computing the final csore
+    pub prescore: Option<f64>,
 }
 
 #[derive(Debug,Clone,Copy)]
@@ -98,3 +103,13 @@ impl StopCriterion {
         }
     }
 }
+
+pub type VariantClusterId = u32;
+
+#[derive(Debug,Clone,PartialEq,PartialOrd)]
+pub enum VariantReference {
+    VariantCluster(VariantClusterId),
+    WeightedVariant((VocabId, f64))
+}
+
+pub type VariantClusterMap = HashMap<VariantClusterId, Vec<VocabId>>;

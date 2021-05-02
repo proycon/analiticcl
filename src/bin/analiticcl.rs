@@ -160,11 +160,32 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
     args.push(Arg::with_name("corpus")
         .long("corpus")
         .short("f")
-        .help("Corpus-derived lexicon against which matches are made (may be used multiple times). Format is the same as for --lexicon. This optionmay be used multiple times.")
+        .help("Corpus-derived lexicon against which matches are made (may be used multiple times). Format is the same as for --lexicon. The only difference between --lexicon and --corpus is that items from corpus a lexicon loaded through --corpus is given less weight. This option may be used multiple times.")
         .takes_value(true)
         .number_of_values(1)
         .multiple(true)
         .required_unless("lexicon"));
+    args.push(Arg::with_name("variants")
+        .long("variants")
+        .short("V")
+        .help("Loads a variant list, a tab-separated file in which all items on a single line are considered variants of equal weight. This option may be used multiple times.")
+        .takes_value(true)
+        .number_of_values(1)
+        .multiple(true));
+    args.push(Arg::with_name("weighted-variants")
+        .long("weighted-variants")
+        .short("W")
+        .help("Loads a weighted variant list, the first column contains the lexicon word and subsequent repeating columns (tab-separated) contain respectively a variant and the score of the variant. This option may be used multiple times.")
+        .takes_value(true)
+        .number_of_values(1)
+        .multiple(true));
+    args.push(Arg::with_name("errors")
+        .long("errors")
+        .short("E")
+        .help("This is a form of --weighted-variants in which all the variants are considered erroneous forms, they will be used only to find the authoritative solution from the first column and won't be returned as solutions themselves. This option may be used multiple times.")
+        .takes_value(true)
+        .number_of_values(1)
+        .multiple(true));
     args.push(Arg::with_name("alphabet")
         .long("alphabet")
         .short("a")
@@ -368,6 +389,24 @@ fn main() {
     if args.is_present("corpus") {
         for filename in args.values_of("corpus").unwrap().collect::<Vec<&str>>() {
             model.read_vocabulary(filename, &VocabParams::default(), 0.0).expect(&format!("Error reading corpus lexicon {}", filename));
+        }
+    }
+
+    if args.is_present("variants") {
+        for filename in args.values_of("variants").unwrap().collect::<Vec<&str>>() {
+            model.read_variants(filename, 1.0).expect(&format!("Error reading variant list {}", filename));
+        }
+    }
+
+    if args.is_present("weighted-variants") {
+        for filename in args.values_of("weighted-variants").unwrap().collect::<Vec<&str>>() {
+            model.read_weighted_variants(filename, 1.0, false).expect(&format!("Error reading weighted variant list {}", filename));
+        }
+    }
+
+    if args.is_present("errors") {
+        for filename in args.values_of("errors").unwrap().collect::<Vec<&str>>() {
+            model.read_weighted_variants(filename, 1.0, true).expect(&format!("Error reading error list {}", filename));
         }
     }
 

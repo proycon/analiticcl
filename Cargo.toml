@@ -9,7 +9,8 @@ license = "GPL-3.0+"
 name = "analiticcl"
 readme = "README.md"
 repository = "https://github.com/proycon/analiticcl"
-version = "0.1.2"
+version = "0.2.0"
+
 [[bench]]
 harness = false
 name = "benchmarks"

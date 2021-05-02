@@ -20,7 +20,17 @@ pub struct VocabValue {
     pub lexweight: f32,
 
     /// The first lexicon index which matches
-    pub lexindex: u8
+    pub lexindex: u8,
+
+    /// Pointer to other vocabulary items that are considered a variant
+    /// of this one (with a certain score between 0 and 1). This structure is used when loading variant/error lists
+    /// and not in normal operation.
+    pub variants: Option<Vec<VariantReference>>,
+
+    /// Marks this entry as intermediate; intermediate entries will only be used to find further explicitly provided variants
+    /// and will never be returned as a solution by itself. For example, all erroneous variants in
+    /// an errorlist are marked as intermediate.
+    pub intermediate: bool,
 }
 
 ///Map integers (indices correspond to VocabId) to string values (and optionally a frequency count)
@@ -44,3 +54,4 @@ impl Default for VocabParams {
         }
     }
 }
+
