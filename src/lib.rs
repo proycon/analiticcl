@@ -30,10 +30,16 @@ pub use crate::confusables::*;
 pub use crate::cache::*;
 
 
+/// The VariantModel is the most high-level model of analiticcl, it holds
+/// all data required for variant matching.
 pub struct VariantModel {
+    /// Maps Vocabulary IDs to their textual strings and other related properties
     pub decoder: VocabDecoder,
+
+    /// Map strings to vocabulary IDs
     pub encoder: VocabEncoder,
 
+    /// Defines the alphabet used for the variant model
     pub alphabet: Alphabet,
 
     ///The main index, mapping anagrams to instances
@@ -71,6 +77,7 @@ pub struct VariantModel {
 }
 
 impl VariantModel {
+    /// Instantiate a new variant model
     pub fn new(alphabet_file: &str, weights: Weights, debug: bool) -> VariantModel {
         let mut model = VariantModel {
             alphabet: Vec::new(),
@@ -91,6 +98,8 @@ impl VariantModel {
         model
     }
 
+    /// Instantiate a new variant model, explicitly passing an alphabet rather than loading one
+    /// from file.
     pub fn new_with_alphabet(alphabet: Alphabet, weights: Weights, debug: bool) -> VariantModel {
         VariantModel {
             alphabet: alphabet,
@@ -109,15 +118,20 @@ impl VariantModel {
         }
     }
 
+    /// Configure the model to match against known confusables prior to pruning on maximum weight.
+    /// This may lead to better results but may have a significant performance impact.
     pub fn set_confusables_before_pruning(&mut self) {
         self.confusables_before_pruning = true;
     }
 
+    /// Returns the size of the alphabet, this is typically +1 longer than the actual alphabet file
+    /// as it includes the UNKNOWN symbol.
     pub fn alphabet_size(&self) -> CharIndexType {
         self.alphabet.len() as CharIndexType + 1 //+1 for UNK
     }
 
-    pub fn get_or_create_node<'a,'b>(&'a mut self, anahash: &'b AnaValue) -> &'a mut AnaIndexNode {
+    /// Get an item from the index or insert it if it doesn't exist yet
+    pub fn get_or_create_index<'a,'b>(&'a mut self, anahash: &'b AnaValue) -> &'a mut AnaIndexNode {
             if self.contains_key(anahash) {
                 self.index.get_mut(anahash).expect("get_mut on node after check")
             } else {
@@ -129,6 +143,8 @@ impl VariantModel {
             }
     }
 
+    /// Build the anagram index (and secondary index) so the model
+    /// is ready for variant matching
     pub fn build(&mut self) {
         if !self.have_freq {
             self.weights.freq = 0.0
@@ -153,7 +169,7 @@ impl VariantModel {
         eprintln!("Adding all instances to the index...");
         for (anahash, id) in tmp_hashes {
             //add it to the index
-            let node = self.get_or_create_node(&anahash);
+            let node = self.get_or_create_index(&anahash);
             node.instances.push(id);
         }
         eprintln!(" - Found {} anagrams", self.index.len() );
@@ -177,6 +193,7 @@ impl VariantModel {
         }
     }
 
+    /// Tests if the anagram value exists in the index
     pub fn contains_key(&self, key: &AnaValue) -> bool {
         self.index.contains_key(key)
     }
@@ -283,6 +300,7 @@ impl VariantModel {
         Ok(())
     }
 
+    /// Add a confusable
     pub fn add_to_confusables(&mut self, editscript: &str, weight: f64) -> Result<(), std::io::Error> {
         let confusable = Confusable::new(editscript, weight)?;
         self.confusables.push(confusable);
@@ -414,6 +432,7 @@ impl VariantModel {
 
 
 
+    /// Adds an entry in the vocabulary
     pub fn add_to_vocabulary(&mut self, text: &str, frequency: Option<u32>, lexicon_weight: Option<f32>, lexicon_index: u8) -> VocabId {
         let frequency = frequency.unwrap_or(1);
         let lexicon_weight = lexicon_weight.unwrap_or(1.0);
@@ -886,6 +905,7 @@ impl VariantModel {
         results
     }
 
+    /// Rescores the scored variants by testing against known confusables
     pub fn rescore_confusables(&self, results: &mut Vec<(VocabId,f64)>, input: &str) {
         if self.debug {
             eprintln!("   (rescoring with confusable weights)");
