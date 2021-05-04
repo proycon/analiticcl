@@ -299,5 +299,7 @@ The properties of the anagram values facilitate a much quicker lookup, when give
 * Reynaert, Martin. (2004) Text induced spelling correction. In: Proceedings COLING 2004, Geneva (2004). https://doi.org/10.3115/1220355.1220475
 * Reynaert, Martin. (2011) Character confusion versus focus word-based correction of spelling and OCR variants in corpora. IJDAR 14, 173–187 (2011). https://doi.org/10.1007/s10032-010-0133-5
 
+## Acknowledgement
 
+Analiticcl was developed at the [KNAW Humanities Cluster](https://huc.knaw.nl/). Its development was funded in the scope of the [Golden Agents](https://www.goldenagents.org/) project.
 
