@@ -718,3 +718,22 @@ fn test0504_confusable_nomatch() {
     assert_eq!( results.len() , 2 );
     assert_eq!( results.get(0).unwrap().1,results.get(1).unwrap().1, "score of huis should be equal to that of huls" );
 }
+
+#[test]
+fn test0601_find_boundaries() {
+    let text = "Hallo allemaal, ik zeg: \"Welkom in Aix-les-bains!\".";
+    let boundaries = find_boundaries(&text);
+    eprintln!("{:?}", boundaries);
+    assert_eq!( boundaries.len() , 9 );
+    assert_eq!( boundaries.get(0).unwrap().offset.begin , 5 );
+    assert_eq!( boundaries.get(0).unwrap().offset.end , 6 );
+    assert_eq!( boundaries.get(0).unwrap().text , " " );
+    assert_eq!( boundaries.get(1).unwrap().text , ", " );
+    assert_eq!( boundaries.get(2).unwrap().text , " " );
+    assert_eq!( boundaries.get(3).unwrap().text , ": \"" );
+    assert_eq!( boundaries.get(4).unwrap().text , " " );
+    assert_eq!( boundaries.get(5).unwrap().text , " " );
+    assert_eq!( boundaries.get(6).unwrap().text , "-" );
+    assert_eq!( boundaries.get(7).unwrap().text , "-" );
+    assert_eq!( boundaries.get(8).unwrap().text , "!\"." );
+}

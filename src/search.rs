@@ -6,7 +6,7 @@ use crate::vocab::*;
 
 
 /// Byte Offset
-#[derive(PartialEq,Debug)]
+#[derive(PartialEq,Clone,Debug)]
 pub struct Offset {
     ///Begin offset
     pub begin: usize,
@@ -14,6 +14,7 @@ pub struct Offset {
     pub end: usize,
 }
 
+#[derive(Clone,Debug)]
 pub struct Match<'a> {
     ///The text of this match
     pub text: &'a str,

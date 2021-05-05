@@ -406,7 +406,7 @@ fn main() {
                             .arg(Arg::with_name("max-ngram-order")
                                 .long("max-ngram-order")
                                 .short("N")
-                                .help("Maximum ngram order (1 for unigrams, 2 for bigrams, etc..). This also requires you to load actual ngram frequency lists using --ngrams to have any effect.")
+                                .help("Maximum ngram order (1 for unigrams, 2 for bigrams, etc..). This also requires you to load actual ngram frequency lists using --corpus to have any effect.")
                                 .takes_value(true)
                                 .default_value("1"))
                     )
