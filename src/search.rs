@@ -114,13 +114,22 @@ pub fn find_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8, offse
 
     let mut begin = offset;
     let mut i = 0;
-    while let Some(boundary) = boundaries.get(i + order as usize) {
+    while let Some(boundary) = boundaries.get(i + order as usize - 1) {
         let ngram = Match::new_empty(&text[begin..boundary.offset.begin], Offset {
                 begin,
                 end: boundary.offset.begin,
         });
         begin = boundary.offset.end;
         i += 1;
+        ngrams.push((ngram,order));
+    }
+
+    //add the last one
+    if begin < text.len() {
+        let ngram = Match::new_empty(&text[begin..], Offset {
+                begin,
+                end: text.len(),
+        });
         ngrams.push((ngram,order));
     }
 

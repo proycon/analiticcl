@@ -737,3 +737,16 @@ fn test0601_find_boundaries() {
     assert_eq!( boundaries.get(7).unwrap().text , "-" );
     assert_eq!( boundaries.get(8).unwrap().text , "!\"." );
 }
+
+#[test]
+fn test0601_find_ngrams() {
+    let text = "dit is een mooie test";
+    let boundaries = find_boundaries(&text);
+    let ngrams = find_ngrams(text, &boundaries, 1, 0);
+    assert_eq!( ngrams.len() , 5 );
+    assert_eq!( ngrams.get(0).unwrap().0.text , "dit" );
+    assert_eq!( ngrams.get(1).unwrap().0.text , "is" );
+    assert_eq!( ngrams.get(2).unwrap().0.text , "een" );
+    assert_eq!( ngrams.get(3).unwrap().0.text , "mooie" );
+    assert_eq!( ngrams.get(4).unwrap().0.text , "test" );
+}
