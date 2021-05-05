@@ -149,9 +149,9 @@ fn process_par(model: &VariantModel, inputstream: impl Read, max_anagram_distanc
     Ok(())
 }
 
-const MAX_BATCHSIZE_CORRECT: usize = 100;
+const MAX_BATCHSIZE_SEARCH: usize = 100;
 
-fn process_correct(model: &VariantModel, inputstream: impl Read, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, progress: bool, max_ngram: u8, newline_as_space: bool, per_line: bool) {
+fn process_search(model: &VariantModel, inputstream: impl Read, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, progress: bool, max_ngram: u8, newline_as_space: bool, per_line: bool) {
     let mut seqnr = 0;
     let mut prevseqnr = 0;
     let f_buffer = BufReader::new(inputstream);
@@ -160,7 +160,7 @@ fn process_correct(model: &VariantModel, inputstream: impl Read, max_anagram_dis
     let mut eof = false;
     while !eof {
         let mut batch = String::new();
-        for i in 0..MAX_BATCHSIZE_CORRECT {
+        for i in 0..MAX_BATCHSIZE_SEARCH {
             if let Some(Ok(input)) = line_iter.next() {
                 if i > 0 {
                     batch.push(if newline_as_space {
@@ -385,7 +385,7 @@ fn main() {
                     .about("Spelling variant matching / approximate string matching / fuzzy search")
                     .subcommand(
                         SubCommand::with_name("query")
-                            .about("Query the model; find all matches in the lexicon of the variants provided in the input")
+                            .about("Query the model; find all matches in the lexicon of the variants provided in the input, one entry to match per line.")
                             .args(&common_arguments())
                     )
                     .subcommand(
@@ -394,8 +394,8 @@ fn main() {
                             .args(&common_arguments())
                     )
                     .subcommand(
-                        SubCommand::with_name("correct")
-                            .about("Process text input and find and output all possible corrections")
+                        SubCommand::with_name("search")
+                            .about("Search entire text input and find and output all possible matches")
                             .args(&common_arguments())
                             .arg(Arg::with_name("per-line")
                                 .long("per-line")
@@ -430,7 +430,7 @@ fn main() {
         args
     } else if let Some(args) = rootargs.subcommand_matches("index") {
         args
-    } else if let Some(args) = rootargs.subcommand_matches("correct") {
+    } else if let Some(args) = rootargs.subcommand_matches("search") {
         args
     } else {
        panic!("No command specified");
@@ -520,7 +520,7 @@ fn main() {
     let json = args.is_present("json");
     let singlethread = args.is_present("single-thread") || args.is_present("debug") || args.is_present("interactive");
 
-    //setting for Correct mode
+    //settings for Search mode
     let perline = args.is_present("per-line");
     let retain_linebreaks = args.is_present("retain-linebreaks");
     let max_ngram = if let Some(value) = args.value_of("max-ngram-order") {
@@ -553,8 +553,8 @@ fn main() {
 
         if rootargs.subcommand_matches("query").is_some() {
             eprintln!("Querying the model...");
-        } else if rootargs.subcommand_matches("correct").is_some() {
-            eprintln!("Finding all variants and outputting corrections on the input text...");
+        } else if rootargs.subcommand_matches("search").is_some() {
+            eprintln!("Finding all variants in the input text...");
         } else {
             eprintln!("Collecting variants...");
         }
@@ -577,9 +577,9 @@ fn main() {
             match filename {
                 "-" | "STDIN" | "stdin"  => {
                     let stdin = io::stdin();
-                    if rootargs.subcommand_matches("correct").is_some() {
+                    if rootargs.subcommand_matches("search").is_some() {
                         eprintln!("(accepting standard input; enter text to search for variants, output may be delayed until end of input, enter an empty line to force output earlier)");
-                        process_correct(&model, stdin, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress, max_ngram, !retain_linebreaks, perline);
+                        process_search(&model, stdin, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress, max_ngram, !retain_linebreaks, perline);
                     } else if singlethread || reverseindex.is_some()  {
                         eprintln!("(accepting standard input; enter input to match, one per line)");
                         process(&model, stdin, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
@@ -591,8 +591,8 @@ fn main() {
                 },
                 _ =>  {
                     let f = File::open(filename).expect(format!("ERROR: Unable to open file {}", filename).as_str());
-                    if rootargs.subcommand_matches("correct").is_some() {
-                        process_correct(&model, f, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress, max_ngram, !retain_linebreaks, perline);
+                    if rootargs.subcommand_matches("search").is_some() {
+                        process_search(&model, f, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress, max_ngram, !retain_linebreaks, perline);
                     } else if singlethread || reverseindex.is_some() {
                         process(&model, f, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
                     } else {
