@@ -108,9 +108,21 @@ pub fn classify_boundaries(boundaries: &Vec<Match<'_>>) -> Vec<BoundaryStrength>
 }
 
 /// Find all ngrams in the text of the specified order, respecting the boundaries
-pub fn find_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], strengths: &[BoundaryStrength], order: u8, offset: usize) -> Vec<(Match<'a>,u8)> {
+pub fn find_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8, offset: usize) -> Vec<(Match<'a>,u8)> {
     let mut ngrams = Vec::new();
-    //TODO: Implement
+
+    let mut begin = offset;
+    let mut i = 0;
+    while let Some(boundary) = boundaries.get(i + order as usize) {
+        let ngram = Match::new_empty(&text[begin..boundary.offset.begin], Offset {
+                begin,
+                end: boundary.offset.begin,
+        });
+        begin = boundary.offset.end;
+        i += 1;
+        ngrams.push((ngram,order));
+    }
+
     ngrams
 }
 

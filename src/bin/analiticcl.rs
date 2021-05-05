@@ -11,37 +11,50 @@ use rayon::prelude::*;
 
 use analiticcl::*;
 
-fn output_matches_as_tsv(model: &VariantModel, input: &str, variants: &Vec<(VocabId, f64)>, output_lexmatch: bool) {
+fn output_matches_as_tsv(model: &VariantModel, input: &str, variants: Option<&Vec<(VocabId, f64)>>, offset: Option<Offset>, output_lexmatch: bool) {
     print!("{}",input);
-    for (vocab_id, score) in variants {
-        let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
-        print!("\t{}\t{}\t", vocabvalue.text, score);
-        if  output_lexmatch {
-            print!("\t{}", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
+    if let Some(offset) = offset {
+        print!("\t{}:{}",offset.begin, offset.end);
+    }
+    if let Some(variants) = variants {
+        for (vocab_id, score) in variants {
+            let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
+            print!("\t{}\t{}\t", vocabvalue.text, score);
+            if  output_lexmatch {
+                print!("\t{}", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
+            }
         }
     }
     println!();
 }
 
-fn output_matches_as_json(model: &VariantModel, input: &str, variants: &Vec<(VocabId, f64)>, output_lexmatch: bool, seqnr: usize) {
+fn output_matches_as_json(model: &VariantModel, input: &str, variants: Option<&Vec<(VocabId, f64)>>, offset: Option<Offset>, output_lexmatch: bool, seqnr: usize) {
     if seqnr > 1 {
         println!(",")
     }
-    println!("    {{ \"input\": \"{}\", \"variants\": [ ", input.replace("\"","\\\"").as_str());
-    let l = variants.len();
-    for (i, (vocab_id, score)) in variants.iter().enumerate() {
-        let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
-        print!("        {{ \"text\": \"{}\", \"score\": {}", vocabvalue.text.replace("\"","\\\""), score);
-        if  output_lexmatch {
-            print!(", \"lexicon\": \"{}\"", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
-        }
-        if i < l - 1 {
-            println!(" }},");
-        } else {
-            println!(" }}");
-        }
+    print!("    {{ \"input\": \"{}\"", input.replace("\"","\\\"").as_str());
+    if let Some(offset) = offset {
+        print!(", \"begin\": {}, \"end\": {}", offset.begin, offset.end);
     }
-    println!("    ]}}");
+    if let Some(variants) = variants {
+        println!(", \"variants\": [ ");
+        let l = variants.len();
+        for (i, (vocab_id, score)) in variants.iter().enumerate() {
+            let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
+            print!("        {{ \"text\": \"{}\", \"score\": {}", vocabvalue.text.replace("\"","\\\""), score);
+            if  output_lexmatch {
+                print!(", \"lexicon\": \"{}\"", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
+            }
+            if i < l - 1 {
+                println!(" }},");
+            } else {
+                println!(" }}");
+            }
+        }
+        println!("    ] }}");
+    } else {
+        println!(" }}");
+    }
 }
 
 fn output_reverse_index(model: &VariantModel, reverseindex: &ReverseIndex) {
@@ -72,7 +85,7 @@ fn process(model: &VariantModel, inputstream: impl Read, reverseindex: &mut Opti
         if let Ok(input) = line {
             seqnr += 1;
             if progress && seqnr % 1000 == 1 {
-                progresstime = show_progress(seqnr, progresstime);
+                progresstime = show_progress(seqnr, progresstime, 1000);
             }
             let variants = model.find_variants(&input, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, cache.as_mut());
             if let Some(reverseindex) = reverseindex.as_mut() {
@@ -81,10 +94,10 @@ fn process(model: &VariantModel, inputstream: impl Read, reverseindex: &mut Opti
                     model.add_to_reverse_index(reverseindex, &input, *vocab_id, *score);
                 }
             } else if json {
-                output_matches_as_json(model, &input, &variants, output_lexmatch, seqnr);
+                output_matches_as_json(model, &input, Some(&variants), None, output_lexmatch, seqnr);
             } else {
                 //Normal output mode
-                output_matches_as_tsv(model, &input, &variants, output_lexmatch);
+                output_matches_as_tsv(model, &input, Some(&variants), None,  output_lexmatch);
             }
             if let Some(cache) = cache {
                 cache.check();
@@ -93,7 +106,7 @@ fn process(model: &VariantModel, inputstream: impl Read, reverseindex: &mut Opti
     }
 }
 
-const BATCHSIZE: usize = 1000;
+const MAX_BATCHSIZE: usize = 1000;
 
 fn process_par(model: &VariantModel, inputstream: impl Read, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, progress: bool) -> io::Result<()> {
     let mut seqnr = 0;
@@ -103,7 +116,7 @@ fn process_par(model: &VariantModel, inputstream: impl Read, max_anagram_distanc
     let mut eof = false;
     while !eof {
         let mut batch = vec![];
-        for _ in 0..BATCHSIZE {
+        for _ in 0..MAX_BATCHSIZE {
             if let Some(input) = line_iter.next() {
                 batch.push(input?);
             } else {
@@ -114,6 +127,7 @@ fn process_par(model: &VariantModel, inputstream: impl Read, max_anagram_distanc
                 break;
             }
         }
+        let batchsize = batch.len();
         let output: Vec<_> = batch
             .par_iter()
             .map(|input| {
@@ -122,26 +136,78 @@ fn process_par(model: &VariantModel, inputstream: impl Read, max_anagram_distanc
         for (input, variants) in output {
             seqnr += 1;
             if json {
-                output_matches_as_json(model, &input, &variants, output_lexmatch, seqnr);
+                output_matches_as_json(model, &input, Some(&variants), None, output_lexmatch, seqnr);
             } else {
                 //Normal output mode
-                output_matches_as_tsv(model, &input, &variants, output_lexmatch);
+                output_matches_as_tsv(model, &input, Some(&variants), None, output_lexmatch);
             }
         }
         if progress {
-            progresstime = show_progress(seqnr, progresstime);
+            progresstime = show_progress(seqnr, progresstime, batchsize);
         }
     }
     Ok(())
 }
 
-fn show_progress(seqnr: usize, lasttime: SystemTime) -> SystemTime {
+const MAX_BATCHSIZE_CORRECT: usize = 100;
+
+fn process_correct(model: &VariantModel, inputstream: impl Read, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, progress: bool, max_ngram: u8, newline_as_space: bool, per_line: bool) {
+    let mut seqnr = 0;
+    let mut prevseqnr = 0;
+    let f_buffer = BufReader::new(inputstream);
+    let mut progresstime = SystemTime::now();
+    let mut line_iter = f_buffer.lines();
+    let mut eof = false;
+    while !eof {
+        let mut batch = String::new();
+        for i in 0..MAX_BATCHSIZE_CORRECT {
+            if let Some(Ok(input)) = line_iter.next() {
+                if i > 0 {
+                    batch.push(if newline_as_space {
+                                    ' '
+                               } else {
+                                    '\n'
+                               });
+                }
+                let empty = input.is_empty();
+                batch.extend(input.chars());
+                if empty || per_line {
+                    //an empty line is a good breakpoint for a batch
+                    break;
+                }
+            } else {
+                eof = true;
+                break;
+            }
+            if batch.is_empty() {
+                break;
+            }
+        }
+        //parallellisation will occur inside this method:
+        let output = model.find_all_matches(&batch, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, max_ngram);
+        for result_match in output {
+            seqnr += 1;
+            if json {
+                output_matches_as_json(model, result_match.text, result_match.variants.as_ref(), Some(result_match.offset), output_lexmatch, seqnr);
+            } else {
+                //Normal output mode
+                output_matches_as_tsv(model, result_match.text, result_match.variants.as_ref(), Some(result_match.offset), output_lexmatch);
+            }
+        }
+        if progress {
+            progresstime = show_progress(seqnr, progresstime, seqnr - prevseqnr);
+        }
+        prevseqnr = seqnr;
+    }
+}
+
+fn show_progress(seqnr: usize, lasttime: SystemTime, batchsize: usize) -> SystemTime {
     let now = SystemTime::now();
     if lasttime >= now || seqnr <= 1 {
         eprintln!("@ {}", seqnr);
     } else {
         let elapsed = now.duration_since(lasttime).expect("clock can't go backwards").as_millis();
-        let rate = 1000.0 / (elapsed as f64 / 1000.0);
+        let rate = (batchsize as f64) / (elapsed as f64 / 1000.0);
         eprintln!("@ {} - processing speed was {:.0} items per second", seqnr, rate);
     }
     now
@@ -331,6 +397,18 @@ fn main() {
                         SubCommand::with_name("correct")
                             .about("Process text input and find and output all possible corrections")
                             .args(&common_arguments())
+                            .arg(Arg::with_name("per-line")
+                                .long("per-line")
+                                .help("Will process per line; assumes each line holds a complete unit (e.g. sentence or paragraph) and that n-grams never cross line boundaires"))
+                            .arg(Arg::with_name("retain-linebreaks")
+                                .long("retain-linebreaks")
+                                .help("Retain linebreaks (newline), the default is to treat them as if they were spaces. Retaining them assumes you have a newline as part of your alphabet."))
+                            .arg(Arg::with_name("max-ngram-order")
+                                .long("max-ngram-order")
+                                .short("N")
+                                .help("Maximum ngram order (1 for unigrams, 2 for bigrams, etc..). This also requires you to load actual ngram frequency lists using --ngrams to have any effect.")
+                                .takes_value(true)
+                                .default_value("1"))
                     )
                     /*.subcommand(
                         SubCommand::with_name("collect")
@@ -442,6 +520,17 @@ fn main() {
     let json = args.is_present("json");
     let singlethread = args.is_present("single-thread") || args.is_present("debug") || args.is_present("interactive");
 
+    //setting for Correct mode
+    let perline = args.is_present("per-line");
+    let retain_linebreaks = args.is_present("retain-linebreaks");
+    let max_ngram = if let Some(value) = args.value_of("max-ngram-order") {
+        value.parse::<u8>().expect("Score threshold should be a small integer")
+    } else {
+        0
+    };
+
+
+
     if args.is_present("early-confusables") {
         model.set_confusables_before_pruning();
     }
@@ -487,18 +576,24 @@ fn main() {
         for filename in files {
             match filename {
                 "-" | "STDIN" | "stdin"  => {
-                    eprintln!("(accepting standard input; enter input to match, one per line)");
                     let stdin = io::stdin();
-                    if singlethread || reverseindex.is_some()  {
+                    if rootargs.subcommand_matches("correct").is_some() {
+                        eprintln!("(accepting standard input; enter text to search for variants, output may be delayed until end of input, enter an empty line to force output earlier)");
+                        process_correct(&model, stdin, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress, max_ngram, !retain_linebreaks, perline);
+                    } else if singlethread || reverseindex.is_some()  {
+                        eprintln!("(accepting standard input; enter input to match, one per line)");
                         process(&model, stdin, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
                     } else {
+                        eprintln!("(accepting standard input; enter input to match, one per line, output may be delayed until end of input due to parallellisation)");
                         //normal parallel behaviour
                         process_par(&model, stdin, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress).expect("I/O Error");
                     }
                 },
                 _ =>  {
                     let f = File::open(filename).expect(format!("ERROR: Unable to open file {}", filename).as_str());
-                    if singlethread || reverseindex.is_some() {
+                    if rootargs.subcommand_matches("correct").is_some() {
+                        process_correct(&model, f, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress, max_ngram, !retain_linebreaks, perline);
+                    } else if singlethread || reverseindex.is_some() {
                         process(&model, f, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
                     } else {
                         //normal parallel behaviour

@@ -985,7 +985,7 @@ impl VariantModel {
                 //Gather all segments for this batch
                 let mut all_segments: Vec<(Match<'a>,u8)> = Vec::new(); //second var in tuple corresponds to the ngram order
                 for order in 1..=max_ngram {
-                    all_segments.extend(find_ngrams(text, boundaries, strengths, order, begin).into_iter());
+                    all_segments.extend(find_ngrams(text, boundaries, order, begin).into_iter());
                 }
 
                 //find variants for all segments in this batch (in parallel)
@@ -994,7 +994,17 @@ impl VariantModel {
                     segment.variants = Some(variants);
                 });
 
-                matches.extend( consolidate_matches(all_segments, boundaries, strengths, begin).into_iter() );
+                //consolidate the matches, finding a single segmentation that has the best (highest
+                //scoring) solution
+                if max_ngram > 1 {
+                    matches.extend(
+                        consolidate_matches(all_segments, boundaries, strengths, begin).into_iter()
+                    );
+                } else {
+                    matches.extend(
+                        all_segments.into_iter().map(|(x,_)| x)
+                    );
+                }
 
                 begin = i+1;
             }
