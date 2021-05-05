@@ -1,6 +1,7 @@
 extern crate ibig;
 extern crate num_traits;
 extern crate sesdiff;
+extern crate rayon;
 
 use std::fs::File;
 use std::io::{BufReader,BufRead};
@@ -8,6 +9,7 @@ use std::collections::{HashMap,HashSet,BTreeMap};
 use std::cmp::min;
 use sesdiff::shortest_edit_script;
 use std::time::SystemTime;
+use rayon::prelude::*;
 
 pub mod types;
 pub mod anahash;
@@ -17,6 +19,7 @@ pub mod vocab;
 pub mod distance;
 pub mod confusables;
 pub mod cache;
+pub mod search;
 pub mod test;
 
 
@@ -28,6 +31,7 @@ pub use crate::vocab::*;
 pub use crate::distance::*;
 pub use crate::confusables::*;
 pub use crate::cache::*;
+pub use crate::search::*;
 
 
 /// The VariantModel is the most high-level model of analiticcl, it holds
@@ -939,7 +943,6 @@ impl VariantModel {
         weight
     }
 
-
     ///Adds the input item to the reverse index, as instantiation of the given vocabulary id
     pub fn add_to_reverse_index(&self, reverseindex: &mut ReverseIndex, input: &str, matched_vocab_id: VocabId, score: f64) {
         let variant = match self.encoder.get(input) {
@@ -960,6 +963,45 @@ impl VariantModel {
         } else {
             reverseindex.insert(matched_vocab_id, vec!((variant, score)));
         }
+    }
+
+    ///Searches a text and returns all highest-ranking variants found in the text
+    pub fn find_all_matches<'a>(&self, text: &'a str, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, max_ngram: u8) -> Vec<Match<'a>> {
+        let mut matches = Vec::new();
+
+        //Find the boundaries and classify their strength
+        let boundaries = find_boundaries(text);
+        let strengths = classify_boundaries(&boundaries);
+
+        let mut begin: usize = 0;
+
+        //Compose the text into batches, each batch ends where a hard boundary is found
+        for (i, strength) in strengths.iter().enumerate() {
+            if *strength == BoundaryStrength::Hard {
+
+                let boundaries = &boundaries[begin..i];
+                let strengths = &strengths[begin..i];
+
+                //Gather all segments for this batch
+                let mut all_segments: Vec<(Match<'a>,u8)> = Vec::new(); //second var in tuple corresponds to the ngram order
+                for order in 1..=max_ngram {
+                    all_segments.extend(find_ngrams(text, boundaries, strengths, order, begin).into_iter());
+                }
+
+                //find variants for all segments in this batch (in parallel)
+                all_segments.par_iter_mut().for_each(|(segment, _)| {
+                    let variants = self.find_variants(&segment.text, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, None);
+                    segment.variants = Some(variants);
+                });
+
+                matches.extend( consolidate_matches(all_segments, boundaries, strengths, begin).into_iter() );
+
+                begin = i+1;
+            }
+
+        }
+
+        matches
     }
 
 

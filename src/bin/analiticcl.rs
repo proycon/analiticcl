@@ -328,10 +328,15 @@ fn main() {
                             .args(&common_arguments())
                     )
                     .subcommand(
-                        SubCommand::with_name("collect")
-                            .about("Collect variants from the input data, grouping them for to items in the lexicon. Note that this forces single-core more for now.")
+                        SubCommand::with_name("correct")
+                            .about("Process text input and find and output all possible corrections")
                             .args(&common_arguments())
                     )
+                    /*.subcommand(
+                        SubCommand::with_name("collect")
+                            .about("Collect variants from the input data, grouping them for items in the lexicon. Note that this forces single-core mode for now.")
+                            .args(&common_arguments())
+                    )*/
                     .arg(Arg::with_name("debug")
                         .long("debug")
                         .short("D")
@@ -346,6 +351,8 @@ fn main() {
     } else if let Some(args) = rootargs.subcommand_matches("collect") {
         args
     } else if let Some(args) = rootargs.subcommand_matches("index") {
+        args
+    } else if let Some(args) = rootargs.subcommand_matches("correct") {
         args
     } else {
        panic!("No command specified");
@@ -457,6 +464,8 @@ fn main() {
 
         if rootargs.subcommand_matches("query").is_some() {
             eprintln!("Querying the model...");
+        } else if rootargs.subcommand_matches("correct").is_some() {
+            eprintln!("Finding all variants and outputting corrections on the input text...");
         } else {
             eprintln!("Collecting variants...");
         }
