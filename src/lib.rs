@@ -2,6 +2,7 @@ extern crate ibig;
 extern crate num_traits;
 extern crate sesdiff;
 extern crate rayon;
+extern crate rustfst;
 
 use std::fs::File;
 use std::io::{BufReader,BufRead};
@@ -10,6 +11,7 @@ use std::cmp::min;
 use sesdiff::shortest_edit_script;
 use std::time::SystemTime;
 use rayon::prelude::*;
+use rustfst::prelude::*;
 
 pub mod types;
 pub mod anahash;
@@ -998,7 +1000,7 @@ impl VariantModel {
                 //scoring) solution
                 if max_ngram > 1 {
                     matches.extend(
-                        consolidate_matches(all_segments, boundaries, strengths, begin).into_iter()
+                        self.consolidate_matches(all_segments, boundaries, strengths, begin, smoothing_prob.ln() as f32).into_iter()
                     );
                 } else {
                     matches.extend(
@@ -1014,5 +1016,101 @@ impl VariantModel {
         matches
     }
 
+
+    /// Find the solution that maximizes the variant scores, decodes using a Weighted Finite State Transducer
+    fn consolidate_matches<'a>(&self, matches: Vec<(Match<'a>,u8)>, boundaries: &[Match<'a>], strengths: &[BoundaryStrength], offset: usize, smoothing_logprob: f32) -> Vec<Match<'a>> {
+
+
+        //Build a finite state transducer
+        let mut fst = VectorFst::<LogWeight>::new();
+
+        let start = fst.add_state();
+        let boundary_states: Vec<StateId> = boundaries.iter().map(|_| fst.add_state()).collect();
+        let end = fst.add_state();
+
+        fst.set_start(start).expect("set start state");
+        fst.set_final(end, 0.0).expect("set final state");
+
+        //local decoder and encoder for the symbols for the FST, ties to the larger encoder/decoder
+        //through SymbolReference::Known(VocabId) wherever possible. A symbol simply corresponds to a
+        //variant string in either input or output, we speak of symbols in the context of the FST
+        let mut symboltable: SymbolRefTable<'a> = SymbolRefTable::new();
+
+        let match_states: Vec<Vec<(usize, StateId, usize, f32)>> = matches.iter().map(|(m, _order)| {
+            let inputsymbol = symboltable.symbol_from_match(&m);
+            if m.variants.is_some() && !m.variants.as_ref().unwrap().is_empty() {
+                m.variants.as_ref().unwrap().iter().map(|(variant, score)| {
+                    let outputsymbol = symboltable.symbol_from_vocabid(*variant);
+                    ( inputsymbol, fst.add_state(), outputsymbol, score.ln() as f32 )
+                }).collect()
+            } else {
+                //we have no variants at all, input = output
+                vec!((inputsymbol, fst.add_state(), inputsymbol, 0.0_f32))
+            }
+        }).collect();
+
+        //Add transitions from start stage
+        matches.iter().enumerate().for_each(|(i, (nextmatch, _))| {
+            if nextmatch.offset.begin == 0 {
+                for (symbol_in, nextstate, symbol_out, emission_logprob) in match_states.get(i).expect("getting nextmatch") {
+                    self.compute_fst_transition(&mut fst, &symboltable, *symbol_in, *symbol_out, None, start, *nextstate, *emission_logprob, smoothing_logprob, start, end);
+                }
+            }
+        });
+
+
+        for boundary in boundaries.iter() {
+            //find all matches that end at this boundary
+            let prevmatches = matches.iter().enumerate().filter(|(i, (prevmatch, _))| {
+                prevmatch.offset.end == boundary.offset.begin
+            });
+
+            //find all matches that start at this boundary
+            let nextmatches: Vec<(usize, &(Match<'a>, u8))> = matches.iter().enumerate().filter(|(i, (nextmatch, _))| {
+                nextmatch.offset.begin == boundary.offset.end
+            }).collect();
+
+            //compute and add all state transitions
+            for (prevmatch_index, (prevmatch, prevorder)) in prevmatches {
+                for (_, prevstate, prevsymbol_out, prevlogprob) in match_states.get(prevmatch_index).expect("getting prevmatch") {
+                    for (nextmatch_index, (nextmatch, nextorder)) in nextmatches.iter() {
+                        for (symbol_in, nextstate, symbol_out, emission_logprob) in match_states.get(*nextmatch_index).expect("getting nextmatch") {
+                            self.compute_fst_transition(&mut fst, &symboltable, *symbol_in, *symbol_out,Some(*prevsymbol_out), *prevstate, *nextstate, *emission_logprob, smoothing_logprob, start, end);
+                        }
+                    }
+                }
+            }
+
+        }
+
+        let fst: VectorFst<LogWeight> = shortest_path(&fst).expect("shortest path fst");
+        for path in fst.paths_iter() {
+        }
+
+        let mut segmentation = Vec::new();
+        //TODO: Implement
+        segmentation
+    }
+
+    fn compute_fst_transition(&self, fst: &mut VectorFst<LogWeight>, symboltable: &SymbolRefTable<'_>, symbol_in: usize, symbol_out: usize, prevsymbol_out: Option<usize>, prevstate: StateId, nextstate: StateId, emission_logprob: f32, smoothing_logprob: f32, start: StateId, end: StateId) {
+        if let Some(prevsymbol_out) = prevsymbol_out {
+            let symbol_out_dec = symboltable.decode(symbol_out).expect("decoding nextsymbol");
+            let prevsymbol_out_dec = symboltable.decode(prevsymbol_out).expect("decoding prevsymbol");
+            let transition_logprob = match (prevsymbol_out_dec, symbol_out_dec) {
+                (SymbolReference::Known(prevsymbol), SymbolReference::Known(symbol)) => {
+                    self.get_transition_logprob(*prevsymbol, *symbol)
+                },
+                _ => {
+                    smoothing_logprob
+                }
+            };
+            fst.add_tr(prevstate, Tr::new(symbol_in, symbol_out , transition_logprob + emission_logprob, nextstate)).expect("adding transition");
+        } else {
+        }
+    }
+
+    fn get_transition_logprob(&self, word: VocabId, prev: VocabId) -> f32 {
+
+    }
 
 }

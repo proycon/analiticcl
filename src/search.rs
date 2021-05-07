@@ -1,8 +1,11 @@
 use std::io::{self, BufReader,BufRead,Read};
 use std::time::SystemTime;
+use std::collections::HashMap;
 
 use crate::types::*;
 use crate::vocab::*;
+use crate::index::Variant;
+
 
 
 /// Byte Offset
@@ -40,6 +43,80 @@ impl<'a> Match<'a> {
         self.variants.is_none() || self.variants.as_ref().unwrap().is_empty()
     }
 }
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
+///These are the symbols we use in the FST
+///They refer back to our loaded lexicon
+pub enum SymbolReference<'a> {
+    Epsilon,
+    Known(VocabId),
+    Unknown(&'a str),
+
+}
+
+const EPSILON: SymbolReference<'_> = SymbolReference::Epsilon;
+
+impl SymbolReference<'_> {
+    pub fn is_known(&self) -> bool {
+        match self {
+            SymbolReference::Known(_) => true,
+            _ => false,
+        }
+    }
+}
+
+///Our own SymbolTable to decode Labels from the FST
+///This one is not tied to Strings like the one in rustfst
+pub struct SymbolRefTable<'a> {
+    decoder: Vec<SymbolReference<'a>>,
+    encoder: HashMap<SymbolReference<'a>, usize>
+}
+
+impl SymbolRefTable<'_> {
+    pub fn new() -> Self {
+        Self {
+            decoder: Vec::new(),
+            encoder: HashMap::new(),
+        }
+    }
+}
+
+impl<'a> SymbolRefTable<'a> {
+    pub fn symbol_from_match(&mut self, m: &Match<'a>) -> usize {
+        let symbol = SymbolReference::Unknown(m.text);
+        self.get_or_create(symbol)
+    }
+
+    pub fn symbol_from_vocabid(&mut self, vocabid: VocabId) -> usize {
+        let symbol = SymbolReference::Known(vocabid);
+        self.get_or_create(symbol)
+    }
+
+    pub fn get_or_create(&mut self, symbolref: SymbolReference<'a>) -> usize {
+        if symbolref == EPSILON {
+            0
+        } else if let Some(symbol_index) = self.encoder.get(&symbolref) {
+            *symbol_index
+        } else {
+            self.decoder.push(symbolref);
+            self.encoder.insert(symbolref, self.decoder.len()+1);
+            self.decoder.len() + 1   //+1 because epsilon is always at 0
+        }
+    }
+
+    pub fn decode(&self, symbol: usize) -> Option<&SymbolReference<'a>> {
+        if symbol == 0 {
+            Some(&EPSILON)
+        } else {
+            self.decoder.get(symbol)
+        }
+    }
+
+}
+
+
+
 
 #[derive(PartialEq,PartialOrd,Copy,Clone,Debug)]
 pub enum BoundaryStrength {
@@ -136,10 +213,5 @@ pub fn find_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8, offse
     ngrams
 }
 
-/// Find one segmentation that maximizes the variant scores
-pub fn consolidate_matches<'a>(matches: Vec<(Match<'a>,u8)>, boundaries: &[Match<'a>], strengths: &[BoundaryStrength], offset: usize) -> Vec<Match<'a>> {
-    let mut segmentation = Vec::new();
-    //TODO: Implement
-    segmentation
-}
+
 
