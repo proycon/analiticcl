@@ -1,5 +1,6 @@
 use ibig::UBig;
 use std::collections::HashMap;
+use std::mem;
 
 ///Each type gets assigned an ID integer, carries no further meaning
 pub type VocabId = u64;
@@ -19,6 +20,59 @@ pub type AnaValue = UBig;
 ///Defines the alphabet, index corresponds how things are encoded, multiple strings may be encoded
 ///in the same way
 pub type Alphabet = Vec<Vec<String>>;
+
+
+///A simple lower-order n-gram type that does not require heap allocation
+#[derive(Clone,Hash,PartialEq,Eq,PartialOrd)]
+pub enum NGram {
+    Empty,
+    UniGram(VocabId),
+    BiGram(VocabId, VocabId),
+    TriGram(VocabId, VocabId, VocabId),
+}
+
+impl NGram {
+    pub fn from_vec(v: Vec<VocabId>) -> Result<Self, &'static str> {
+        match v.len() {
+            0 => Ok(NGram::Empty),
+            1 => Ok(NGram::UniGram(v[0])),
+            2 => Ok(NGram::BiGram(v[0],v[1])),
+            3 => Ok(NGram::TriGram(v[0],v[1],v[2])),
+            _ => Err("Only supporting unigrams, bigrams and trigrams")
+        }
+    }
+
+    pub fn new() -> Self {
+        NGram::Empty
+    }
+
+    pub fn len(&self) -> u8 {
+        match self {
+            NGram::Empty => 0,
+            NGram::UniGram(_) => 1,
+            NGram::BiGram(..) => 2,
+            NGram::TriGram(..) => 3,
+        }
+    }
+
+    pub fn push(&mut self, item: VocabId) -> bool {
+        match *self {
+            NGram::Empty => {
+                mem::replace(self, NGram::UniGram(item));
+                true
+            },
+            NGram::UniGram(x) => {
+                mem::replace(self, NGram::BiGram(x, item));
+                true
+            },
+            NGram::BiGram(x,y) => {
+                mem::replace(self, NGram::TriGram(x,y, item));
+                true
+            }
+            _ => false
+        }
+    }
+}
 
 pub struct Weights {
     pub ld: f64,
@@ -113,3 +167,4 @@ pub enum VariantReference {
 }
 
 pub type VariantClusterMap = HashMap<VariantClusterId, Vec<VocabId>>;
+

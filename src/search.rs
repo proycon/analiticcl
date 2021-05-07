@@ -7,6 +7,7 @@ use crate::vocab::*;
 use crate::index::Variant;
 
 
+pub const TRANSITION_SMOOTHING_LOGPROB: f32 = -13.815510557964274;
 
 /// Byte Offset
 #[derive(PartialEq,Clone,Debug)]

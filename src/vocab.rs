@@ -33,6 +33,24 @@ pub struct VocabValue {
     pub intermediate: bool,
 }
 
+
+impl VocabValue {
+    pub fn new_stub(text: String) -> Self {
+        let tokencount = text.chars().filter(|c| *c == ' ').count() as u8;
+        VocabValue {
+            text: text,
+            norm: Vec::new(),
+            frequency: 1, //smoothing
+            tokencount,
+            lexweight: 0.0,
+            lexindex: 0,
+            variants: None,
+            intermediate: true,
+        }
+    }
+}
+
+
 ///Map integers (indices correspond to VocabId) to string values (and optionally a frequency count)
 pub type VocabDecoder = Vec<VocabValue>;
 

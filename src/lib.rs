@@ -56,11 +56,14 @@ pub struct VariantModel {
     ///Inner vector is always sorted
     pub sortedindex: BTreeMap<u16,Vec<AnaValue>>,
 
-    ///Does the model have frequency information?
-    pub have_freq: bool,
+    /// Joint n-gram probabilities, used for simple context-sensitive language modelling
+    /// when finding the most probable sequence of variants
+    pub ngrams: HashMap<NGram,u32>,
 
-    ///Total sum of all frequencies in the lexicon
-    pub freq_sum: usize,
+    ///Total frequency, index corresponds to n-1 size, so this holds the total count for unigrams, bigrams, etc.
+    pub freq_sum: Vec<usize>,
+
+    pub have_freq: bool,
 
     ///Weights used in scoring
     pub weights: Weights,
@@ -91,8 +94,9 @@ impl VariantModel {
             decoder: Vec::new(),
             index: HashMap::new(),
             sortedindex: BTreeMap::new(),
+            ngrams: HashMap::new(),
+            freq_sum: vec!(0),
             have_freq: false,
-            freq_sum: 0,
             weights,
             lexicons: Vec::new(),
             confusables: Vec::new(),
@@ -113,8 +117,9 @@ impl VariantModel {
             encoder: HashMap::new(),
             index: HashMap::new(),
             sortedindex: BTreeMap::new(),
+            ngrams: HashMap::new(),
+            freq_sum: vec!(0),
             have_freq: false,
-            freq_sum: 0,
             weights,
             lexicons: Vec::new(),
             confusables: Vec::new(),
@@ -158,19 +163,64 @@ impl VariantModel {
 
         eprintln!("Computing anagram values for all items in the lexicon...");
 
+
+        //extra unigrams extracted from n-grams that need to be added to the vocabulary decoder
+        let mut parts: Vec<String> = Vec::new();
+
         // Hash all strings in the lexicon
         // and add them to the index
         let mut tmp_hashes: Vec<(AnaValue,VocabId)> = Vec::with_capacity(self.decoder.len());
         for (id, value)  in self.decoder.iter().enumerate() {
             //get the anahash
             let anahash = value.text.anahash(&self.alphabet);
-            self.freq_sum += value.frequency as usize;
+            let ngram_order = value.text.chars().filter(|c| *c == ' ').count();
+            if ngram_order > 1 {
+                //decompose the ngram into its parts
+
+                //reserve the space for the total counts
+                for _ in self.freq_sum.len()..ngram_order {
+                    self.freq_sum.push(0);
+                }
+                //add to the totals for this order of ngrams
+                self.freq_sum[ngram_order-1] += value.frequency as usize;
+
+                //ensure all individual components of the ngram are in the vocabulary
+                //encoder/decoder, they do NOT have to be in the main lexicon index necessarily
+                //we need them mainly for computing transition probabilities
+                let mut ngram = NGram::new();
+                for part in value.text.split(" ") {
+                    if let Some(part_id) = self.encoder.get(part) {
+                        ngram.push(*part_id);
+                    } else {
+                        let part_id: VocabId = self.decoder.len() as VocabId + parts.len() as VocabId;
+                        parts.push(part.to_string());
+                        self.encoder.insert(part.to_string(), part_id);
+                        ngram.push(part_id);
+                    }
+                }
+
+                if let Some(ngram) = self.ngrams.get_mut(&ngram) {
+                    //update the count for this ngram
+                    *ngram += value.frequency;
+                } else {
+                    //add the new ngram
+                    self.ngrams.insert( ngram, value.frequency );
+                }
+            } else {
+                self.freq_sum[0] += value.frequency as usize;
+            }
             if self.debug {
                 eprintln!("   -- Anavalue={} VocabId={} Text={}", &anahash, id, value.text);
             }
             tmp_hashes.push((anahash, id as VocabId));
         }
         eprintln!(" - Found {} instances",tmp_hashes.len());
+
+        //add collected n-gram parts to the decoder (as stubs because
+        //they're not in a lexicon)
+        for part in parts {
+            self.decoder.push(VocabValue::new_stub(part));
+        }
 
         eprintln!("Adding all instances to the index...");
         for (anahash, id) in tmp_hashes {
@@ -1000,7 +1050,7 @@ impl VariantModel {
                 //scoring) solution
                 if max_ngram > 1 {
                     matches.extend(
-                        self.consolidate_matches(all_segments, boundaries, strengths, begin, smoothing_prob.ln() as f32).into_iter()
+                        self.consolidate_matches(all_segments, boundaries, strengths, begin).into_iter()
                     );
                 } else {
                     matches.extend(
@@ -1018,8 +1068,7 @@ impl VariantModel {
 
 
     /// Find the solution that maximizes the variant scores, decodes using a Weighted Finite State Transducer
-    fn consolidate_matches<'a>(&self, matches: Vec<(Match<'a>,u8)>, boundaries: &[Match<'a>], strengths: &[BoundaryStrength], offset: usize, smoothing_logprob: f32) -> Vec<Match<'a>> {
-
+    fn consolidate_matches<'a>(&self, matches: Vec<(Match<'a>,u8)>, boundaries: &[Match<'a>], strengths: &[BoundaryStrength], offset: usize) -> Vec<Match<'a>> {
 
         //Build a finite state transducer
         let mut fst = VectorFst::<LogWeight>::new();
@@ -1053,7 +1102,7 @@ impl VariantModel {
         matches.iter().enumerate().for_each(|(i, (nextmatch, _))| {
             if nextmatch.offset.begin == 0 {
                 for (symbol_in, nextstate, symbol_out, emission_logprob) in match_states.get(i).expect("getting nextmatch") {
-                    self.compute_fst_transition(&mut fst, &symboltable, *symbol_in, *symbol_out, None, start, *nextstate, *emission_logprob, smoothing_logprob, start, end);
+                    self.compute_fst_transition(&mut fst, &symboltable, *symbol_in, *symbol_out, None, start, *nextstate, *emission_logprob, start, end);
                 }
             }
         });
@@ -1075,7 +1124,7 @@ impl VariantModel {
                 for (_, prevstate, prevsymbol_out, prevlogprob) in match_states.get(prevmatch_index).expect("getting prevmatch") {
                     for (nextmatch_index, (nextmatch, nextorder)) in nextmatches.iter() {
                         for (symbol_in, nextstate, symbol_out, emission_logprob) in match_states.get(*nextmatch_index).expect("getting nextmatch") {
-                            self.compute_fst_transition(&mut fst, &symboltable, *symbol_in, *symbol_out,Some(*prevsymbol_out), *prevstate, *nextstate, *emission_logprob, smoothing_logprob, start, end);
+                            self.compute_fst_transition(&mut fst, &symboltable, *symbol_in, *symbol_out,Some(*prevsymbol_out), *prevstate, *nextstate, *emission_logprob, start, end);
                         }
                     }
                 }
@@ -1085,6 +1134,7 @@ impl VariantModel {
 
         let fst: VectorFst<LogWeight> = shortest_path(&fst).expect("shortest path fst");
         for path in fst.paths_iter() {
+
         }
 
         let mut segmentation = Vec::new();
@@ -1092,7 +1142,7 @@ impl VariantModel {
         segmentation
     }
 
-    fn compute_fst_transition(&self, fst: &mut VectorFst<LogWeight>, symboltable: &SymbolRefTable<'_>, symbol_in: usize, symbol_out: usize, prevsymbol_out: Option<usize>, prevstate: StateId, nextstate: StateId, emission_logprob: f32, smoothing_logprob: f32, start: StateId, end: StateId) {
+    fn compute_fst_transition(&self, fst: &mut VectorFst<LogWeight>, symboltable: &SymbolRefTable<'_>, symbol_in: usize, symbol_out: usize, prevsymbol_out: Option<usize>, prevstate: StateId, nextstate: StateId, emission_logprob: f32, start: StateId, end: StateId) {
         if let Some(prevsymbol_out) = prevsymbol_out {
             let symbol_out_dec = symboltable.decode(symbol_out).expect("decoding nextsymbol");
             let prevsymbol_out_dec = symboltable.decode(prevsymbol_out).expect("decoding prevsymbol");
@@ -1101,16 +1151,48 @@ impl VariantModel {
                     self.get_transition_logprob(*prevsymbol, *symbol)
                 },
                 _ => {
-                    smoothing_logprob
+                    TRANSITION_SMOOTHING_LOGPROB
                 }
             };
             fst.add_tr(prevstate, Tr::new(symbol_in, symbol_out , transition_logprob + emission_logprob, nextstate)).expect("adding transition");
         } else {
+            fst.add_tr(prevstate, Tr::new(symbol_in, symbol_out , TRANSITION_SMOOTHING_LOGPROB + emission_logprob, nextstate)).expect("adding transition");
         }
     }
 
     fn get_transition_logprob(&self, word: VocabId, prev: VocabId) -> f32 {
+        let word_dec = self.decoder.get(word as usize).expect("getting word");
+        let prev_dec = self.decoder.get(prev as usize).expect("getting previous word");
 
+        let nextword = if word_dec.tokencount > 1 {
+            //next word is an n-gram, grab only the first word
+            let firstword = word_dec.text.split(" ").next().expect("getting first word");
+            *self.encoder.get(firstword).expect("ngram part should be in encoder")
+        } else {
+            word
+        };
+
+        let prevword = if prev_dec.tokencount > 1 {
+            //previous word is an n-gram, grab the last part
+            let lastword = word_dec.text.split(" ").last().expect("getting first word");
+            *self.encoder.get(lastword).expect("ngram part should be in encoder")
+        } else {
+            prev
+        };
+
+        //Do we have a joint probability for the bigram that forms the transition?
+        let bigram = NGram::BiGram(prevword, nextword);
+
+        if let Some(jointcount) = self.ngrams.get(&bigram) {
+            let prior_dec = if prev_dec.tokencount > 1 {
+                self.decoder.get(prevword as usize).expect("getting prior")  //all unigrams should be in the decoder
+            } else {
+                &prev_dec
+            };
+            (*jointcount as f32 / prior_dec.frequency as f32).ln()
+        } else {
+            TRANSITION_SMOOTHING_LOGPROB
+        }
     }
 
 }
