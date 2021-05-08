@@ -1,7 +1,6 @@
-extern crate ibig;
-extern crate num_traits;
 extern crate sesdiff;
 extern crate rayon;
+extern crate fst;
 
 use std::fs::File;
 use std::io::{BufReader,BufRead};
@@ -10,11 +9,11 @@ use std::cmp::min;
 use sesdiff::shortest_edit_script;
 use std::time::SystemTime;
 use rayon::prelude::*;
+use fst::{IntoStreamer,Streamer,Map,MapBuilder};
+use fst::automaton::Levenshtein;
 
 pub mod types;
-pub mod anahash;
 pub mod index;
-pub mod iterators;
 pub mod vocab;
 pub mod distance;
 pub mod confusables;
@@ -24,9 +23,7 @@ pub mod test;
 
 
 pub use crate::types::*;
-pub use crate::anahash::*;
 pub use crate::index::*;
-pub use crate::iterators::*;
 pub use crate::vocab::*;
 pub use crate::distance::*;
 pub use crate::confusables::*;
@@ -46,13 +43,7 @@ pub struct VariantModel {
     /// Defines the alphabet used for the variant model
     pub alphabet: Alphabet,
 
-    ///The main index, mapping anagrams to instances
-    pub index: AnaIndex,
-
-    ///A secondary sorted index
-    ///indices of the outer vector correspond to the length of an anagram (in chars)  - 1
-    ///Inner vector is always sorted
-    pub sortedindex: BTreeMap<u16,Vec<AnaValue>>,
+    pub index: Option<fst::Map<Vec<u8>>>,
 
     ///Does the model have frequency information?
     pub have_freq: bool,
@@ -87,8 +78,7 @@ impl VariantModel {
             alphabet: Vec::new(),
             encoder: HashMap::new(),
             decoder: Vec::new(),
-            index: HashMap::new(),
-            sortedindex: BTreeMap::new(),
+            index: None,
             have_freq: false,
             freq_sum: 0,
             weights,
@@ -109,8 +99,7 @@ impl VariantModel {
             alphabet: alphabet,
             decoder: Vec::new(),
             encoder: HashMap::new(),
-            index: HashMap::new(),
-            sortedindex: BTreeMap::new(),
+            index: None,
             have_freq: false,
             freq_sum: 0,
             weights,
@@ -134,104 +123,47 @@ impl VariantModel {
         self.alphabet.len() as CharIndexType + 1 //+1 for UNK
     }
 
-    /// Get an item from the index or insert it if it doesn't exist yet
-    pub fn get_or_create_index<'a,'b>(&'a mut self, anahash: &'b AnaValue) -> &'a mut AnaIndexNode {
-            if self.contains_key(anahash) {
-                self.index.get_mut(anahash).expect("get_mut on node after check")
-            } else {
-                self.index.insert(anahash.clone(), AnaIndexNode {
-                    instances: Vec::new(),
-                    charcount: anahash.char_count(self.alphabet_size())
-                });
-                self.index.get_mut(&anahash).expect("get_mut on node after insert")
-            }
-    }
 
-    /// Build the anagram index (and secondary index) so the model
+    /// Build the index (an FST map) so the model
     /// is ready for variant matching
     pub fn build(&mut self) {
         if !self.have_freq {
             self.weights.freq = 0.0
         }
 
-        eprintln!("Computing anagram values for all items in the lexicon...");
+        eprintln!("Sorting lexicon in lexigraphic order...");
 
-        // Hash all strings in the lexicon
-        // and add them to the index
-        let mut tmp_hashes: Vec<(AnaValue,VocabId)> = Vec::with_capacity(self.decoder.len());
-        for (id, value)  in self.decoder.iter().enumerate() {
-            //get the anahash
-            let anahash = value.text.anahash(&self.alphabet);
-            self.freq_sum += value.frequency as usize;
-            if self.debug {
-                eprintln!("   -- Anavalue={} VocabId={} Text={}", &anahash, id, value.text);
-            }
-            tmp_hashes.push((anahash, id as VocabId));
-        }
-        eprintln!(" - Found {} instances",tmp_hashes.len());
+        let mut keys: Vec<(&str, VocabId)> = self.encoder.iter().map(|(key,i)| (key.as_str(),*i)).collect();
+        keys.sort_unstable();
 
         eprintln!("Adding all instances to the index...");
-        for (anahash, id) in tmp_hashes {
-            //add it to the index
-            let node = self.get_or_create_index(&anahash);
-            node.instances.push(id);
-        }
-        eprintln!(" - Found {} anagrams", self.index.len() );
-
-        eprintln!("Creating sorted secondary index...");
-        for (anahash, node) in self.index.iter() {
-            if !self.sortedindex.contains_key(&node.charcount) {
-                self.sortedindex.insert(node.charcount, Vec::new());
-            }
-            let keys = self.sortedindex.get_mut(&node.charcount).expect("getting sorted index (1)");
-            keys.push(anahash.clone());  //TODO: see if we can make this a reference later
+        let mut builder = MapBuilder::memory();
+        for (key, vocab_id) in keys {
+            builder.insert(key, vocab_id).expect("added item to index");
         }
 
-        eprintln!("Sorting secondary index...");
-        let mut sizes: Vec<u16> = self.sortedindex.keys().map(|x| *x).collect();
-        sizes.sort_unstable();
-        for size in sizes {
-            let keys = self.sortedindex.get_mut(&size).expect("getting sorted index (2)");
-            keys.sort_unstable();
-            eprintln!(" - Found {} anagrams of length {}", keys.len(), size );
+        if let Ok(index) = Map::new(builder.into_inner().expect("unwrapping build"))  {
+            self.index = Some(index);
+        } else {
+            panic!("Building index failed");
         }
+
+        eprintln!(" - Found {} instances",self.index.as_ref().unwrap().len());
     }
 
-    /// Tests if the anagram value exists in the index
-    pub fn contains_key(&self, key: &AnaValue) -> bool {
-        self.index.contains_key(key)
-    }
-
-    ///Get all anagram instances for a specific entry
-    pub fn get_anagram_instances(&self, text: &str) -> Vec<&VocabValue> {
-        let anavalue = text.anahash(&self.alphabet);
-        let mut instances: Vec<&VocabValue> = Vec::new();
-        if let Some(node) = self.index.get(&anavalue) {
-            for vocab_id in node.instances.iter() {
-                instances.push(self.decoder.get(*vocab_id as usize).expect("vocab from decoder"));
-            }
-        }
-        instances
-    }
 
     ///Get an exact item in the lexicon (if it exists)
     pub fn get(&self, text: &str) -> Option<&VocabValue> {
-        for instance in self.get_anagram_instances(text) {
-            if instance.text == text {
-                return Some(instance);
-            }
+        if let Some(vocab_id) = self.encoder.get(text) {
+            self.get_vocab(*vocab_id)
+        } else {
+            None
         }
-        None
     }
 
     ///Tests if the lexicon has a specific entry, by text
     pub fn has(&self, text: &str) -> bool {
-        for instance in self.get_anagram_instances(text) {
-            if instance.text == text {
-                return true;
-            }
-        }
-        false
+        self.encoder.contains_key(text)
     }
 
     ///Resolves a vocabulary ID
@@ -474,215 +406,52 @@ impl VariantModel {
 
         //Compute the anahash
         let normstring = input.normalize_to_alphabet(&self.alphabet);
-        let anahash = input.anahash(&self.alphabet);
 
         //dynamically computed maximum distance, this will override max_edit_distance
         //when the number is smaller (for short input strings)
         let max_dynamic_distance: u8 = (normstring.len() as f64 / 2.0).floor() as u8;
 
-        //Compute neighbouring anahashes and find the nearest anahashes in the model
-        let anahashes = self.find_nearest_anahashes(&anahash, &normstring,
-                                                    min(max_anagram_distance, max_dynamic_distance),
-                                                    stop_criterion,
-                                                    if let Some(cache) = cache {
-                                                       Some(&mut cache.visited)
-                                                    } else {
-                                                       None
-                                                    });
+        let variants = self.query_fst(input, min(max_edit_distance, max_dynamic_distance));
 
         //Get the instances pertaining to the collected hashes, within a certain maximum distance
         //and compute distances
-        let variants = self.gather_instances(&anahashes, &normstring, input, min(max_edit_distance, max_dynamic_distance));
+        let variants = self.compute_distances(variants, &normstring, input, min(max_edit_distance, max_dynamic_distance));
 
         self.score_and_rank(variants, input, max_matches, score_threshold)
     }
 
-
-    /// Find the nearest anahashes that exists in the model (computing anahashes in the
-    /// neigbhourhood if needed).
-    pub fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, normstring: &Vec<u8>, max_distance: u8,  stop_criterion: StopCriterion, cache: Option<&mut HashSet<AnaValue>>) -> HashSet<&'a AnaValue> {
-        let mut nearest: HashSet<&AnaValue> = HashSet::new();
+    /// Gather instances and their edit distances, given a search string (normalised to the alphabet) and anagram hashes
+    pub fn query_fst(&self,  query: &str, max_edit_distance: u8) -> Vec<VocabId> {
+        let mut instances = Vec::new();
 
         let begintime = if self.debug {
-            eprintln!("(finding nearest anagram matches for focus anavalue {})", focus);
             Some(SystemTime::now())
         } else {
             None
         };
 
-        if let Some((matched_anahash, node)) = self.index.get_key_value(focus) {
-            //the easiest case, this anahash exists in the model!
-            if self.debug {
-                eprintln!(" (found exact match)");
+        let automaton = Levenshtein::new(query, max_edit_distance as u32).expect("automaton creation");
+
+        if let Some(index) = self.index.as_ref() {
+            let mut stream = index.search_with_state(&automaton).into_stream();
+            while let Some((_k,v,_s)) = stream.next() {
+                instances.push(v);
             }
-            nearest.insert(matched_anahash);
-            if stop_criterion.stop_at_exact_match() {
-                for vocab_id in node.instances.iter() {
-                    if let Some(value) = self.decoder.get(*vocab_id as usize) {
-                        if &value.norm == normstring {
-                            if self.debug {
-                                eprintln!(" (stopping early)");
-                            }
-                            return nearest;
-                        }
-                    }
-                }
-            }
-        }
-
-        let (focus_upper_bound, focus_charcount) = focus.alphabet_upper_bound(self.alphabet_size());
-        let focus_alphabet_size = focus_upper_bound + 1;
-        let highest_alphabet_char = AnaValue::character(self.alphabet_size()+1);
-
-
-        //Find anagrams reachable through insertions within the the maximum distance
-        for distance in 1..=max_distance {
-            let mut count = 0;
-            let search_charcount = focus_charcount + distance as u16;
-            if self.debug {
-                eprintln!(" (testing insertion at distance {}, charcount {})", distance, search_charcount);
-            }
-            if let Some(sortedindex) = self.sortedindex.get(&search_charcount) {
-                nearest.extend( sortedindex.iter().filter(|candidate| {
-                    if candidate.contains(focus) {//this is where the magic happens
-                        count += 1;
-                        true
-                    } else {
-                        false
-                    }
-                }));
-            }
-            if self.debug {
-                eprintln!(" (found {} candidates)", count);
-            }
-        }
-
-        //Compute upper bounds and lower bounds for each of the distances
-        let mut av_upper_bounds: Vec<AnaValue> = Vec::new(); //indices correspond to distance - 1  (so 0 for AV distance 1)
-        let mut av_lower_bounds: Vec<AnaValue> = Vec::new(); //indices correspond to distance - 1  (so 0 for AV distance 1)
-        let mut upperbound_value: AnaValue = AnaValue::empty();
-        let mut lowerbound_value: AnaValue = AnaValue::empty();
-        let mut lowerbound_highest_alphabet_char = AnaValue::character(focus_upper_bound);
-        let mut lowerbound_alphabet_size = focus_alphabet_size;
-        for i in 0..max_distance {
-            upperbound_value = if i == 0 {
-                focus.insert(&highest_alphabet_char)
-            } else {
-                upperbound_value.insert(&highest_alphabet_char)
-            };
-            lowerbound_value = if i == 0 {
-                focus.delete(&lowerbound_highest_alphabet_char).unwrap_or(AnaValue::empty())
-            } else {
-                lowerbound_value.delete(&lowerbound_highest_alphabet_char).unwrap_or(AnaValue::empty())
-            };
-            let x = lowerbound_value.alphabet_upper_bound(lowerbound_alphabet_size);
-            lowerbound_highest_alphabet_char = AnaValue::character(x.0);
-            lowerbound_alphabet_size = x.1 as u8 + 1;
-            av_upper_bounds.push(upperbound_value.clone());
-            av_lower_bounds.push(lowerbound_value.clone());
-        }
-        let av_upper_bounds: Vec<AnaValue> = av_upper_bounds;
-        let av_lower_bounds: Vec<AnaValue> = av_lower_bounds;
-
-        if self.debug {
-            eprintln!(" (Computed upper bounds: {:?})", av_upper_bounds);
-            eprintln!(" (Computed lower bounds: {:?})", av_lower_bounds);
-        }
-
-        let mut lastdistance = 0;
-        let searchparams = SearchParams {
-            max_distance: Some(max_distance as u32),
-            breadthfirst: true,
-            allow_empty_leaves: false,
-            allow_duplicates: false,
-            ..Default::default()
-        };
-
-
-        let iterator = if let Some(cache) = cache {
-            focus.iter_recursive_external_cache(focus_alphabet_size+1, &searchparams, cache)
-        } else {
-            focus.iter_recursive(focus_alphabet_size+1, &searchparams)
-        };
-
-        // Do a breadth first search for deletions
-        for (deletion,distance) in iterator {
-            if self.debug {
-                eprintln!(" (testing deletion at distance {} for anavalue {})", distance, deletion.value);
-            }
-
-            if let Some((matched_anahash, _node)) = self.index.get_key_value(&deletion) {
-                if self.debug {
-                    eprintln!("  (deletion matches)");
-                }
-                //This deletion exists in the model
-                nearest.insert(matched_anahash);
-            }
-
-            if stop_criterion.iterative() > 0 && lastdistance < distance {
-                //have we gathered enough candidates already?
-                if nearest.len() >= stop_criterion.iterative() {
-                    if self.debug {
-                        eprintln!("  (stopping early after distance {}, we have enough matches)", lastdistance);
-                    }
-                    break;
-                }
-            }
-
-            if stop_criterion.iterative() > 0 || distance == max_distance as u32 { //no need to check for distances that are not the max
-                let mut count = 0;
-                let (_deletion_upper_bound, deletion_charcount) = deletion.alphabet_upper_bound(self.alphabet_size());
-                let search_charcount = deletion_charcount + distance as u16;
-                let beginlength = nearest.len();
-                if self.debug {
-                    eprintln!("  (testing insertions for distance {} from deletion result anavalue {})", search_charcount, deletion.value);
-                }
-                //Find possible insertions starting from this deletion
-                if let Some(sortedindex) = self.sortedindex.get(&search_charcount) {
-                    for candidate in sortedindex.iter() {
-                        if candidate > &av_upper_bounds[distance as usize -1] {
-                            break;
-                        } else if candidate >= &av_lower_bounds[distance as usize - 1] {
-                            if candidate.contains(&deletion.value) {//this is where the magic happens
-                                count += 1;
-                                nearest.insert(candidate);
-                            }
-                        }
-                    }
-
-                    /*
-                    nearest.extend( sortedindex.iter().filter(|candidate| {
-                        if candidate.contains(&deletion.value) {//this is where the magic happens
-                            count += 1;
-                            true
-                        } else {
-                            false
-                        }
-                    }));*/
-                }
-                if self.debug {
-                    eprintln!("  (added {} out of {} candidates, preventing duplicates)", nearest.len() - beginlength , count);
-                }
-            }
-            lastdistance = distance;
         }
 
         if self.debug {
             let endtime = SystemTime::now();
             let duration = endtime.duration_since(begintime.expect("begintime")).expect("clock can't go backwards").as_micros();
-            eprint!("(found {} anagram matches in total (in {} μs) for focus anavalue {}: ", nearest.len(), duration, focus);
-            for av in nearest.iter() {
-                eprint!(" {}", av);
-            }
-            eprintln!(")");
+            eprintln!("(returned {} instances from querying the index in {} μs)", instances.len(), duration);
         }
-        nearest
+
+        instances
+
     }
 
-
-    /// Gather instances and their edit distances, given a search string (normalised to the alphabet) and anagram hashes
-    pub fn gather_instances(&self, nearest_anagrams: &HashSet<&AnaValue>, querystring: &[u8], query: &str, max_edit_distance: u8) -> Vec<(VocabId,Distance)> {
-        let mut found_instances = Vec::new();
+    ///  Compute more elaborate distance metrics for all instances
+    pub fn compute_distances(&self, instances: Vec<VocabId>, querystring: &[u8], query: &str, max_edit_distance: u8) -> Vec<(VocabId,Distance)> {
+        let mut found_instances = Vec::with_capacity(instances.len());
         let mut pruned_instances = 0;
 
         let begintime = if self.debug {
@@ -691,60 +460,56 @@ impl VariantModel {
             None
         };
 
-        for anahash in nearest_anagrams {
-            if let Some(node) = self.index.get(anahash) {
-                for vocab_id in node.instances.iter() {
-                    if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
-                        if let Some(ld) = damerau_levenshtein(querystring, &vocabitem.norm, max_edit_distance) {
-                            //we only get here if we make the max_edit_distance cut-off
-                            let distance = Distance {
-                                ld: ld,
-                                lcs: if self.weights.lcs > 0.0 { longest_common_substring_length(querystring, &vocabitem.norm) } else { 0 },
-                                prefixlen: if self.weights.prefix > 0.0 { common_prefix_length(querystring, &vocabitem.norm) } else { 0 },
-                                suffixlen: if self.weights.suffix > 0.0 { common_suffix_length(querystring, &vocabitem.norm) } else { 0 },
-                                freq: if self.weights.freq > 0.0 { vocabitem.frequency } else { 0 },
-                                lex: if self.weights.lex > 0.0 { vocabitem.lexweight } else { 0.0 },
-                                samecase: if self.weights.case > 0.0 { vocabitem.text.chars().next().expect("first char").is_lowercase() == query.chars().next().expect("first char").is_lowercase() } else { true },
-                                prescore: None,
-                            };
-                            //match will be added to found_instances at the end of the block (we
-                            //need to borrow the distance for a bit still)
+        for vocab_id in instances {
+            if let Some(vocabitem) = self.decoder.get(vocab_id as usize) {
+                if let Some(ld) = damerau_levenshtein(querystring, &vocabitem.norm, max_edit_distance) {
+                    //we only get here if we make the max_edit_distance cut-off
+                    let distance = Distance {
+                        ld: ld,
+                        lcs: if self.weights.lcs > 0.0 { longest_common_substring_length(querystring, &vocabitem.norm) } else { 0 },
+                        prefixlen: if self.weights.prefix > 0.0 { common_prefix_length(querystring, &vocabitem.norm) } else { 0 },
+                        suffixlen: if self.weights.suffix > 0.0 { common_suffix_length(querystring, &vocabitem.norm) } else { 0 },
+                        freq: if self.weights.freq > 0.0 { vocabitem.frequency } else { 0 },
+                        lex: if self.weights.lex > 0.0 { vocabitem.lexweight } else { 0.0 },
+                        samecase: if self.weights.case > 0.0 { vocabitem.text.chars().next().expect("first char").is_lowercase() == query.chars().next().expect("first char").is_lowercase() } else { true },
+                        prescore: None,
+                    };
+                    //match will be added to found_instances at the end of the block (we
+                    //need to borrow the distance for a bit still)
 
-                            //Does this vocabulary item make explicit references to variants?
-                            //If so, we add those too. This is only the case if the user loaded
-                            //variantlists/error lists.
-                            if let Some(variantrefs) = &vocabitem.variants {
-                                for variantref in variantrefs.iter() {
-                                    match variantref {
-                                        VariantReference::VariantCluster(cluster_id) => {
-                                            if let Some(variants) = self.variantclusters.get(cluster_id) {
-                                                //add all variants in the cluster
-                                                for variant_id in variants.iter() {
-                                                    //we clone do not recompute the distance to the
-                                                    //variant, all variants are considered of
-                                                    //equal-weight, we use the originally computed
-                                                    //distance:
-                                                    found_instances.push((*variant_id, distance.clone()));
-                                                }
-                                            }
-                                        },
-                                        VariantReference::WeightedVariant((vocab_id, score)) => {
-                                            let mut variantdistance = distance.clone();
-                                            variantdistance.prescore = Some(*score);
-                                            found_instances.push((*vocab_id,variantdistance));
+                    //Does this vocabulary item make explicit references to variants?
+                    //If so, we add those too. This is only the case if the user loaded
+                    //variantlists/error lists.
+                    if let Some(variantrefs) = &vocabitem.variants {
+                        for variantref in variantrefs.iter() {
+                            match variantref {
+                                VariantReference::VariantCluster(cluster_id) => {
+                                    if let Some(variants) = self.variantclusters.get(cluster_id) {
+                                        //add all variants in the cluster
+                                        for variant_id in variants.iter() {
+                                            //we clone do not recompute the distance to the
+                                            //variant, all variants are considered of
+                                            //equal-weight, we use the originally computed
+                                            //distance:
+                                            found_instances.push((*variant_id, distance.clone()));
                                         }
                                     }
+                                },
+                                VariantReference::WeightedVariant((vocab_id, score)) => {
+                                    let mut variantdistance = distance.clone();
+                                    variantdistance.prescore = Some(*score);
+                                    found_instances.push((*vocab_id,variantdistance));
                                 }
                             }
-
-                            //add the original match
-                            if !vocabitem.intermediate {
-                                found_instances.push((*vocab_id,distance));
-                            }
-                        } else {
-                            pruned_instances += 1;
                         }
                     }
+
+                    //add the original match
+                    if !vocabitem.intermediate {
+                        found_instances.push((vocab_id,distance));
+                    }
+                } else {
+                    pruned_instances += 1;
                 }
             }
         }
@@ -752,7 +517,7 @@ impl VariantModel {
         if self.debug {
             let endtime = SystemTime::now();
             let duration = endtime.duration_since(begintime.expect("begintime")).expect("clock can't go backwards").as_micros();
-            eprintln!("(found {} instances (pruned {}) over {} anagrams in {} μs)", found_instances.len(), pruned_instances, nearest_anagrams.len(), duration);
+            eprintln!("(measured {} instances (pruned {}) in {} μs)", found_instances.len(), pruned_instances, duration);
         }
         found_instances
     }

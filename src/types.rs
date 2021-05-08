@@ -20,6 +20,45 @@ pub type AnaValue = UBig;
 ///in the same way
 pub type Alphabet = Vec<Vec<String>>;
 
+pub trait Alphabetizable {
+    fn normalize_to_alphabet(&self, alphabet: &Alphabet) -> NormString;
+}
+
+impl Alphabetizable for str {
+    ///Normalize a string via the alphabet
+    fn normalize_to_alphabet(&self, alphabet: &Alphabet) -> NormString {
+        let mut result = Vec::with_capacity(self.chars().count());
+        let mut skip = 0;
+        for (pos, _) in self.char_indices() {
+            if skip > 0 {
+                skip -= 1;
+                continue;
+            }
+            //does greedy matching in order of appearance in the alphabet file
+            let mut matched = false;
+            'abciter: for (i, chars) in alphabet.iter().enumerate() {
+                for element in chars.iter() {
+                    let l = element.chars().count();
+                    if let Some(slice) = self.get(pos..pos+l) {
+                        if slice == element {
+                            result.push(i as CharIndexType);
+                            matched = true;
+                            skip = l-1;
+                            break 'abciter;
+                        }
+                    }
+                }
+            }
+            if !matched {
+                //Highest one is reserved for UNK
+                result.push(alphabet.len() as CharIndexType + 1);
+            }
+        }
+        result
+    }
+}
+
+
 pub struct Weights {
     pub ld: f64,
     pub lcs: f64,

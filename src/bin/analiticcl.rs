@@ -389,11 +389,6 @@ fn main() {
                             .args(&common_arguments())
                     )
                     .subcommand(
-                        SubCommand::with_name("index")
-                            .about("Compute and output the anagram index")
-                            .args(&common_arguments())
-                    )
-                    .subcommand(
                         SubCommand::with_name("search")
                             .about("Search entire text input and find and output all possible matches")
                             .args(&common_arguments())
@@ -427,8 +422,6 @@ fn main() {
     let args = if let Some(args) = rootargs.subcommand_matches("query") {
         args
     } else if let Some(args) = rootargs.subcommand_matches("collect") {
-        args
-    } else if let Some(args) = rootargs.subcommand_matches("index") {
         args
     } else if let Some(args) = rootargs.subcommand_matches("search") {
         args
@@ -536,80 +529,66 @@ fn main() {
     }
 
 
-    if rootargs.subcommand_matches("index").is_some() {
-        eprintln!("Computing and outputting anagram index...");
-        for (anahash, indexnode) in model.index.iter() {
-            if !indexnode.instances.is_empty() {
-                print!("{}", anahash);
-                for instance in indexnode.instances.iter() {
-                    let vocabvalue = model.decoder.get(*instance as usize).expect("decoding instance");
-                    print!("\t{}", vocabvalue.text);
-                }
-                println!()
-            }
-        }
+    //query or collect
+
+    if rootargs.subcommand_matches("query").is_some() {
+        eprintln!("Querying the model...");
+    } else if rootargs.subcommand_matches("search").is_some() {
+        eprintln!("Finding all variants in the input text...");
     } else {
-        //query or collect
+        eprintln!("Collecting variants...");
+    }
+    let mut reverseindex = if rootargs.subcommand_matches("collect").is_some() {
+        Some(HashMap::new())
+    } else {
+        None
+    };
 
-        if rootargs.subcommand_matches("query").is_some() {
-            eprintln!("Querying the model...");
-        } else if rootargs.subcommand_matches("search").is_some() {
-            eprintln!("Finding all variants in the input text...");
-        } else {
-            eprintln!("Collecting variants...");
-        }
-        let mut reverseindex = if rootargs.subcommand_matches("collect").is_some() {
-            Some(HashMap::new())
-        } else {
-            None
-        };
+    if json && reverseindex.is_none() {
+        println!("[");
+    }
 
-        if json && reverseindex.is_none() {
-            println!("[");
-        }
-
-        let files: Vec<_> = if args.is_present("files") {
-            args.values_of("files").unwrap().collect()
-        } else {
-            vec!("-")
-        };
-        for filename in files {
-            match filename {
-                "-" | "STDIN" | "stdin"  => {
-                    let stdin = io::stdin();
-                    if rootargs.subcommand_matches("search").is_some() {
-                        eprintln!("(accepting standard input; enter text to search for variants, output may be delayed until end of input, enter an empty line to force output earlier)");
-                        process_search(&model, stdin, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress, max_ngram, !retain_linebreaks, perline);
-                    } else if singlethread || reverseindex.is_some()  {
-                        eprintln!("(accepting standard input; enter input to match, one per line)");
-                        process(&model, stdin, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
-                    } else {
-                        eprintln!("(accepting standard input; enter input to match, one per line, output may be delayed until end of input due to parallellisation)");
-                        //normal parallel behaviour
-                        process_par(&model, stdin, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress).expect("I/O Error");
-                    }
-                },
-                _ =>  {
-                    let f = File::open(filename).expect(format!("ERROR: Unable to open file {}", filename).as_str());
-                    if rootargs.subcommand_matches("search").is_some() {
-                        process_search(&model, f, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress, max_ngram, !retain_linebreaks, perline);
-                    } else if singlethread || reverseindex.is_some() {
-                        process(&model, f, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
-                    } else {
-                        //normal parallel behaviour
-                        process_par(&model, f, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress).expect("I/O Error");
-                    }
+    let files: Vec<_> = if args.is_present("files") {
+        args.values_of("files").unwrap().collect()
+    } else {
+        vec!("-")
+    };
+    for filename in files {
+        match filename {
+            "-" | "STDIN" | "stdin"  => {
+                let stdin = io::stdin();
+                if rootargs.subcommand_matches("search").is_some() {
+                    eprintln!("(accepting standard input; enter text to search for variants, output may be delayed until end of input, enter an empty line to force output earlier)");
+                    process_search(&model, stdin, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress, max_ngram, !retain_linebreaks, perline);
+                } else if singlethread || reverseindex.is_some()  {
+                    eprintln!("(accepting standard input; enter input to match, one per line)");
+                    process(&model, stdin, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
+                } else {
+                    eprintln!("(accepting standard input; enter input to match, one per line, output may be delayed until end of input due to parallellisation)");
+                    //normal parallel behaviour
+                    process_par(&model, stdin, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress).expect("I/O Error");
+                }
+            },
+            _ =>  {
+                let f = File::open(filename).expect(format!("ERROR: Unable to open file {}", filename).as_str());
+                if rootargs.subcommand_matches("search").is_some() {
+                    process_search(&model, f, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress, max_ngram, !retain_linebreaks, perline);
+                } else if singlethread || reverseindex.is_some() {
+                    process(&model, f, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
+                } else {
+                    //normal parallel behaviour
+                    process_par(&model, f, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress).expect("I/O Error");
                 }
             }
         }
+    }
 
-        if json && reverseindex.is_none() {
-            println!("]");
-        }
+    if json && reverseindex.is_none() {
+        println!("]");
+    }
 
-        if let Some(reverseindex) = reverseindex {
-            eprintln!("Outputting collected variants...");
-            output_reverse_index(&model, &reverseindex);
-        }
+    if let Some(reverseindex) = reverseindex {
+        eprintln!("Outputting collected variants...");
+        output_reverse_index(&model, &reverseindex);
     }
 }

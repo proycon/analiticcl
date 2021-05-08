@@ -10,13 +10,13 @@ name = "analiticcl"
 readme = "README.md"
 repository = "https://github.com/proycon/analiticcl"
 version = "0.3.0"
-
 [[bench]]
 harness = false
 name = "benchmarks"
 
 [dependencies]
 clap = "2.33.0"
+fst = { version = "0.4.5", features = ["levenshtein"] }
 ibig = "0.3.2"
 num-traits = "0.2.14"
 rayon = "1.5.0"
