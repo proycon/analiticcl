@@ -58,15 +58,15 @@ impl NGram {
     pub fn push(&mut self, item: VocabId) -> bool {
         match *self {
             NGram::Empty => {
-                mem::replace(self, NGram::UniGram(item));
+                *self = NGram::UniGram(item);
                 true
             },
             NGram::UniGram(x) => {
-                mem::replace(self, NGram::BiGram(x, item));
+                *self = NGram::BiGram(x, item);
                 true
             },
             NGram::BiGram(x,y) => {
-                mem::replace(self, NGram::TriGram(x,y, item));
+                *self = NGram::TriGram(x,y, item);
                 true
             }
             _ => false

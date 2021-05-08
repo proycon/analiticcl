@@ -1032,7 +1032,6 @@ impl VariantModel {
             if *strength == BoundaryStrength::Hard {
 
                 let boundaries = &boundaries[begin..i];
-                let strengths = &strengths[begin..i];
 
                 //Gather all segments for this batch
                 let mut all_segments: Vec<(Match<'a>,u8)> = Vec::new(); //second var in tuple corresponds to the ngram order
@@ -1050,7 +1049,7 @@ impl VariantModel {
                 //scoring) solution
                 if max_ngram > 1 {
                     matches.extend(
-                        self.consolidate_matches(all_segments, boundaries, strengths, begin).into_iter()
+                        self.most_likely_sequence(all_segments, boundaries, begin).into_iter()
                     );
                 } else {
                     matches.extend(
@@ -1068,15 +1067,14 @@ impl VariantModel {
 
 
     /// Find the solution that maximizes the variant scores, decodes using a Weighted Finite State Transducer
-    fn consolidate_matches<'a>(&self, matches: Vec<(Match<'a>,u8)>, boundaries: &[Match<'a>], strengths: &[BoundaryStrength], offset: usize) -> Vec<Match<'a>> {
+    fn most_likely_sequence<'a>(&self, matches: Vec<(Match<'a>,u8)>, boundaries: &[Match<'a>], offset: usize) -> Vec<Match<'a>> {
 
         //Build a finite state transducer
         let mut fst = VectorFst::<LogWeight>::new();
 
+        //add initial and final stae
         let start = fst.add_state();
-        let boundary_states: Vec<StateId> = boundaries.iter().map(|_| fst.add_state()).collect();
         let end = fst.add_state();
-
         fst.set_start(start).expect("set start state");
         fst.set_final(end, 0.0).expect("set final state");
 
@@ -1085,8 +1083,13 @@ impl VariantModel {
         //variant string in either input or output, we speak of symbols in the context of the FST
         let mut symboltable: SymbolRefTable<'a> = SymbolRefTable::new();
 
+        // Add FST states for all our matches
+        //                           v--- inputsymbol
+        //                                          v---- output symbol
+        //                                                 v---- logprob
         let match_states: Vec<Vec<(usize, StateId, usize, f32)>> = matches.iter().map(|(m, _order)| {
             let inputsymbol = symboltable.symbol_from_match(&m);
+            //for each march we add FST states for all variants
             if m.variants.is_some() && !m.variants.as_ref().unwrap().is_empty() {
                 m.variants.as_ref().unwrap().iter().map(|(variant, score)| {
                     let outputsymbol = symboltable.symbol_from_vocabid(*variant);
@@ -1094,11 +1097,13 @@ impl VariantModel {
                 }).collect()
             } else {
                 //we have no variants at all, input = output
+                //we use the maximum emission logprob (0), transition probability will be penalised
+                //down to the uniform smoothing factor in later computations
                 vec!((inputsymbol, fst.add_state(), inputsymbol, 0.0_f32))
             }
         }).collect();
 
-        //Add transitions from start stage
+        //Add transitions from the start stage
         matches.iter().enumerate().for_each(|(i, (nextmatch, _))| {
             if nextmatch.offset.begin == 0 {
                 for (symbol_in, nextstate, symbol_out, emission_logprob) in match_states.get(i).expect("getting nextmatch") {
@@ -1108,6 +1113,8 @@ impl VariantModel {
         });
 
 
+        //For each boundary, add transition from all states directly left of the boundary
+        //to all states directly right of the boundary
         for boundary in boundaries.iter() {
             //find all matches that end at this boundary
             let prevmatches = matches.iter().enumerate().filter(|(_i, (prevmatch, _))| {
@@ -1142,24 +1149,39 @@ impl VariantModel {
         segmentation
     }
 
+    /// Computes and sets the transition probability between two states, i.e. the weight
+    /// to assign to this transition in the Finite State Transducer.
+    /// The transition probability depends only on two states (Markov assumption) which
+    /// is a simplification of reality.
     fn compute_fst_transition(&self, fst: &mut VectorFst<LogWeight>, symboltable: &SymbolRefTable<'_>, symbol_in: usize, symbol_out: usize, prevsymbol_out: Option<usize>, prevstate: StateId, nextstate: StateId, emission_logprob: f32, start: StateId, end: StateId) {
         if let Some(prevsymbol_out) = prevsymbol_out {
+            //we have a previous output symbol, we can compute a transition
             let symbol_out_dec = symboltable.decode(symbol_out).expect("decoding nextsymbol");
             let prevsymbol_out_dec = symboltable.decode(prevsymbol_out).expect("decoding prevsymbol");
             let transition_logprob = match (prevsymbol_out_dec, symbol_out_dec) {
                 (SymbolReference::Known(prevsymbol), SymbolReference::Known(symbol)) => {
-                    self.get_transition_logprob(*prevsymbol, *symbol)
+                    self.get_transition_logprob(*symbol, *prevsymbol)
                 },
                 _ => {
+                    //if either or both of the symbols is not known, we fall back
+                    //to the uniform smoothing probability for the transition
                     TRANSITION_SMOOTHING_LOGPROB
                 }
             };
             fst.add_tr(prevstate, Tr::new(symbol_in, symbol_out , transition_logprob + emission_logprob, nextstate)).expect("adding transition");
         } else {
+            //we have a no previous output symbol, we can not compute a transition, fall back to
+            //smoothing
+            let symbol_out_dec = symboltable.decode(symbol_out).expect("decoding nextsymbol");
             fst.add_tr(prevstate, Tr::new(symbol_in, symbol_out , TRANSITION_SMOOTHING_LOGPROB + emission_logprob, nextstate)).expect("adding transition");
         }
     }
 
+    /// Compute the probability of a transition between two words: $P(w_x|w_(x-1))$
+    /// If either parameter is a high-order n-gram, this function will extract the appropriate
+    /// unigrams on either side for the computation.
+    /// The final probability is returned as a logprob (base e), if not the bigram or prior are
+    /// not found, a uniform smoothing number is returned.
     fn get_transition_logprob(&self, word: VocabId, prev: VocabId) -> f32 {
         let word_dec = self.decoder.get(word as usize).expect("getting word");
         let prev_dec = self.decoder.get(prev as usize).expect("getting previous word");
@@ -1184,10 +1206,11 @@ impl VariantModel {
         let bigram = NGram::BiGram(prevword, nextword);
 
         if let Some(jointcount) = self.ngrams.get(&bigram) {
+            //find the prior
             let prior_dec = if prev_dec.tokencount > 1 {
                 self.decoder.get(prevword as usize).expect("getting prior")  //all unigrams should be in the decoder
             } else {
-                &prev_dec
+                &prev_dec //we already had this one, use it
             };
             (*jointcount as f32 / prior_dec.frequency as f32).ln()
         } else {
