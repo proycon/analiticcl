@@ -430,19 +430,24 @@ impl VariantModel {
             None
         };
 
-        let automaton = Levenshtein::new(query, max_edit_distance as u32).expect("automaton creation");
+        match Levenshtein::new_with_limit(query, max_edit_distance as u32, 100_000) {
+            Ok(automaton) => {
+                if let Some(index) = self.index.as_ref() {
+                    let mut stream = index.search_with_state(&automaton).into_stream();
+                    while let Some((_k,v,_s)) = stream.next() {
+                        instances.push(v);
+                    }
+                }
 
-        if let Some(index) = self.index.as_ref() {
-            let mut stream = index.search_with_state(&automaton).into_stream();
-            while let Some((_k,v,_s)) = stream.next() {
-                instances.push(v);
+                if self.debug {
+                    let endtime = SystemTime::now();
+                    let duration = endtime.duration_since(begintime.expect("begintime")).expect("clock can't go backwards").as_micros();
+                    eprintln!("(returned {} instances from querying the index in {} μs)", instances.len(), duration);
+                }
+            },
+            Err(e) => {
+                panic!("Automation creation for {} failed: {}", query, e);
             }
-        }
-
-        if self.debug {
-            let endtime = SystemTime::now();
-            let duration = endtime.duration_since(begintime.expect("begintime")).expect("clock can't go backwards").as_micros();
-            eprintln!("(returned {} instances from querying the index in {} μs)", instances.len(), duration);
         }
 
         instances

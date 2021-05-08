@@ -16,7 +16,7 @@ name = "benchmarks"
 
 [dependencies]
 clap = "2.33.0"
-fst = { version = "0.4.5", features = ["levenshtein"] }
+fst = { git = "https://github.com/proycon/fst", branch = "dynamiclimit", features = ["levenshtein"] }
 ibig = "0.3.2"
 num-traits = "0.2.14"
 rayon = "1.5.0"
