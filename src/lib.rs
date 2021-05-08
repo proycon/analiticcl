@@ -1110,12 +1110,12 @@ impl VariantModel {
 
         for boundary in boundaries.iter() {
             //find all matches that end at this boundary
-            let prevmatches = matches.iter().enumerate().filter(|(i, (prevmatch, _))| {
+            let prevmatches = matches.iter().enumerate().filter(|(_i, (prevmatch, _))| {
                 prevmatch.offset.end == boundary.offset.begin
             });
 
             //find all matches that start at this boundary
-            let nextmatches: Vec<(usize, &(Match<'a>, u8))> = matches.iter().enumerate().filter(|(i, (nextmatch, _))| {
+            let nextmatches: Vec<(usize, &(Match<'a>, u8))> = matches.iter().enumerate().filter(|(_i, (nextmatch, _))| {
                 nextmatch.offset.begin == boundary.offset.end
             }).collect();
 
@@ -1174,7 +1174,7 @@ impl VariantModel {
 
         let prevword = if prev_dec.tokencount > 1 {
             //previous word is an n-gram, grab the last part
-            let lastword = word_dec.text.split(" ").last().expect("getting first word");
+            let lastword = word_dec.text.split(" ").last().expect("getting last word");
             *self.encoder.get(lastword).expect("ngram part should be in encoder")
         } else {
             prev
