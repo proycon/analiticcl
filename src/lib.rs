@@ -1098,7 +1098,7 @@ impl VariantModel {
         //                                                 v---- logprob
         let match_states: Vec<Vec<(usize, StateId, usize, f32)>> = matches.iter().map(|(m, _order)| {
             let inputsymbol = symboltable.symbol_from_match(&m);
-            //for each march we add FST states for all variants
+            //for each match we add FST states for all variants
             if m.variants.is_some() && !m.variants.as_ref().unwrap().is_empty() {
                 m.variants.as_ref().unwrap().iter().map(|(variant, score)| {
                     let outputsymbol = symboltable.symbol_from_vocabid(*variant);
@@ -1112,8 +1112,8 @@ impl VariantModel {
             }
         }).collect();
 
-        //Add transitions from the start stage
         matches.iter().enumerate().for_each(|(i, (nextmatch, _))| {
+            //Add transitions from the start state;
             if nextmatch.offset.begin == 0 {
                 for (symbol_in, nextstate, symbol_out, emission_logprob) in match_states.get(i).expect("getting nextmatch") {
                     self.compute_fst_transition(&mut fst, &symboltable, *symbol_in, *symbol_out, None, start, *nextstate, *emission_logprob, start, end);
@@ -1121,6 +1121,7 @@ impl VariantModel {
             }
         });
 
+        let end_offset = boundaries.get(boundaries.len() - 1).expect("end offset").offset.end;
 
         //For each boundary, add transition from all states directly left of the boundary
         //to all states directly right of the boundary
@@ -1143,9 +1144,13 @@ impl VariantModel {
                             self.compute_fst_transition(&mut fst, &symboltable, *symbol_in, *symbol_out,Some(*prevsymbol_out), *prevstate, *nextstate, *emission_logprob, start, end);
                         }
                     }
+
+                    //Add transitions to the end state
+                    if prevmatch.offset.end == end_offset {
+                        self.compute_fst_transition(&mut fst, &symboltable, 0, 0, Some(*prevsymbol_out), *prevstate, end, 0.0, start, end);
+                    }
                 }
             }
-
         }
 
         let fst: VectorFst<LogWeight> = shortest_path(&fst).expect("shortest path fst");
@@ -1165,12 +1170,47 @@ impl VariantModel {
     fn compute_fst_transition(&self, fst: &mut VectorFst<LogWeight>, symboltable: &SymbolRefTable<'_>, symbol_in: usize, symbol_out: usize, prevsymbol_out: Option<usize>, prevstate: StateId, nextstate: StateId, emission_logprob: f32, start: StateId, end: StateId) {
         if let Some(prevsymbol_out) = prevsymbol_out {
             //we have a previous output symbol, we can compute a transition
+            if symbol_out == 0 && nextstate == end {
+                //transition to end state
+                let prevsymbol_out_dec = symboltable.decode(prevsymbol_out).expect("decoding prevsymbol");
+                let transition_logprob = match prevsymbol_out_dec {
+                    SymbolReference::Known(prevsymbol) => {
+                        let ngram = NGram::UniGram(EOS);
+                        let prior = self.into_ngram(*prevsymbol, &mut None);
+                        self.get_transition_logprob(ngram, prior)
+                    },
+                    _ => {
+                        //if either or both of the symbols is not known, we fall back
+                        //to the uniform smoothing probability for the transition
+                        TRANSITION_SMOOTHING_LOGPROB
+                    }
+                };
+                fst.add_tr(prevstate, Tr::new(0, 0, transition_logprob, end)).expect("adding transition");
+                //                            ^--^--- epsilon
+            } else {
+                //normal transition
+                let symbol_out_dec = symboltable.decode(symbol_out).expect("decoding nextsymbol");
+                let prevsymbol_out_dec = symboltable.decode(prevsymbol_out).expect("decoding prevsymbol");
+                let transition_logprob = match (prevsymbol_out_dec, symbol_out_dec) {
+                    (SymbolReference::Known(prevsymbol), SymbolReference::Known(symbol)) => {
+                        let ngram = self.into_ngram(*symbol, &mut None);
+                        let prior = self.into_ngram(*prevsymbol, &mut None);
+                        self.get_transition_logprob(ngram, prior)
+                    },
+                    _ => {
+                        //if either or both of the symbols is not known, we fall back
+                        //to the uniform smoothing probability for the transition
+                        TRANSITION_SMOOTHING_LOGPROB
+                    }
+                };
+                fst.add_tr(prevstate, Tr::new(symbol_in, symbol_out , transition_logprob + emission_logprob, nextstate)).expect("adding transition");
+            }
+        } else if prevstate == start {
             let symbol_out_dec = symboltable.decode(symbol_out).expect("decoding nextsymbol");
-            let prevsymbol_out_dec = symboltable.decode(prevsymbol_out).expect("decoding prevsymbol");
-            let transition_logprob = match (prevsymbol_out_dec, symbol_out_dec) {
-                (SymbolReference::Known(prevsymbol), SymbolReference::Known(symbol)) => {
+            let transition_logprob = match symbol_out_dec {
+                SymbolReference::Known(symbol) => {
                     let ngram = self.into_ngram(*symbol, &mut None);
-                    let prior = self.into_ngram(*prevsymbol, &mut None);
+                    let prior = NGram::UniGram(BOS);
                     self.get_transition_logprob(ngram, prior)
                 },
                 _ => {
@@ -1180,22 +1220,6 @@ impl VariantModel {
                 }
             };
             fst.add_tr(prevstate, Tr::new(symbol_in, symbol_out , transition_logprob + emission_logprob, nextstate)).expect("adding transition");
-        } else if prevstate == start {
-            let symbol_out_dec = symboltable.decode(symbol_out).expect("decoding nextsymbol");
-            let transition_logprob = match symbol_out_dec {
-                SymbolReference::Known(symbol) => {
-                    let ngram = self.into_ngram(*symbol, &mut None);
-                    let prior = NGram::Empty;
-                    self.get_transition_logprob(ngram, prior)
-                },
-                _ => {
-                    //if either or both of the symbols is not known, we fall back
-                    //to the uniform smoothing probability for the transition
-                    TRANSITION_SMOOTHING_LOGPROB
-                }
-            };
-            //
-            //TODO: handle transition from start state
         } else {
             //we have no previous output symbol, we can not compute a transition, fall back to
             //smoothing
@@ -1203,6 +1227,7 @@ impl VariantModel {
         }
     }
 
+    /// Add an ngram for language modelling
     pub fn add_ngram(&mut self, ngram: NGram, frequency: u32) {
         if let Some(ngram) = self.ngrams.get_mut(&ngram) {
             //update the count for this ngram
@@ -1235,6 +1260,8 @@ impl VariantModel {
         }
     }
 
+    /// Encode one token, optionally returning either UNK or putting it in ``unseen`` if it is new.
+    /// Use in ngram construction
     fn encode_token(&self, token: &str, use_unk: bool, unseen: &mut Option<VocabEncoder>) -> VocabId {
         if let Some(vocab_id) = self.encoder.get(token) {
             *vocab_id
