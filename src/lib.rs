@@ -56,7 +56,7 @@ pub struct VariantModel {
     ///Inner vector is always sorted
     pub sortedindex: BTreeMap<u16,Vec<AnaValue>>,
 
-    /// Joint n-gram probabilities, used for simple context-sensitive language modelling
+    /// Ngrams for simple context-sensitive language modelling
     /// when finding the most probable sequence of variants
     pub ngrams: HashMap<NGram,u32>,
 
@@ -105,13 +105,14 @@ impl VariantModel {
             debug,
         };
         model.read_alphabet(alphabet_file).expect("Error loading alphabet file");
+        init_vocab(&mut model.decoder, &mut model.encoder);
         model
     }
 
     /// Instantiate a new variant model, explicitly passing an alphabet rather than loading one
     /// from file.
     pub fn new_with_alphabet(alphabet: Alphabet, weights: Weights, debug: bool) -> VariantModel {
-        VariantModel {
+        let mut model = VariantModel {
             alphabet: alphabet,
             decoder: Vec::new(),
             encoder: HashMap::new(),
@@ -126,8 +127,11 @@ impl VariantModel {
             confusables_before_pruning: false,
             variantclusters: HashMap::new(),
             debug,
-        }
+        };
+        init_vocab(&mut model.decoder, &mut model.encoder);
+        model
     }
+
 
     /// Configure the model to match against known confusables prior to pruning on maximum weight.
     /// This may lead to better results but may have a significant performance impact.
@@ -164,51 +168,18 @@ impl VariantModel {
         eprintln!("Computing anagram values for all items in the lexicon...");
 
 
-        //extra unigrams extracted from n-grams that need to be added to the vocabulary decoder
-        let mut parts: Vec<String> = Vec::new();
 
         // Hash all strings in the lexicon
         // and add them to the index
         let mut tmp_hashes: Vec<(AnaValue,VocabId)> = Vec::with_capacity(self.decoder.len());
         for (id, value)  in self.decoder.iter().enumerate() {
+            if value.vocabtype == VocabType::NoIndex {
+                //don't process special vocabulary types (bos, eos, etc)
+                continue;
+            }
+
             //get the anahash
             let anahash = value.text.anahash(&self.alphabet);
-            let ngram_order = value.text.chars().filter(|c| *c == ' ').count();
-            if ngram_order > 1 {
-                //decompose the ngram into its parts
-
-                //reserve the space for the total counts
-                for _ in self.freq_sum.len()..ngram_order {
-                    self.freq_sum.push(0);
-                }
-                //add to the totals for this order of ngrams
-                self.freq_sum[ngram_order-1] += value.frequency as usize;
-
-                //ensure all individual components of the ngram are in the vocabulary
-                //encoder/decoder, they do NOT have to be in the main lexicon index necessarily
-                //we need them mainly for computing transition probabilities
-                let mut ngram = NGram::new();
-                for part in value.text.split(" ") {
-                    if let Some(part_id) = self.encoder.get(part) {
-                        ngram.push(*part_id);
-                    } else {
-                        let part_id: VocabId = self.decoder.len() as VocabId + parts.len() as VocabId;
-                        parts.push(part.to_string());
-                        self.encoder.insert(part.to_string(), part_id);
-                        ngram.push(part_id);
-                    }
-                }
-
-                if let Some(ngram) = self.ngrams.get_mut(&ngram) {
-                    //update the count for this ngram
-                    *ngram += value.frequency;
-                } else {
-                    //add the new ngram
-                    self.ngrams.insert( ngram, value.frequency );
-                }
-            } else {
-                self.freq_sum[0] += value.frequency as usize;
-            }
             if self.debug {
                 eprintln!("   -- Anavalue={} VocabId={} Text={}", &anahash, id, value.text);
             }
@@ -216,11 +187,6 @@ impl VariantModel {
         }
         eprintln!(" - Found {} instances",tmp_hashes.len());
 
-        //add collected n-gram parts to the decoder (as stubs because
-        //they're not in a lexicon)
-        for part in parts {
-            self.decoder.push(VocabValue::new_stub(part));
-        }
 
         eprintln!("Adding all instances to the index...");
         for (anahash, id) in tmp_hashes {
@@ -246,6 +212,39 @@ impl VariantModel {
             let keys = self.sortedindex.get_mut(&size).expect("getting sorted index (2)");
             keys.sort_unstable();
             eprintln!(" - Found {} anagrams of length {}", keys.len(), size );
+        }
+
+        eprintln!("Adding ngrams for simple language modelling...");
+
+        //extra unigrams extracted from n-grams that need to be added to the vocabulary decoder
+        let mut unseen_parts: Option<VocabEncoder> = Some(VocabEncoder::new());
+
+        for id in 0..self.decoder.len() {
+            //get the ngram and find any unseen parts
+            let ngram = self.into_ngram(id as VocabId, &mut unseen_parts);
+
+            let freq = self.decoder.get(id).unwrap().frequency;
+
+            if ngram.len() > 1 {
+                //reserve the space for the total counts
+                for _ in self.freq_sum.len()..ngram.len() {
+                    self.freq_sum.push(0);
+                }
+                //add to the totals for this order of ngrams
+                self.freq_sum[ngram.len()-1] += freq as usize;
+            } else {
+                self.freq_sum[0] += freq as usize;
+            }
+            self.add_ngram(ngram, freq);
+        }
+
+        if let Some(unseen_parts) = unseen_parts {
+            //add collected unseen n-gram parts to the decoder
+            for (part, id) in unseen_parts {
+                self.add_ngram(NGram::UniGram(id), 1);
+                self.encoder.insert(part.clone(), id);
+                self.decoder.push(VocabValue::new(part, VocabType::NoIndex));
+            }
         }
     }
 
@@ -366,7 +365,7 @@ impl VariantModel {
     ///Read vocabulary (a lexicon or corpus-derived lexicon) from a TSV file
     ///May contain frequency information
     ///The parameters define what value can be read from what column
-    pub fn read_vocabulary(&mut self, filename: &str, params: &VocabParams, lexicon_weight: f32) -> Result<(), std::io::Error> {
+    pub fn read_vocabulary(&mut self, filename: &str, params: &VocabParams, lexicon_weight: f32, vocabtype: VocabType) -> Result<(), std::io::Error> {
         if self.debug {
             eprintln!("Reading vocabulary from {}...", filename);
         }
@@ -384,7 +383,7 @@ impl VariantModel {
                     } else {
                         1
                     };
-                    self.add_to_vocabulary(text, Some(frequency), Some(lexicon_weight), self.lexicons.len() as u8);
+                    self.add_to_vocabulary(text, Some(frequency), Some(lexicon_weight), self.lexicons.len() as u8, vocabtype);
                 }
             }
         }
@@ -413,7 +412,7 @@ impl VariantModel {
                     let clusterid = self.variantclusters.len() as VariantClusterId;
                     for variant in variants.iter() {
                         //all variants by definition are added to the combined lexicon
-                        let variantid = self.add_to_vocabulary(variant, None, Some(lexicon_weight), self.lexicons.len() as u8);
+                        let variantid = self.add_to_vocabulary(variant, None, Some(lexicon_weight), self.lexicons.len() as u8, VocabType::Normal);
                         ids.push(variantid);
                         if let Some(vocabvalue) = self.decoder.get_mut(variantid as usize) {
                             let variantref = VariantReference::VariantCluster(clusterid);
@@ -453,17 +452,22 @@ impl VariantModel {
                     let fields: Vec<&str> = line.split("\t").collect();
 
                     let reference = fields.get(0).expect("first item");
-                    let ref_id = self.add_to_vocabulary(reference, None, Some(lexicon_weight), self.lexicons.len() as u8);
+                    let ref_id = self.add_to_vocabulary(reference, None, Some(lexicon_weight), self.lexicons.len() as u8, VocabType::Normal);
                     let mut iter = fields.iter();
 
                     while let (Some(variant), Some(score)) = (iter.next(), iter.next()) {
                         let score = score.parse::<f64>().expect("Scores must be a floating point value");
                         //all variants by definition are added to the lexicon
-                        let variantid = self.add_to_vocabulary(variant, None, Some(lexicon_weight), self.lexicons.len() as u8);
+                        let variantid = self.add_to_vocabulary(variant, None, Some(lexicon_weight), self.lexicons.len() as u8, match intermediate {
+                                true => VocabType::Intermediate,
+                                false => VocabType::Normal
+                        });
                         if variantid != ref_id {
                             if let Some(vocabvalue) = self.decoder.get_mut(ref_id as usize) {
                                 let variantref = VariantReference::WeightedVariant((variantid,score) );
-                                vocabvalue.intermediate = intermediate;
+                                if intermediate {
+                                    vocabvalue.vocabtype = VocabType::Intermediate;
+                                }
                                 if vocabvalue.variants.is_none() {
                                     vocabvalue.variants = Some(vec!(variantref));
                                     count += 1;
@@ -489,7 +493,7 @@ impl VariantModel {
 
 
     /// Adds an entry in the vocabulary
-    pub fn add_to_vocabulary(&mut self, text: &str, frequency: Option<u32>, lexicon_weight: Option<f32>, lexicon_index: u8) -> VocabId {
+    pub fn add_to_vocabulary(&mut self, text: &str, frequency: Option<u32>, lexicon_weight: Option<f32>, lexicon_index: u8, vocabtype: VocabType) -> VocabId {
         let frequency = frequency.unwrap_or(1);
         let lexicon_weight = lexicon_weight.unwrap_or(1.0);
         if self.debug {
@@ -501,6 +505,11 @@ impl VariantModel {
             if lexicon_weight > item.lexweight {
                 item.lexweight = lexicon_weight;
                 item.lexindex = lexicon_index;
+            }
+            if vocab_id == &BOS || vocab_id == &EOS || vocab_id == &UNK {
+                item.vocabtype = VocabType::NoIndex;
+            } else if item.vocabtype == VocabType::Intermediate { //we only override the intermediate type, meaning something can become 'Normal' after having been 'Intermediate', but not vice versa
+                item.vocabtype = vocabtype;
             }
             *vocab_id
         } else {
@@ -514,7 +523,7 @@ impl VariantModel {
                 lexweight: lexicon_weight,
                 lexindex: lexicon_index,
                 variants: None,
-                intermediate: false,
+                vocabtype
             });
             self.decoder.len() as VocabId - 1
         }
@@ -790,7 +799,7 @@ impl VariantModel {
                             }
 
                             //add the original match
-                            if !vocabitem.intermediate {
+                            if vocabitem.vocabtype == VocabType::Normal {
                                 found_instances.push((*vocab_id,distance));
                             }
                         } else {
@@ -1160,7 +1169,9 @@ impl VariantModel {
             let prevsymbol_out_dec = symboltable.decode(prevsymbol_out).expect("decoding prevsymbol");
             let transition_logprob = match (prevsymbol_out_dec, symbol_out_dec) {
                 (SymbolReference::Known(prevsymbol), SymbolReference::Known(symbol)) => {
-                    self.get_transition_logprob(*symbol, *prevsymbol)
+                    let ngram = self.into_ngram(*symbol, &mut None);
+                    let prior = self.into_ngram(*prevsymbol, &mut None);
+                    self.get_transition_logprob(ngram, prior)
                 },
                 _ => {
                     //if either or both of the symbols is not known, we fall back
@@ -1169,11 +1180,76 @@ impl VariantModel {
                 }
             };
             fst.add_tr(prevstate, Tr::new(symbol_in, symbol_out , transition_logprob + emission_logprob, nextstate)).expect("adding transition");
-        } else {
-            //we have a no previous output symbol, we can not compute a transition, fall back to
-            //smoothing
+        } else if prevstate == start {
             let symbol_out_dec = symboltable.decode(symbol_out).expect("decoding nextsymbol");
+            let transition_logprob = match symbol_out_dec {
+                SymbolReference::Known(symbol) => {
+                    let ngram = self.into_ngram(*symbol, &mut None);
+                    let prior = NGram::Empty;
+                    self.get_transition_logprob(ngram, prior)
+                },
+                _ => {
+                    //if either or both of the symbols is not known, we fall back
+                    //to the uniform smoothing probability for the transition
+                    TRANSITION_SMOOTHING_LOGPROB
+                }
+            };
+            //
+            //TODO: handle transition from start state
+        } else {
+            //we have no previous output symbol, we can not compute a transition, fall back to
+            //smoothing
             fst.add_tr(prevstate, Tr::new(symbol_in, symbol_out , TRANSITION_SMOOTHING_LOGPROB + emission_logprob, nextstate)).expect("adding transition");
+        }
+    }
+
+    pub fn add_ngram(&mut self, ngram: NGram, frequency: u32) {
+        if let Some(ngram) = self.ngrams.get_mut(&ngram) {
+            //update the count for this ngram
+            *ngram += frequency;
+        } else {
+            //add the new ngram
+            self.ngrams.insert( ngram, frequency );
+        }
+    }
+
+    /// Decompose a known vocabulary Id into an Ngram
+    fn into_ngram(&self, word: VocabId, unseen_parts: &mut Option<VocabEncoder>) -> NGram {
+        let word_dec = self.decoder.get(word as usize).expect("word does not exist in decoder");
+        let mut iter = word_dec.text.split(" ");
+        match word_dec.tokencount {
+            0 => NGram::Empty,
+            1 => NGram::UniGram(
+                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts)
+            ),
+            2 => NGram::BiGram(
+                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts)
+            ),
+            3 => NGram::TriGram(
+                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts)
+            ),
+            _ => panic!("Can only deal with n-grams up to order 3")
+        }
+    }
+
+    fn encode_token(&self, token: &str, use_unk: bool, unseen: &mut Option<VocabEncoder>) -> VocabId {
+        if let Some(vocab_id) = self.encoder.get(token) {
+            *vocab_id
+        } else if use_unk {
+            UNK
+        } else if let Some(unseen) = unseen.as_mut() {
+            if let Some(vocab_id) = unseen.get(token) {
+                *vocab_id
+            } else {
+                let vocab_id: VocabId = self.decoder.len()  as VocabId + unseen.len() as VocabId;
+                unseen.insert(token.to_string(), vocab_id);
+                vocab_id
+            }
+        } else {
+            panic!("Token does not exist in vocabulary (and returning unknown tokens or adding new ones was not set)");
         }
     }
 
@@ -1182,39 +1258,37 @@ impl VariantModel {
     /// unigrams on either side for the computation.
     /// The final probability is returned as a logprob (base e), if not the bigram or prior are
     /// not found, a uniform smoothing number is returned.
-    fn get_transition_logprob(&self, word: VocabId, prev: VocabId) -> f32 {
-        let word_dec = self.decoder.get(word as usize).expect("getting word");
-        let prev_dec = self.decoder.get(prev as usize).expect("getting previous word");
+    fn get_transition_logprob(&self, mut ngram: NGram, mut prior: NGram) -> f32 {
+        if ngram == NGram::Empty || prior == NGram::Empty {
+            return TRANSITION_SMOOTHING_LOGPROB;
+        }
 
-        let nextword = if word_dec.tokencount > 1 {
-            //next word is an n-gram, grab only the first word
-            let firstword = word_dec.text.split(" ").next().expect("getting first word");
-            *self.encoder.get(firstword).expect("ngram part should be in encoder")
-        } else {
-            word
-        };
+        if prior.len() > 1 {
+            prior = prior.pop_last(); //we can only handle one word of history, discard the rest
+        }
 
-        let prevword = if prev_dec.tokencount > 1 {
-            //previous word is an n-gram, grab the last part
-            let lastword = word_dec.text.split(" ").last().expect("getting last word");
-            *self.encoder.get(lastword).expect("ngram part should be in encoder")
+        let word = ngram.pop_first();
+
+        let priorcount = if let Some(priorcount) = self.ngrams.get(&prior) {
+            *priorcount
         } else {
-            prev
+            1
         };
 
         //Do we have a joint probability for the bigram that forms the transition?
-        let bigram = NGram::BiGram(prevword, nextword);
+        let bigram = NGram::BiGram(prior.first().unwrap(), word.first().unwrap());
 
-        if let Some(jointcount) = self.ngrams.get(&bigram) {
-            //find the prior
-            let prior_dec = if prev_dec.tokencount > 1 {
-                self.decoder.get(prevword as usize).expect("getting prior")  //all unigrams should be in the decoder
-            } else {
-                &prev_dec //we already had this one, use it
-            };
-            (*jointcount as f32 / prior_dec.frequency as f32).ln()
+        let transition_logprob = if let Some(jointcount) = self.ngrams.get(&bigram) {
+            (priorcount as f32 / *jointcount as f32).ln()
         } else {
             TRANSITION_SMOOTHING_LOGPROB
+        };
+
+        if ngram.len() >= 1 {
+            //recursion step for subquents parts of the ngram
+            transition_logprob + self.get_transition_logprob(ngram, word)
+        } else {
+            transition_logprob
         }
     }
 

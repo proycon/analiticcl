@@ -602,7 +602,7 @@ fn test0401_model_build() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0);
+        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
     }
     model.build();
     assert!(model.has(&"rites"));
@@ -620,7 +620,7 @@ fn test0402_model_anagrams() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0);
+        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
     }
     model.build();
     assert!(model.has(&"rites"));
@@ -635,7 +635,7 @@ fn test0403_model_anagrams() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0);
+        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
     }
     model.build();
     model.find_variants("rite", 2, 2, 10, 0.0, StopCriterion::Exhaustive, None);
@@ -647,7 +647,7 @@ fn test0404_score_test() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["huis","huls"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0);
+        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
     }
     model.build();
     let results = model.find_variants("huys", 2, 2, 10, 0.0, StopCriterion::Exhaustive, None);
@@ -678,7 +678,7 @@ fn test0502_confusable_test() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["huis","huls"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0);
+        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
     }
     model.add_to_confusables("-[y]+[i]",1.1).expect("added to confusables");
     model.build();
@@ -694,7 +694,7 @@ fn test0503_confusable_test2() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["huis","huls"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0);
+        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
     }
     model.add_to_confusables("-[y]+[i]",1.1).expect("added to confusables");
     model.build();
@@ -710,7 +710,7 @@ fn test0504_confusable_nomatch() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), false);
     let lexicon: &[&str] = &["huis","huls"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0);
+        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
     }
     model.add_to_confusables("-[y]+[p]",1.1).expect("added to confusables");
     model.build();

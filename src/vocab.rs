@@ -27,15 +27,26 @@ pub struct VocabValue {
     /// and not in normal operation.
     pub variants: Option<Vec<VariantReference>>,
 
+    pub vocabtype: VocabType,
+}
+
+#[derive(Clone,Copy,Debug,PartialEq,Eq)]
+pub enum VocabType {
+    /// A normal vocabulary entry
+    Normal,
+
     /// Marks this entry as intermediate; intermediate entries will only be used to find further explicitly provided variants
     /// and will never be returned as a solution by itself. For example, all erroneous variants in
     /// an errorlist are marked as intermediate.
-    pub intermediate: bool,
+    Intermediate,
+
+    /// Reserved for items that will not be added to the index at all
+    /// for language-model entries and ffor special tokens like BeginOfSentence, EndOfSentence
+    NoIndex,
 }
 
-
 impl VocabValue {
-    pub fn new_stub(text: String) -> Self {
+    pub fn new(text: String, vocabtype: VocabType) -> Self {
         let tokencount = text.chars().filter(|c| *c == ' ').count() as u8;
         VocabValue {
             text: text,
@@ -45,7 +56,7 @@ impl VocabValue {
             lexweight: 0.0,
             lexindex: 0,
             variants: None,
-            intermediate: true,
+            vocabtype,
         }
     }
 }
@@ -73,3 +84,43 @@ impl Default for VocabParams {
     }
 }
 
+pub const BOS: VocabId = 0;
+pub const EOS: VocabId = 1;
+pub const UNK: VocabId = 2;
+
+/// Adds some initial special tokens, required for basic language modelling in the 'search' stage
+pub(crate) fn init_vocab(decoder: &mut VocabDecoder, encoder: &mut HashMap<String, VocabId>) {
+    decoder.push(VocabValue {
+        text: "<bos>".to_string(),
+        norm: vec!(),
+        frequency: 0,
+        tokencount: 1,
+        lexweight: 0.0,
+        lexindex: 0,
+        variants: None,
+        vocabtype: VocabType::NoIndex,
+    });
+    decoder.push(VocabValue {
+        text: "<eos>".to_string(),
+        norm: vec!(),
+        frequency: 0,
+        tokencount: 1,
+        lexweight: 0.0,
+        lexindex: 0,
+        variants: None,
+        vocabtype: VocabType::NoIndex,
+    });
+    decoder.push(VocabValue {
+        text: "<unk>".to_string(),
+        norm: vec!(),
+        frequency: 0,
+        tokencount: 1,
+        lexweight: 0.0,
+        lexindex: 0,
+        variants: None,
+        vocabtype: VocabType::NoIndex,
+    });
+    encoder.insert("<bos>".to_string(),BOS);
+    encoder.insert("<eos>".to_string(),EOS);
+    encoder.insert("<unk>".to_string(),UNK);
+}
