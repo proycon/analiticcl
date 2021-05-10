@@ -739,7 +739,7 @@ fn test0601_find_boundaries() {
 }
 
 #[test]
-fn test0602_find_ngrams() {
+fn test0602_find_ngrams_unigram1() {
     let text = "dit is een mooie test";
     let boundaries = find_boundaries(&text);
     let ngrams = find_ngrams(text, &boundaries, 1, 0);
@@ -752,7 +752,7 @@ fn test0602_find_ngrams() {
 }
 
 #[test]
-fn test0603_find_ngrams2() {
+fn test0603_find_ngrams_unigram2() {
     let text = "dit is een mooie test.";
     let boundaries = find_boundaries(&text);
     let ngrams = find_ngrams(text, &boundaries, 1, 0);
@@ -762,6 +762,18 @@ fn test0603_find_ngrams2() {
     assert_eq!( ngrams.get(2).unwrap().0.text , "een" );
     assert_eq!( ngrams.get(3).unwrap().0.text , "mooie" );
     assert_eq!( ngrams.get(4).unwrap().0.text , "test" );
+}
+
+#[test]
+fn test0603_find_ngrams_bigrams() {
+    let text = "dit is een mooie test.";
+    let boundaries = find_boundaries(&text);
+    let ngrams = find_ngrams(text, &boundaries, 2, 0);
+    assert_eq!( ngrams.len() , 4 );
+    assert_eq!( ngrams.get(0).unwrap().0.text , "dit is" );
+    assert_eq!( ngrams.get(1).unwrap().0.text , "is een" );
+    assert_eq!( ngrams.get(2).unwrap().0.text , "een mooie" );
+    assert_eq!( ngrams.get(3).unwrap().0.text , "mooie test" );
 }
 
 #[test]
