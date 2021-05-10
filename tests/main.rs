@@ -763,3 +763,22 @@ fn test0603_find_ngrams2() {
     assert_eq!( ngrams.get(3).unwrap().0.text , "mooie" );
     assert_eq!( ngrams.get(4).unwrap().0.text , "test" );
 }
+
+#[test]
+fn test0703_find_all_matches_unigram_only() {
+    let (alphabet, _alphabet_size) = get_test_alphabet();
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let lexicon: &[&str] = &["I","think","sink","you","are","right"];
+    for text in lexicon.iter() {
+        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
+    }
+    model.build();
+    let matches = model.find_all_matches("I tink you are rihgt", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 1);
+    assert_eq!( matches.get(0).unwrap().text , "I" );
+    assert_eq!( matches.get(1).unwrap().text , "tink" );
+    assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
+    assert_eq!( matches.get(2).unwrap().text , "you" );
+    assert_eq!( matches.get(3).unwrap().text , "are" );
+    assert_eq!( matches.get(4).unwrap().text , "rihgt" );
+    assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "right" );
+}

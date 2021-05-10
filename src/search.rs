@@ -48,6 +48,15 @@ impl<'a> Match<'a> {
     pub fn is_empty(&self) -> bool {
         self.variants.is_none() || self.variants.as_ref().unwrap().is_empty()
     }
+
+    /// Returns the solution if there is one
+    pub fn solution(&self) -> Option<VocabId> {
+        if let Some(selected) = self.selected {
+            self.variants.as_ref().expect("match must have variants when 'selected' is set").get(selected).map(|x| x.0)
+        } else {
+            None
+        }
+    }
 }
 
 

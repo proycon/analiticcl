@@ -1030,26 +1030,44 @@ impl VariantModel {
     pub fn find_all_matches<'a>(&self, text: &'a str, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, max_ngram: u8) -> Vec<Match<'a>> {
         let mut matches = Vec::new();
 
+        if self.debug {
+            eprintln!("(finding all matches in text: {})", text);
+        }
+
         //Find the boundaries and classify their strength
         let boundaries = find_boundaries(text);
         let strengths = classify_boundaries(&boundaries);
+
+        if self.debug {
+            eprintln!("  (boundaries: {:?})", boundaries);
+            eprintln!("  ( strenghts: {:?})", strengths);
+        }
 
         let mut begin: usize = 0;
 
         //Compose the text into batches, each batch ends where a hard boundary is found
         for (i, strength) in strengths.iter().enumerate() {
             if *strength == BoundaryStrength::Hard {
+                if self.debug {
+                    eprintln!("  (found hard boundary)");
+                }
 
-                let boundaries = &boundaries[begin..i];
+                let boundaries = &boundaries[begin..i+1];
 
                 //Gather all segments for this batch
                 let mut all_segments: Vec<(Match<'a>,u8)> = Vec::new(); //second var in tuple corresponds to the ngram order
                 for order in 1..=max_ngram {
                     all_segments.extend(find_ngrams(text, boundaries, order, begin).into_iter());
                 }
+                if self.debug {
+                    eprintln!("  (processing ngrams: {:?})", all_segments);
+                }
 
                 //find variants for all segments in this batch (in parallel)
                 all_segments.par_iter_mut().for_each(|(segment, _)| {
+                    if self.debug {
+                        eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
+                    }
                     let variants = self.find_variants(&segment.text, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, None);
                     segment.variants = Some(variants);
                 });
@@ -1057,13 +1075,19 @@ impl VariantModel {
                 //consolidate the matches, finding a single segmentation that has the best (highest
                 //scoring) solution
                 if max_ngram > 1 {
+                    if self.debug {
+                        eprintln!("(finding most likely sequence)");
+                    }
                     matches.extend(
                         self.most_likely_sequence(all_segments, boundaries, begin).into_iter()
                     );
                 } else {
+                    if self.debug {
+                        eprintln!("(returning matches directly, no need to find most likely sequence for unigrams)");
+                    }
                     matches.extend(
                         all_segments.into_iter().map(|(mut m,_)| {
-                            m.selected = Some(0);
+                            m.selected = Some(0); //select the first (highest ranking) option
                             m
                         })
                     );
@@ -1084,7 +1108,7 @@ impl VariantModel {
         //Build a finite state transducer
         let mut fst = VectorFst::<LogWeight>::new();
 
-        //add initial and final stae
+        //add initial and final stage
         let start = fst.add_state();
         let end = fst.add_state();
         fst.set_start(start).expect("set start state");
@@ -1347,6 +1371,14 @@ impl VariantModel {
             transition_logprob + self.get_transition_logprob(ngram, word)
         } else {
             transition_logprob
+        }
+    }
+
+    pub fn match_to_str<'a>(&'a self, m: &Match<'a>) -> &'a str {
+        if let Some(vocab_id) = m.solution() {
+            self.decoder.get(vocab_id as usize).expect("solution should refer to a valid vocab id").text.as_str()
+        } else {
+            m.text
         }
     }
 
