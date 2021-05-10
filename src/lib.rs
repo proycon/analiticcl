@@ -1106,7 +1106,7 @@ impl VariantModel {
     fn most_likely_sequence<'a>(&self, matches: Vec<(Match<'a>,u8)>, boundaries: &[Match<'a>], offset: usize) -> Vec<Match<'a>> {
 
         //Build a finite state transducer
-        let mut fst = VectorFst::<LogWeight>::new();
+        let mut fst = VectorFst::<TropicalWeight>::new();
 
         //add initial and final stage
         let start = fst.add_state();
@@ -1216,7 +1216,7 @@ impl VariantModel {
 
         let mut match_sequence = Vec::new();
 
-        let fst: VectorFst<LogWeight> = shortest_path(&fst).expect("shortest path fst");
+        let fst: VectorFst<TropicalWeight> = shortest_path(&fst).expect("computing shortest path fst");
         for path in fst.paths_iter() {
             for (match_index, output_index) in path.ilabels.iter().zip(path.olabels.iter()) {
                 if *match_index < matches.len() { //ensures we don't accidentally end up with the special 'end' state
@@ -1242,7 +1242,7 @@ impl VariantModel {
     /// to assign to this transition in the Finite State Transducer.
     /// The transition probability depends only on two states (Markov assumption) which
     /// is a simplification of reality.
-    fn compute_fst_transition<'a>(&self, fst: &mut VectorFst<LogWeight>, state: usize, stateinfo: &StateInfo<'a>, previous_output: Option<VocabId>, prevstate: StateId, start: StateId, end: StateId) {
+    fn compute_fst_transition<'a>(&self, fst: &mut VectorFst<TropicalWeight>, state: usize, stateinfo: &StateInfo<'a>, previous_output: Option<VocabId>, prevstate: StateId, start: StateId, end: StateId) {
         if let Some(previous_output) = previous_output {
             //normal transition with known previous output
             let prior = self.into_ngram(previous_output, &mut None);
