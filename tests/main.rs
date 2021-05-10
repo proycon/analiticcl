@@ -774,6 +774,7 @@ fn test0701_find_all_matches_unigram_only() {
     }
     model.build();
     let matches = model.find_all_matches("I tink you are rihgt", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 1);
+    assert!( !matches.is_empty() );
     assert_eq!( matches.get(0).unwrap().text , "I" );
     assert_eq!( matches.get(1).unwrap().text , "tink" );
     assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
@@ -795,6 +796,7 @@ fn test0702_find_all_matches() {
     model.add_to_vocabulary("are right",Some(1),None, 0, VocabType::Normal);
     model.build();
     let matches = model.find_all_matches("I tink you are rihgt", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 2);
+    assert!( !matches.is_empty() );
     assert_eq!( matches.get(0).unwrap().text , "I" );
     assert_eq!( matches.get(1).unwrap().text , "tink" );
     assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );

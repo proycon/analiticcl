@@ -137,6 +137,23 @@ impl NGram {
         }
     }
 
+    pub fn to_vec(&self) -> Vec<VocabId> {
+        match *self {
+            NGram::Empty => {
+                vec!()
+            },
+            NGram::UniGram(x) => {
+                vec!(x)
+            },
+            NGram::BiGram(x,y) => {
+                vec!(x,y)
+            },
+            NGram::TriGram(x,y,z) => {
+                vec!(x,y,z)
+            }
+        }
+    }
+
     pub fn new() -> Self {
         NGram::Empty
     }

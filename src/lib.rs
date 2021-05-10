@@ -1075,9 +1075,7 @@ impl VariantModel {
                 //consolidate the matches, finding a single segmentation that has the best (highest
                 //scoring) solution
                 if max_ngram > 1 {
-                    if self.debug {
-                        eprintln!("(finding most likely sequence)");
-                    }
+                    //(debug will be handled in the called method)
                     matches.extend(
                         self.most_likely_sequence(all_segments, boundaries, begin).into_iter()
                     );
@@ -1104,6 +1102,9 @@ impl VariantModel {
 
     /// Find the solution that maximizes the variant scores, decodes using a Weighted Finite State Transducer
     fn most_likely_sequence<'a>(&self, matches: Vec<(Match<'a>,u8)>, boundaries: &[Match<'a>], offset: usize) -> Vec<Match<'a>> {
+        if self.debug {
+            eprintln!("(finding most likely sequence)");
+        }
 
         //Build a finite state transducer
         let mut fst = VectorFst::<TropicalWeight>::new();
@@ -1153,6 +1154,10 @@ impl VariantModel {
             }
         }).collect();
 
+        if self.debug {
+            eprintln!(" (added {} FST states)", states.len());
+            eprintln!(" (adding transition from the start state)");
+        }
         matches.iter().enumerate().for_each(|(i, (nextmatch, _))| {
             //Add transitions from the start state;
             if nextmatch.offset.begin == 0 {
@@ -1162,6 +1167,8 @@ impl VariantModel {
                 }
             }
         });
+
+
 
         let end_offset = boundaries.get(boundaries.len() - 1).expect("end offset").offset.end;
         let end_stateinfo = StateInfo {
@@ -1176,7 +1183,7 @@ impl VariantModel {
 
         //For each boundary, add transition from all states directly left of the boundary
         //to all states directly right of the boundary
-        for boundary in boundaries.iter() {
+        for (b, boundary) in boundaries.iter().enumerate() {
             //find all matches that end at this boundary
             let prevmatches = matches.iter().enumerate().filter_map(|(i, (prevmatch, _))| {
                 if prevmatch.offset.end == boundary.offset.begin {
@@ -1195,6 +1202,12 @@ impl VariantModel {
                 }
             }).collect();
 
+            if self.debug {
+                eprintln!("  (boundary #{}, nextmatches={})", b+1, nextmatches.len());
+            }
+
+            let mut count = 0;
+
             //compute and add all state transitions
             for prevmatch_index in prevmatches {
                 for prevstate in match_states.get(prevmatch_index).expect("getting prevmatch") {
@@ -1203,21 +1216,36 @@ impl VariantModel {
                         for nextstate in match_states.get(*nextmatch_index).expect("getting nextmatch") {
                             let stateinfo = states.get(nextstate).expect("getting nextstate info");
                             self.compute_fst_transition(&mut fst, *nextstate, stateinfo,prevstateinfo.output, *prevstate, start, end);
+                            count += 1;
                         }
                     }
 
                     //Add transitions to the end state
                     if matches.get(prevmatch_index).expect("prevmatch").0.offset.end == end_offset {
                         self.compute_fst_transition(&mut fst, end, &end_stateinfo, prevstateinfo.output, *prevstate, start, end);
+                        count += 1;
                     }
                 }
             }
+
+            if self.debug {
+                eprintln!("   (added {} transitions)", count);
+            }
+
         }
+
 
         let mut match_sequence = Vec::new();
 
+        if self.debug {
+            eprintln!(" (computed FST: {:?})", fst);
+            eprintln!(" (computing shortest path)");
+        }
         let fst: VectorFst<TropicalWeight> = shortest_path(&fst).expect("computing shortest path fst");
         for path in fst.paths_iter() {
+            if self.debug {
+                eprintln!(" (shorted path: {:?})", path);
+            }
             for (match_index, output_index) in path.ilabels.iter().zip(path.olabels.iter()) {
                 if *match_index < matches.len() { //ensures we don't accidentally end up with the special 'end' state
                     if let Some((m,_)) = matches.get(*match_index) {
@@ -1248,16 +1276,28 @@ impl VariantModel {
             let prior = self.into_ngram(previous_output, &mut None);
             let (transition_logprob, output) = if let Some(vocab_id) = stateinfo.output {
                 let ngram = self.into_ngram(vocab_id, &mut None);
+                if self.debug {
+                    eprintln!("   (adding transition {}->{}: {}->{})", prevstate, state, self.ngram_to_str(&prior), self.ngram_to_str(&ngram) );
+                }
                 (self.get_transition_logprob(ngram, prior), state)
             } else if state == end {
                 //connect to the end state
                 let ngram = NGram::UniGram(EOS);
+                if self.debug {
+                    eprintln!("   (adding transition {}->{}(=EOS): {}->{})", prevstate, state, self.ngram_to_str(&prior), self.ngram_to_str(&ngram) );
+                }
                 (self.get_transition_logprob(ngram, prior), 0)
             } else {
+                if self.debug {
+                    eprintln!("   (adding transition to unknown (input=output): {}->{}: {}->{:?})", prevstate, state, self.ngram_to_str(&prior), stateinfo.input );
+                }
                 //we have no output, that means we copy from the input and can not compute a proper
                 //transition
                 (TRANSITION_SMOOTHING_LOGPROB, 0) // we use state id 0 to mean 'output copied from input'
             };
+            if self.debug {
+                eprintln!("     (transition score={})", transition_logprob);
+            }
             fst.add_tr(prevstate, Tr::new(stateinfo.match_index, output, transition_logprob + stateinfo.emission_logprob, state)).expect("adding transition");
         /*} else if state.input.is_none() {
             let (transition_logprob, output) = if let Some(vocab_id) = state.output {
@@ -1278,6 +1318,14 @@ impl VariantModel {
             } else {
                 0
             };
+            if self.debug {
+                let olabel = if let Some(v) = stateinfo.output {
+                    self.decoder.get(v as usize).unwrap().text.as_str()
+                } else {
+                    "UNKNOWN"
+                };
+                eprintln!("   (adding transition from unknown output: {}->{}: UNKNOWN->{})", prevstate, state, olabel);
+            }
             fst.add_tr(prevstate, Tr::new(stateinfo.match_index, output, TRANSITION_SMOOTHING_LOGPROB + stateinfo.emission_logprob, state)).expect("adding transition");
         }
     }
@@ -1380,6 +1428,11 @@ impl VariantModel {
         } else {
             m.text
         }
+    }
+
+    pub fn ngram_to_str(&self, ngram: &NGram) -> String {
+        let v: Vec<&str> = ngram.to_vec().into_iter().map(|v| self.decoder.get(v as usize).expect("ngram must contain valid vocab ids").text.as_str() ).collect();
+        v.join(" ")
     }
 
 }
