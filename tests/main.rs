@@ -789,7 +789,8 @@ fn test0702_find_all_matches() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     model.add_to_vocabulary("I",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("think",Some(1),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("think",Some(2),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("sink",Some(1),None, 0, VocabType::Normal);
     model.add_to_vocabulary("you",Some(2),None, 0, VocabType::Normal);
     model.add_to_vocabulary("are",Some(2),None, 0, VocabType::Normal);
     model.add_to_vocabulary("right",Some(1),None, 0, VocabType::Normal);

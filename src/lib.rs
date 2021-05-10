@@ -1103,7 +1103,7 @@ impl VariantModel {
     /// Find the solution that maximizes the variant scores, decodes using a Weighted Finite State Transducer
     fn most_likely_sequence<'a>(&self, matches: Vec<(Match<'a>,u8)>, boundaries: &[Match<'a>], offset: usize) -> Vec<Match<'a>> {
         if self.debug {
-            eprintln!("(finding most likely sequence)");
+            eprintln!("(building FST for finding most likely sequence)");
         }
 
         //Build a finite state transducer
@@ -1135,7 +1135,11 @@ impl VariantModel {
                         match_index: i,
                         variant_index: Some(j),
                         emission_logprob: score.ln() as f32,
+                        offset: Some(m.offset.clone())
                     });
+                    if self.debug {
+                        eprintln!("   (added state {} (match {}, variant {}), input={}, output={}) ", state_id, i, j, m.text, self.decoder.get(*variant as usize).unwrap().text );
+                    }
                     state_id
                 }).collect()
             } else {
@@ -1149,10 +1153,26 @@ impl VariantModel {
                     match_index: i,
                     variant_index: None,
                     emission_logprob: 0.0,
+                    offset: Some(m.offset.clone())
                 });
+                if self.debug {
+                    eprintln!("   (added out-of-vocabulary state {}, input/output={}) ", state_id, m.text );
+                }
                 vec!(state_id)
             }
         }).collect();
+
+        //dummy stateinfo for start and end state
+        let dummy_stateinfo = StateInfo {
+                            input: None,
+                            output: None,
+                            match_index: matches.len(), //a match_index because the start/end state is not tied to a match
+                                                            //at least this way we can separate it
+                                                            //easily form the rest
+                            variant_index: None,
+                            emission_logprob: 0.0, //the max
+                            offset: None,
+        };
 
         if self.debug {
             eprintln!(" (added {} FST states)", states.len());
@@ -1163,7 +1183,7 @@ impl VariantModel {
             if nextmatch.offset.begin == 0 {
                 for state in match_states.get(i).expect("getting nextmatch") {
                     let stateinfo = states.get(state).expect("getting state info");
-                    self.compute_fst_transition(&mut fst, *state, stateinfo, None, start, start, end);
+                    self.compute_fst_transition(&mut fst, *state, stateinfo, &dummy_stateinfo, start, start, end);
                 }
             }
         });
@@ -1171,61 +1191,49 @@ impl VariantModel {
 
 
         let end_offset = boundaries.get(boundaries.len() - 1).expect("end offset").offset.end;
-        let end_stateinfo = StateInfo {
-                            input: None,
-                            output: None,
-                            match_index: matches.len(), //a match_index because the generic end state is not tied to a match
-                                                            //at least this way we can separate it
-                                                            //easily form the rest
-                            variant_index: None,
-                            emission_logprob: 0.0, //the max
-       };
 
         //For each boundary, add transition from all states directly left of the boundary
         //to all states directly right of the boundary
         for (b, boundary) in boundaries.iter().enumerate() {
-            //find all matches that end at this boundary
-            let prevmatches = matches.iter().enumerate().filter_map(|(i, (prevmatch, _))| {
-                if prevmatch.offset.end == boundary.offset.begin {
-                    Some(i)
+            //find all states that end at this boundary
+            let prevstates = states.iter().filter_map(|(state,stateinfo)| {
+                if stateinfo.offset.is_some() && stateinfo.offset.as_ref().unwrap().end == boundary.offset.begin {
+                    Some(state)
                 } else {
                     None
                 }
             });
 
-            //find all matches that start at this boundary
-            let nextmatches: Vec<usize> = matches.iter().enumerate().filter_map(|(i, (nextmatch, _))| {
-                if nextmatch.offset.begin == boundary.offset.end {
-                    Some(i)
+            //find all states that start at this boundary
+            let nextstates: Vec<usize> = states.iter().filter_map(|(state,stateinfo)| {
+                if stateinfo.offset.is_some() && stateinfo.offset.as_ref().unwrap().begin == boundary.offset.end {
+                    Some(*state)
                 } else {
                     None
                 }
             }).collect();
 
             if self.debug {
-                eprintln!("  (boundary #{}, nextmatches={})", b+1, nextmatches.len());
+                eprintln!("  (boundary #{}, nextmatches={})", b+1, nextstates.len());
             }
 
             let mut count = 0;
 
             //compute and add all state transitions
-            for prevmatch_index in prevmatches {
-                for prevstate in match_states.get(prevmatch_index).expect("getting prevmatch") {
-                    let prevstateinfo = states.get(prevstate).expect("getting prevstate info" );
-                    for nextmatch_index in nextmatches.iter() {
-                        for nextstate in match_states.get(*nextmatch_index).expect("getting nextmatch") {
-                            let stateinfo = states.get(nextstate).expect("getting nextstate info");
-                            self.compute_fst_transition(&mut fst, *nextstate, stateinfo,prevstateinfo.output, *prevstate, start, end);
-                            count += 1;
-                        }
-                    }
-
-                    //Add transitions to the end state
-                    if matches.get(prevmatch_index).expect("prevmatch").0.offset.end == end_offset {
-                        self.compute_fst_transition(&mut fst, end, &end_stateinfo, prevstateinfo.output, *prevstate, start, end);
-                        count += 1;
-                    }
+            for prevstate in prevstates {
+                let prevstateinfo = states.get(prevstate).expect("getting prevstate info" );
+                for nextstate in nextstates.iter() {
+                    let stateinfo = states.get(nextstate).expect("getting nextstate info");
+                    self.compute_fst_transition(&mut fst, *nextstate, stateinfo,prevstateinfo, *prevstate, start, end);
+                    count += 1;
                 }
+
+                if prevstateinfo.offset.is_some() && prevstateinfo.offset.as_ref().unwrap().end == end_offset {
+                    //Add transitions to the end state
+                    self.compute_fst_transition(&mut fst, end, &dummy_stateinfo, prevstateinfo, *prevstate, start, end);
+                    count += 1;
+                }
+
             }
 
             if self.debug {
@@ -1239,7 +1247,7 @@ impl VariantModel {
 
         if self.debug {
             eprintln!(" (computed FST: {:?})", fst);
-            eprintln!(" (computing shortest path)");
+            eprintln!(" (finding shortest path)");
         }
         let fst: VectorFst<TropicalWeight> = shortest_path(&fst).expect("computing shortest path fst");
         for path in fst.paths_iter() {
@@ -1270,8 +1278,8 @@ impl VariantModel {
     /// to assign to this transition in the Finite State Transducer.
     /// The transition probability depends only on two states (Markov assumption) which
     /// is a simplification of reality.
-    fn compute_fst_transition<'a>(&self, fst: &mut VectorFst<TropicalWeight>, state: usize, stateinfo: &StateInfo<'a>, previous_output: Option<VocabId>, prevstate: StateId, start: StateId, end: StateId) {
-        if let Some(previous_output) = previous_output {
+    fn compute_fst_transition<'a>(&self, fst: &mut VectorFst<TropicalWeight>, state: usize, stateinfo: &StateInfo<'a>, prevstateinfo: &StateInfo<'a>, prevstate: StateId, start: StateId, end: StateId) {
+        if let Some(previous_output) = prevstateinfo.output {
             //normal transition with known previous output
             let prior = self.into_ngram(previous_output, &mut None);
             let (transition_logprob, output) = if let Some(vocab_id) = stateinfo.output {
@@ -1319,12 +1327,17 @@ impl VariantModel {
                 0
             };
             if self.debug {
+                let ilabel = if let Some(v) = prevstateinfo.output {
+                    self.decoder.get(v as usize).unwrap().text.as_str()
+                } else {
+                    prevstateinfo.input.as_ref().unwrap_or(&"NULL")
+                };
                 let olabel = if let Some(v) = stateinfo.output {
                     self.decoder.get(v as usize).unwrap().text.as_str()
                 } else {
-                    "OOV"
+                    stateinfo.input.as_ref().unwrap_or(&"NULL")
                 };
-                eprintln!("   (adding transition from out-of-vocabulary output: {}->{}: OOV->{})", prevstate, state, olabel);
+                eprintln!("   (adding transition from out-of-vocabulary output: {}->{}: {}->{})", prevstate, state, ilabel, olabel);
             }
             fst.add_tr(prevstate, Tr::new(stateinfo.match_index, output, TRANSITION_SMOOTHING_LOGPROB + stateinfo.emission_logprob, state)).expect("adding transition");
         }

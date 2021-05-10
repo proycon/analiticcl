@@ -66,6 +66,7 @@ pub struct StateInfo<'a> {
     pub match_index: usize,
     pub variant_index: Option<usize>,
     pub emission_logprob: f32,
+    pub offset: Option<Offset>
 }
 
 
