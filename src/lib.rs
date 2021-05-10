@@ -1289,7 +1289,7 @@ impl VariantModel {
                 (self.get_transition_logprob(ngram, prior), 0)
             } else {
                 if self.debug {
-                    eprintln!("   (adding transition to unknown (input=output): {}->{}: {}->{:?})", prevstate, state, self.ngram_to_str(&prior), stateinfo.input );
+                    eprintln!("   (adding transition with out-of-vocabulary output (input=output): {}->{}: {}->{:?})", prevstate, state, self.ngram_to_str(&prior), stateinfo.input );
                 }
                 //we have no output, that means we copy from the input and can not compute a proper
                 //transition
@@ -1322,9 +1322,9 @@ impl VariantModel {
                 let olabel = if let Some(v) = stateinfo.output {
                     self.decoder.get(v as usize).unwrap().text.as_str()
                 } else {
-                    "UNKNOWN"
+                    "OOV"
                 };
-                eprintln!("   (adding transition from unknown output: {}->{}: UNKNOWN->{})", prevstate, state, olabel);
+                eprintln!("   (adding transition from out-of-vocabulary output: {}->{}: OOV->{})", prevstate, state, olabel);
             }
             fst.add_tr(prevstate, Tr::new(stateinfo.match_index, output, TRANSITION_SMOOTHING_LOGPROB + stateinfo.emission_logprob, state)).expect("adding transition");
         }
