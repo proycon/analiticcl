@@ -1062,7 +1062,10 @@ impl VariantModel {
                     );
                 } else {
                     matches.extend(
-                        all_segments.into_iter().map(|(x,_)| x)
+                        all_segments.into_iter().map(|(mut m,_)| {
+                            m.selected = Some(0);
+                            m
+                        })
                     );
                 }
 
@@ -1087,143 +1090,171 @@ impl VariantModel {
         fst.set_start(start).expect("set start state");
         fst.set_final(end, 0.0).expect("set final state");
 
-        //local decoder and encoder for the symbols for the FST, ties to the larger encoder/decoder
-        //through SymbolReference::Known(VocabId) wherever possible. A symbol simply corresponds to a
-        //variant string in either input or output, we speak of symbols in the context of the FST
-        let mut symboltable: SymbolRefTable<'a> = SymbolRefTable::new();
+
+        //Maps states back to the index of matches
+        let mut states: HashMap<usize,StateInfo<'a>> = HashMap::new();
 
         // Add FST states for all our matches
         //                           v--- inputsymbol
-        //                                          v---- output symbol
-        //                                                 v---- logprob
-        let match_states: Vec<Vec<(usize, StateId, usize, f32)>> = matches.iter().map(|(m, _order)| {
-            let inputsymbol = symboltable.symbol_from_match(&m);
+        //                                     v---- state id, double as output symbol
+        //                                            v---- emission logprob
+        let match_states: Vec<Vec<StateId>> = matches.iter().enumerate().map(|(i, (m, _order))| {
+
             //for each match we add FST states for all variants
             if m.variants.is_some() && !m.variants.as_ref().unwrap().is_empty() {
-                m.variants.as_ref().unwrap().iter().map(|(variant, score)| {
-                    let outputsymbol = symboltable.symbol_from_vocabid(*variant);
-                    ( inputsymbol, fst.add_state(), outputsymbol, score.ln() as f32 )
+                m.variants.as_ref().unwrap().iter().enumerate().map(|(j, (variant, score))| {
+                    let state_id = fst.add_state();
+                    states.insert(state_id, StateInfo {
+                        input: Some(m.text),
+                        output: Some(*variant),
+                        match_index: i,
+                        variant_index: Some(j),
+                        emission_logprob: score.ln() as f32,
+                    });
+                    state_id
                 }).collect()
             } else {
                 //we have no variants at all, input = output
                 //we use the maximum emission logprob (0), transition probability will be penalised
                 //down to the uniform smoothing factor in later computations
-                vec!((inputsymbol, fst.add_state(), inputsymbol, 0.0_f32))
+                let state_id = fst.add_state();
+                states.insert(state_id, StateInfo {
+                    input: Some(m.text),
+                    output: None,
+                    match_index: i,
+                    variant_index: None,
+                    emission_logprob: 0.0,
+                });
+                vec!(state_id)
             }
         }).collect();
 
         matches.iter().enumerate().for_each(|(i, (nextmatch, _))| {
             //Add transitions from the start state;
             if nextmatch.offset.begin == 0 {
-                for (symbol_in, nextstate, symbol_out, emission_logprob) in match_states.get(i).expect("getting nextmatch") {
-                    self.compute_fst_transition(&mut fst, &symboltable, *symbol_in, *symbol_out, None, start, *nextstate, *emission_logprob, start, end);
+                for state in match_states.get(i).expect("getting nextmatch") {
+                    let stateinfo = states.get(state).expect("getting state info");
+                    self.compute_fst_transition(&mut fst, *state, stateinfo, None, start, start, end);
                 }
             }
         });
 
         let end_offset = boundaries.get(boundaries.len() - 1).expect("end offset").offset.end;
+        let end_stateinfo = StateInfo {
+                            input: None,
+                            output: None,
+                            match_index: matches.len(), //a match_index because the generic end state is not tied to a match
+                                                            //at least this way we can separate it
+                                                            //easily form the rest
+                            variant_index: None,
+                            emission_logprob: 0.0, //the max
+       };
 
         //For each boundary, add transition from all states directly left of the boundary
         //to all states directly right of the boundary
         for boundary in boundaries.iter() {
             //find all matches that end at this boundary
-            let prevmatches = matches.iter().enumerate().filter(|(_i, (prevmatch, _))| {
-                prevmatch.offset.end == boundary.offset.begin
+            let prevmatches = matches.iter().enumerate().filter_map(|(i, (prevmatch, _))| {
+                if prevmatch.offset.end == boundary.offset.begin {
+                    Some(i)
+                } else {
+                    None
+                }
             });
 
             //find all matches that start at this boundary
-            let nextmatches: Vec<(usize, &(Match<'a>, u8))> = matches.iter().enumerate().filter(|(_i, (nextmatch, _))| {
-                nextmatch.offset.begin == boundary.offset.end
+            let nextmatches: Vec<usize> = matches.iter().enumerate().filter_map(|(i, (nextmatch, _))| {
+                if nextmatch.offset.begin == boundary.offset.end {
+                    Some(i)
+                } else {
+                    None
+                }
             }).collect();
 
             //compute and add all state transitions
-            for (prevmatch_index, (prevmatch, prevorder)) in prevmatches {
-                for (_, prevstate, prevsymbol_out, prevlogprob) in match_states.get(prevmatch_index).expect("getting prevmatch") {
-                    for (nextmatch_index, (nextmatch, nextorder)) in nextmatches.iter() {
-                        for (symbol_in, nextstate, symbol_out, emission_logprob) in match_states.get(*nextmatch_index).expect("getting nextmatch") {
-                            self.compute_fst_transition(&mut fst, &symboltable, *symbol_in, *symbol_out,Some(*prevsymbol_out), *prevstate, *nextstate, *emission_logprob, start, end);
+            for prevmatch_index in prevmatches {
+                for prevstate in match_states.get(prevmatch_index).expect("getting prevmatch") {
+                    let prevstateinfo = states.get(prevstate).expect("getting prevstate info" );
+                    for nextmatch_index in nextmatches.iter() {
+                        for nextstate in match_states.get(*nextmatch_index).expect("getting nextmatch") {
+                            let stateinfo = states.get(nextstate).expect("getting nextstate info");
+                            self.compute_fst_transition(&mut fst, *nextstate, stateinfo,prevstateinfo.output, *prevstate, start, end);
                         }
                     }
 
                     //Add transitions to the end state
-                    if prevmatch.offset.end == end_offset {
-                        self.compute_fst_transition(&mut fst, &symboltable, 0, 0, Some(*prevsymbol_out), *prevstate, end, 0.0, start, end);
+                    if matches.get(prevmatch_index).expect("prevmatch").0.offset.end == end_offset {
+                        self.compute_fst_transition(&mut fst, end, &end_stateinfo, prevstateinfo.output, *prevstate, start, end);
                     }
                 }
             }
         }
 
+        let mut match_sequence = Vec::new();
+
         let fst: VectorFst<LogWeight> = shortest_path(&fst).expect("shortest path fst");
         for path in fst.paths_iter() {
-
+            for (match_index, output_index) in path.ilabels.iter().zip(path.olabels.iter()) {
+                if *match_index < matches.len() { //ensures we don't accidentally end up with the special 'end' state
+                    if let Some((m,_)) = matches.get(*match_index) {
+                        if *output_index == 0 {
+                            //output is the same as input, we just return the entire match
+                            match_sequence.push(m.clone());
+                        } else {
+                            let stateinfo = states.get(output_index).expect("get stateinfo for output");
+                            let mut m = m.clone();
+                            m.selected = stateinfo.variant_index;
+                            match_sequence.push(m);
+                        }
+                    }
+                }
+            }
         }
 
-        let mut segmentation = Vec::new();
-        //TODO: Implement
-        segmentation
+        match_sequence
     }
 
     /// Computes and sets the transition probability between two states, i.e. the weight
     /// to assign to this transition in the Finite State Transducer.
     /// The transition probability depends only on two states (Markov assumption) which
     /// is a simplification of reality.
-    fn compute_fst_transition(&self, fst: &mut VectorFst<LogWeight>, symboltable: &SymbolRefTable<'_>, symbol_in: usize, symbol_out: usize, prevsymbol_out: Option<usize>, prevstate: StateId, nextstate: StateId, emission_logprob: f32, start: StateId, end: StateId) {
-        if let Some(prevsymbol_out) = prevsymbol_out {
-            //we have a previous output symbol, we can compute a transition
-            if symbol_out == 0 && nextstate == end {
-                //transition to end state
-                let prevsymbol_out_dec = symboltable.decode(prevsymbol_out).expect("decoding prevsymbol");
-                let transition_logprob = match prevsymbol_out_dec {
-                    SymbolReference::Known(prevsymbol) => {
-                        let ngram = NGram::UniGram(EOS);
-                        let prior = self.into_ngram(*prevsymbol, &mut None);
-                        self.get_transition_logprob(ngram, prior)
-                    },
-                    _ => {
-                        //if either or both of the symbols is not known, we fall back
-                        //to the uniform smoothing probability for the transition
-                        TRANSITION_SMOOTHING_LOGPROB
-                    }
-                };
-                fst.add_tr(prevstate, Tr::new(0, 0, transition_logprob, end)).expect("adding transition");
-                //                            ^--^--- epsilon
+    fn compute_fst_transition<'a>(&self, fst: &mut VectorFst<LogWeight>, state: usize, stateinfo: &StateInfo<'a>, previous_output: Option<VocabId>, prevstate: StateId, start: StateId, end: StateId) {
+        if let Some(previous_output) = previous_output {
+            //normal transition with known previous output
+            let prior = self.into_ngram(previous_output, &mut None);
+            let (transition_logprob, output) = if let Some(vocab_id) = stateinfo.output {
+                let ngram = self.into_ngram(vocab_id, &mut None);
+                (self.get_transition_logprob(ngram, prior), state)
+            } else if state == end {
+                //connect to the end state
+                let ngram = NGram::UniGram(EOS);
+                (self.get_transition_logprob(ngram, prior), 0)
             } else {
-                //normal transition
-                let symbol_out_dec = symboltable.decode(symbol_out).expect("decoding nextsymbol");
-                let prevsymbol_out_dec = symboltable.decode(prevsymbol_out).expect("decoding prevsymbol");
-                let transition_logprob = match (prevsymbol_out_dec, symbol_out_dec) {
-                    (SymbolReference::Known(prevsymbol), SymbolReference::Known(symbol)) => {
-                        let ngram = self.into_ngram(*symbol, &mut None);
-                        let prior = self.into_ngram(*prevsymbol, &mut None);
-                        self.get_transition_logprob(ngram, prior)
-                    },
-                    _ => {
-                        //if either or both of the symbols is not known, we fall back
-                        //to the uniform smoothing probability for the transition
-                        TRANSITION_SMOOTHING_LOGPROB
-                    }
-                };
-                fst.add_tr(prevstate, Tr::new(symbol_in, symbol_out , transition_logprob + emission_logprob, nextstate)).expect("adding transition");
-            }
-        } else if prevstate == start {
-            let symbol_out_dec = symboltable.decode(symbol_out).expect("decoding nextsymbol");
-            let transition_logprob = match symbol_out_dec {
-                SymbolReference::Known(symbol) => {
-                    let ngram = self.into_ngram(*symbol, &mut None);
-                    let prior = NGram::UniGram(BOS);
-                    self.get_transition_logprob(ngram, prior)
-                },
-                _ => {
-                    //if either or both of the symbols is not known, we fall back
-                    //to the uniform smoothing probability for the transition
-                    TRANSITION_SMOOTHING_LOGPROB
-                }
+                //we have no output, that means we copy from the input and can not compute a proper
+                //transition
+                (TRANSITION_SMOOTHING_LOGPROB, 0) // we use state id 0 to mean 'output copied from input'
             };
-            fst.add_tr(prevstate, Tr::new(symbol_in, symbol_out , transition_logprob + emission_logprob, nextstate)).expect("adding transition");
+            fst.add_tr(prevstate, Tr::new(stateinfo.match_index, output, transition_logprob + stateinfo.emission_logprob, state)).expect("adding transition");
+        /*} else if state.input.is_none() {
+            let (transition_logprob, output) = if let Some(vocab_id) = state.output {
+                let ngram = self.into_ngram(vocab_id, &mut None);
+                let prior = NGram::UniGram(BOS);
+                (self.get_transition_logprob(ngram, prior), state_id)
+            } else {
+                //we have no output, that means we copy from the input and can not compute a proper
+                //transition
+                (TRANSITION_SMOOTHING_LOGPROB, 0) // we use state id 0 to mean 'output copied from input'
+            };
+            fst.add_tr(prevstate, Tr::new(state.match_index, output, transition_logprob + state.emission_logprob, nextstate)).expect("adding transition");*/
         } else {
             //we have no previous output symbol, we can not compute a transition, fall back to
             //smoothing
-            fst.add_tr(prevstate, Tr::new(symbol_in, symbol_out , TRANSITION_SMOOTHING_LOGPROB + emission_logprob, nextstate)).expect("adding transition");
+            let output = if stateinfo.output.is_some() {
+                state
+            } else {
+                0
+            };
+            fst.add_tr(prevstate, Tr::new(stateinfo.match_index, output, TRANSITION_SMOOTHING_LOGPROB + stateinfo.emission_logprob, state)).expect("adding transition");
         }
     }
 

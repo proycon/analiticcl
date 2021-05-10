@@ -27,8 +27,12 @@ pub struct Match<'a> {
     pub offset: Offset,
 
     /// The variants for this match (sorted)
-    pub variants: Option<Vec<(VocabId, f64)>>
+    pub variants: Option<Vec<(VocabId, f64)>>,
+
+    ///the variant that was selected after searching and ranking
+    pub selected: Option<usize>
 }
+
 
 impl<'a> Match<'a> {
     pub fn new_empty(text: &'a str, offset: Offset) -> Self {
@@ -36,6 +40,7 @@ impl<'a> Match<'a> {
             text,
             offset,
             variants: None,
+            selected: None,
         }
     }
 
@@ -46,77 +51,13 @@ impl<'a> Match<'a> {
 }
 
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
-///These are the symbols we use in the FST
-///They refer back to our loaded lexicon
-pub enum SymbolReference<'a> {
-    Epsilon,
-    Known(VocabId),
-    Unknown(&'a str),
-
+pub struct StateInfo<'a> {
+    pub input: Option<&'a str>,
+    pub output: Option<VocabId>,
+    pub match_index: usize,
+    pub variant_index: Option<usize>,
+    pub emission_logprob: f32,
 }
-
-const EPSILON: SymbolReference<'_> = SymbolReference::Epsilon;
-
-impl SymbolReference<'_> {
-    pub fn is_known(&self) -> bool {
-        match self {
-            SymbolReference::Known(_) => true,
-            _ => false,
-        }
-    }
-}
-
-///Our own SymbolTable to decode Labels from the FST
-///This one is not tied to Strings like the one in rustfst
-pub struct SymbolRefTable<'a> {
-    decoder: Vec<SymbolReference<'a>>,
-    encoder: HashMap<SymbolReference<'a>, usize>
-}
-
-impl SymbolRefTable<'_> {
-    pub fn new() -> Self {
-        Self {
-            decoder: Vec::new(),
-            encoder: HashMap::new(),
-        }
-    }
-}
-
-impl<'a> SymbolRefTable<'a> {
-    pub fn symbol_from_match(&mut self, m: &Match<'a>) -> usize {
-        let symbol = SymbolReference::Unknown(m.text);
-        self.get_or_create(symbol)
-    }
-
-    pub fn symbol_from_vocabid(&mut self, vocabid: VocabId) -> usize {
-        let symbol = SymbolReference::Known(vocabid);
-        self.get_or_create(symbol)
-    }
-
-    pub fn get_or_create(&mut self, symbolref: SymbolReference<'a>) -> usize {
-        if symbolref == EPSILON {
-            0
-        } else if let Some(symbol_index) = self.encoder.get(&symbolref) {
-            *symbol_index
-        } else {
-            self.decoder.push(symbolref);
-            self.encoder.insert(symbolref, self.decoder.len()+1);
-            self.decoder.len() + 1   //+1 because epsilon is always at 0
-        }
-    }
-
-    pub fn decode(&self, symbol: usize) -> Option<&SymbolReference<'a>> {
-        if symbol == 0 {
-            Some(&EPSILON)
-        } else {
-            self.decoder.get(symbol)
-        }
-    }
-
-}
-
-
 
 
 #[derive(PartialEq,PartialOrd,Copy,Clone,Debug)]
