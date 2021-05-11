@@ -1057,7 +1057,7 @@ impl VariantModel {
                 //Gather all segments for this batch
                 let mut all_segments: Vec<(Match<'a>,u8)> = Vec::new(); //second var in tuple corresponds to the ngram order
                 for order in 1..=max_ngram {
-                    all_segments.extend(find_match_ngrams(text, boundaries, order, begin).into_iter());
+                    all_segments.extend(find_match_ngrams(text, boundaries, order, 0).into_iter());
                 }
                 if self.debug {
                     eprintln!("  (processing ngrams: {:?})", all_segments);
@@ -1455,7 +1455,7 @@ impl VariantModel {
     /// in the vocabulary.
     pub fn match_to_ngram<'a>(&'a self, m: &Match<'a>, boundaries: &[Match<'a>]) -> Result<NGram, String> {
         let internal = m.internal_boundaries(boundaries);
-        let parts = find_match_ngrams(m.text, internal, 1, m.offset.begin);
+        let parts = find_match_ngrams(m.text, internal, 1, 0);
         let mut ngram = NGram::Empty;
         for (part,_) in parts {
             if let Some(vocabid) = self.encoder.get(part.text) {

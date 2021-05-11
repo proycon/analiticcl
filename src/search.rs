@@ -162,12 +162,12 @@ pub fn classify_boundaries(boundaries: &Vec<Match<'_>>) -> Vec<BoundaryStrength>
 pub fn find_match_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8, offset: usize) -> Vec<(Match<'a>,u8)> {
     let mut ngrams = Vec::new();
 
-    let mut begin = offset;
+    let mut begin = 0;
     let mut i = 0;
     while let Some(boundary) = boundaries.get(i + order as usize - 1) {
         let ngram = Match::new_empty(&text[begin..boundary.offset.begin], Offset {
-                begin,
-                end: boundary.offset.begin,
+                begin: begin + offset,
+                end: boundary.offset.begin + offset,
         });
         eprintln!("Found ngram: {}", ngram.text);
         begin = boundaries.get(i).expect("boundary").offset.end;
@@ -178,8 +178,8 @@ pub fn find_match_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8,
     //add the last one
     if begin < text.len() {
         let ngram = Match::new_empty(&text[begin..], Offset {
-                begin,
-                end: text.len(),
+                begin: begin + offset,
+                end: text.len() + offset,
         });
         ngrams.push((ngram,order));
     }
