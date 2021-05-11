@@ -57,6 +57,26 @@ impl<'a> Match<'a> {
             None
         }
     }
+
+    /// Returns all boundaries that are inside this match
+    pub fn internal_boundaries(&self, boundaries: &'a [Match<'_>]) -> &'a [Match<'_>] {
+        let mut begin = None;
+        let mut end = 0;
+        for (i, boundary) in boundaries.iter().enumerate() {
+            if boundary.offset.begin > self.offset.begin && boundary.offset.end < self.offset.end {
+                if begin.is_none() {
+                    begin = Some(i);
+                } else {
+                    end = i+1;
+                }
+            }
+        }
+        if begin.is_none() {
+                &[]
+        } else {
+                &boundaries[begin.unwrap()..end]
+        }
+    }
 }
 
 
@@ -137,8 +157,9 @@ pub fn classify_boundaries(boundaries: &Vec<Match<'_>>) -> Vec<BoundaryStrength>
     strengths
 }
 
-/// Find all ngrams in the text of the specified order, respecting the boundaries
-pub fn find_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8, offset: usize) -> Vec<(Match<'a>,u8)> {
+/// Find all ngrams in the text of the specified order, respecting the boundaries.
+/// This will return a vector of Match instances, referring to the precise (untokenised) text.
+pub fn find_match_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8, offset: usize) -> Vec<(Match<'a>,u8)> {
     let mut ngrams = Vec::new();
 
     let mut begin = offset;

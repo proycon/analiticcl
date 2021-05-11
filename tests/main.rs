@@ -742,7 +742,7 @@ fn test0601_find_boundaries() {
 fn test0602_find_ngrams_unigram1() {
     let text = "dit is een mooie test";
     let boundaries = find_boundaries(&text);
-    let ngrams = find_ngrams(text, &boundaries, 1, 0);
+    let ngrams = find_match_ngrams(text, &boundaries, 1, 0);
     assert_eq!( ngrams.len() , 5 );
     assert_eq!( ngrams.get(0).unwrap().0.text , "dit" );
     assert_eq!( ngrams.get(1).unwrap().0.text , "is" );
@@ -755,7 +755,7 @@ fn test0602_find_ngrams_unigram1() {
 fn test0603_find_ngrams_unigram2() {
     let text = "dit is een mooie test.";
     let boundaries = find_boundaries(&text);
-    let ngrams = find_ngrams(text, &boundaries, 1, 0);
+    let ngrams = find_match_ngrams(text, &boundaries, 1, 0);
     assert_eq!( ngrams.len() , 5 );
     assert_eq!( ngrams.get(0).unwrap().0.text , "dit" );
     assert_eq!( ngrams.get(1).unwrap().0.text , "is" );
@@ -768,13 +768,13 @@ fn test0603_find_ngrams_unigram2() {
 fn test0604_find_ngrams_bigrams() {
     let text = "dit is een mooie test.";
     let boundaries = find_boundaries(&text);
-    let ngrams = find_ngrams(text, &boundaries, 2, 0);
+    let ngrams = find_match_ngrams(text, &boundaries, 2, 0);
     assert_eq!( ngrams.len() , 5 );
     assert_eq!( ngrams.get(0).unwrap().0.text , "dit is" );
     assert_eq!( ngrams.get(1).unwrap().0.text , "is een" );
     assert_eq!( ngrams.get(2).unwrap().0.text , "een mooie" );
     assert_eq!( ngrams.get(3).unwrap().0.text , "mooie test" );
-    assert_eq!( ngrams.get(4).unwrap().0.text , "test." ); //counts as a bigram in this context
+    assert_eq!( ngrams.get(4).unwrap().0.text , "test." ); //counts as a bigram in this context become it contains an internal boundary
 }
 
 #[test]

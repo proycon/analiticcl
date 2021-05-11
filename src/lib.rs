@@ -1057,7 +1057,7 @@ impl VariantModel {
                 //Gather all segments for this batch
                 let mut all_segments: Vec<(Match<'a>,u8)> = Vec::new(); //second var in tuple corresponds to the ngram order
                 for order in 1..=max_ngram {
-                    all_segments.extend(find_ngrams(text, boundaries, order, begin).into_iter());
+                    all_segments.extend(find_match_ngrams(text, boundaries, order, begin).into_iter());
                 }
                 if self.debug {
                     eprintln!("  (processing ngrams: {:?})", all_segments);
@@ -1435,6 +1435,8 @@ impl VariantModel {
         }
     }
 
+    /// Gives the text representation for this match, always uses the solution (if any) and falls
+    /// back to the input text only when no solution was found.
     pub fn match_to_str<'a>(&'a self, m: &Match<'a>) -> &'a str {
         if let Some(vocab_id) = m.solution() {
             self.decoder.get(vocab_id as usize).expect("solution should refer to a valid vocab id").text.as_str()
@@ -1443,9 +1445,27 @@ impl VariantModel {
         }
     }
 
+    /// Turns the ngram into a tokenised string; the tokens in the ngram will be separated by a space.
     pub fn ngram_to_str(&self, ngram: &NGram) -> String {
         let v: Vec<&str> = ngram.to_vec().into_iter().map(|v| self.decoder.get(v as usize).expect("ngram must contain valid vocab ids").text.as_str() ).collect();
         v.join(" ")
     }
+
+    /// Converts a match to an NGram representation, this only works if all tokens in the ngram are
+    /// in the vocabulary.
+    pub fn match_to_ngram<'a>(&'a self, m: &Match<'a>, boundaries: &[Match<'a>]) -> Result<NGram, String> {
+        let internal = m.internal_boundaries(boundaries);
+        let parts = find_match_ngrams(m.text, internal, 1, m.offset.begin);
+        let mut ngram = NGram::Empty;
+        for (part,_) in parts {
+            if let Some(vocabid) = self.encoder.get(part.text) {
+                ngram.push(*vocabid);
+            } else {
+                return Err(format!("unable to convert match to ngram, contains out-of-vocabulary token: {}", part.text));
+            }
+        }
+        Ok(ngram)
+    }
+
 
 }
