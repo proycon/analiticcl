@@ -50,9 +50,9 @@ impl<'a> Match<'a> {
     }
 
     /// Returns the solution if there is one
-    pub fn solution(&self) -> Option<VocabId> {
+    pub fn solution(&self) -> Option<(VocabId,f64)> {
         if let Some(selected) = self.selected {
-            self.variants.as_ref().expect("match must have variants when 'selected' is set").get(selected).map(|x| x.0)
+            self.variants.as_ref().expect("match must have variants when 'selected' is set").get(selected).map(|x| *x)
         } else {
             None
         }

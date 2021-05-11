@@ -1251,6 +1251,7 @@ impl VariantModel {
         if self.debug {
             eprintln!(" (computed FST: {:?})", fst);
             eprintln!(" (finding shortest path)");
+            fst.draw("/tmp/fst.dot", &DrawingConfig::default() );
         }
         let fst: VectorFst<TropicalWeight> = shortest_path(&fst).expect("computing shortest path fst");
         for path in fst.paths_iter() {
@@ -1258,15 +1259,26 @@ impl VariantModel {
                 eprintln!(" (shortest path: {:?})", path);
             }
             for (match_index, output_index) in path.ilabels.iter().zip(path.olabels.iter()) {
+                eprintln!(" (match_index/ilabel={}, output_index/olabel={})", match_index, output_index);
                 if *match_index < matches.len() { //ensures we don't accidentally end up with the special 'end' state
                     if let Some((m,_)) = matches.get(*match_index) {
                         if *output_index == 0 {
                             //output is the same as input, we just return the entire match
                             match_sequence.push(m.clone());
+                            if self.debug {
+                                eprintln!("  (returning: {} (unchanged (0)))", m.text);
+                            }
                         } else {
                             let stateinfo = states.get(output_index).expect("get stateinfo for output");
                             let mut m = m.clone();
                             m.selected = stateinfo.variant_index;
+                            if self.debug {
+                                if m.selected.is_some() {
+                                    eprintln!("  (returning: {}->{})", m.text , self.match_to_str(&m));
+                                } else {
+                                    eprintln!("  (returning: {} (unchanged))", m.text);
+                                }
+                            }
                             match_sequence.push(m);
                         }
                     }
@@ -1441,7 +1453,7 @@ impl VariantModel {
     /// Gives the text representation for this match, always uses the solution (if any) and falls
     /// back to the input text only when no solution was found.
     pub fn match_to_str<'a>(&'a self, m: &Match<'a>) -> &'a str {
-        if let Some(vocab_id) = m.solution() {
+        if let Some((vocab_id,_)) = m.solution() {
             self.decoder.get(vocab_id as usize).expect("solution should refer to a valid vocab id").text.as_str()
         } else {
             m.text
