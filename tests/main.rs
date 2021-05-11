@@ -765,15 +765,16 @@ fn test0603_find_ngrams_unigram2() {
 }
 
 #[test]
-fn test0603_find_ngrams_bigrams() {
+fn test0604_find_ngrams_bigrams() {
     let text = "dit is een mooie test.";
     let boundaries = find_boundaries(&text);
     let ngrams = find_ngrams(text, &boundaries, 2, 0);
-    assert_eq!( ngrams.len() , 4 );
+    assert_eq!( ngrams.len() , 5 );
     assert_eq!( ngrams.get(0).unwrap().0.text , "dit is" );
     assert_eq!( ngrams.get(1).unwrap().0.text , "is een" );
     assert_eq!( ngrams.get(2).unwrap().0.text , "een mooie" );
     assert_eq!( ngrams.get(3).unwrap().0.text , "mooie test" );
+    assert_eq!( ngrams.get(4).unwrap().0.text , "test." ); //counts as a bigram in this context
 }
 
 #[test]

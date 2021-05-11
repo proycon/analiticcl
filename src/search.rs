@@ -148,7 +148,8 @@ pub fn find_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8, offse
                 begin,
                 end: boundary.offset.begin,
         });
-        begin = boundary.offset.end;
+        eprintln!("Found ngram: {}", ngram.text);
+        begin = boundaries.get(i).expect("boundary").offset.end;
         i += 1;
         ngrams.push((ngram,order));
     }
