@@ -99,6 +99,7 @@ pub enum BoundaryStrength {
 }
 
 
+
 pub fn find_boundaries<'a>(text: &'a str) -> Vec<Match<'a>> {
     let mut boundaries = Vec::new();
 
@@ -125,8 +126,15 @@ pub fn find_boundaries<'a>(text: &'a str) -> Vec<Match<'a>> {
 
     //don't forget the last one
     if let Some(b) = begin {
+        //either we finish the existing one
         boundaries.push(Match::new_empty(&text[b..], Offset {
             begin: b,
+            end: text.len()
+        }));
+    } else {
+        //or we add a dummy last one
+        boundaries.push(Match::new_empty("", Offset {
+            begin: text.len(),
             end: text.len()
         }));
     }

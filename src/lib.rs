@@ -1046,10 +1046,10 @@ impl VariantModel {
         let mut begin: usize = 0;
 
         //Compose the text into batches, each batch ends where a hard boundary is found
-        for (i, strength) in strengths.iter().enumerate() {
+        for (i, (strength, boundary)) in strengths.iter().zip(boundaries.iter()).enumerate() {
             if *strength == BoundaryStrength::Hard {
                 if self.debug {
-                    eprintln!("  (found hard boundary)");
+                    eprintln!("  (found hard boundary at {}:{})", boundary.offset.begin, boundary.offset.end);
                 }
 
                 let boundaries = &boundaries[begin..i+1];
@@ -1077,7 +1077,7 @@ impl VariantModel {
                 if max_ngram > 1 {
                     //(debug will be handled in the called method)
                     matches.extend(
-                        self.most_likely_sequence(all_segments, boundaries, begin).into_iter()
+                        self.most_likely_sequence(all_segments, boundaries, begin, boundary.offset.begin).into_iter()
                     );
                 } else {
                     if self.debug {
@@ -1091,7 +1091,7 @@ impl VariantModel {
                     );
                 }
 
-                begin = i+1;
+                begin = boundary.offset.end; //(the hard boundary itself is not included in any variant/sequence matching)
             }
 
         }
@@ -1101,9 +1101,9 @@ impl VariantModel {
 
 
     /// Find the solution that maximizes the variant scores, decodes using a Weighted Finite State Transducer
-    fn most_likely_sequence<'a>(&self, matches: Vec<(Match<'a>,u8)>, boundaries: &[Match<'a>], offset: usize) -> Vec<Match<'a>> {
+    fn most_likely_sequence<'a>(&self, matches: Vec<(Match<'a>,u8)>, boundaries: &[Match<'a>], begin_offset: usize, end_offset: usize) -> Vec<Match<'a>> {
         if self.debug {
-            eprintln!("(building FST for finding most likely sequence)");
+            eprintln!("(building FST for finding most likely sequence in range {}:{})", begin_offset, end_offset);
         }
 
         //Build a finite state transducer
@@ -1180,7 +1180,7 @@ impl VariantModel {
         }
         matches.iter().enumerate().for_each(|(i, (nextmatch, _))| {
             //Add transitions from the start state;
-            if nextmatch.offset.begin == 0 {
+            if nextmatch.offset.begin == begin_offset {
                 for state in match_states.get(i).expect("getting nextmatch") {
                     let stateinfo = states.get(state).expect("getting state info");
                     self.compute_fst_transition(&mut fst, *state, stateinfo, &dummy_stateinfo, start, start, end);
@@ -1190,11 +1190,11 @@ impl VariantModel {
 
 
 
-        let end_offset = boundaries.get(boundaries.len() - 1).expect("end offset").offset.end;
-
         //For each boundary, add transition from all states directly left of the boundary
         //to all states directly right of the boundary
         for (b, boundary) in boundaries.iter().enumerate() {
+          if boundary.offset.begin >= begin_offset && boundary.offset.end <= end_offset {
+
             //find all states that end at this boundary
             let prevstates = states.iter().filter_map(|(state,stateinfo)| {
                 if stateinfo.offset.is_some() && stateinfo.offset.as_ref().unwrap().end == boundary.offset.begin {
@@ -1230,6 +1230,9 @@ impl VariantModel {
 
                 if prevstateinfo.offset.is_some() && prevstateinfo.offset.as_ref().unwrap().end == end_offset {
                     //Add transitions to the end state
+                    if self.debug {
+                        eprintln!("  (adding transition to end state)");
+                    }
                     self.compute_fst_transition(&mut fst, end, &dummy_stateinfo, prevstateinfo, *prevstate, start, end);
                     count += 1;
                 }
@@ -1239,7 +1242,7 @@ impl VariantModel {
             if self.debug {
                 eprintln!("   (added {} transitions)", count);
             }
-
+          }
         }
 
 
@@ -1252,7 +1255,7 @@ impl VariantModel {
         let fst: VectorFst<TropicalWeight> = shortest_path(&fst).expect("computing shortest path fst");
         for path in fst.paths_iter() {
             if self.debug {
-                eprintln!(" (shorted path: {:?})", path);
+                eprintln!(" (shortest path: {:?})", path);
             }
             for (match_index, output_index) in path.ilabels.iter().zip(path.olabels.iter()) {
                 if *match_index < matches.len() { //ensures we don't accidentally end up with the special 'end' state
