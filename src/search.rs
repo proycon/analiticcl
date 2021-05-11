@@ -79,6 +79,8 @@ impl<'a> Match<'a> {
     }
 }
 
+///Indicates an output label is out of vocabulary and should simply be copied from input
+pub(crate) const OOV_COPY_FROM_INPUT: usize = 9999999;
 
 pub struct StateInfo<'a> {
     pub input: Option<&'a str>,

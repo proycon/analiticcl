@@ -1149,7 +1149,7 @@ impl VariantModel {
                 let state_id = fst.add_state();
                 states.insert(state_id, StateInfo {
                     input: Some(m.text),
-                    output: None,
+                    output: None, //this means we copy the input
                     match_index: i,
                     variant_index: None,
                     emission_logprob: 0.0,
@@ -1258,29 +1258,30 @@ impl VariantModel {
             if self.debug {
                 eprintln!(" (shortest path: {:?})", path);
             }
-            for (match_index, output_index) in path.ilabels.iter().zip(path.olabels.iter()) {
+            for (input_index, output_index) in path.ilabels.iter().zip(path.olabels.iter()) {
+                //input labels use +1 because 0 means epsilon in FST context
+
+                let match_index = input_index - 1; //input labels use +1 because 0 means epsilon in FST context
                 eprintln!(" (match_index/ilabel={}, output_index/olabel={})", match_index, output_index);
-                if *match_index < matches.len() { //ensures we don't accidentally end up with the special 'end' state
-                    if let Some((m,_)) = matches.get(*match_index) {
-                        if *output_index == 0 {
-                            //output is the same as input, we just return the entire match
-                            match_sequence.push(m.clone());
-                            if self.debug {
-                                eprintln!("  (returning: {} (unchanged (0)))", m.text);
-                            }
-                        } else {
-                            let stateinfo = states.get(output_index).expect("get stateinfo for output");
-                            let mut m = m.clone();
-                            m.selected = stateinfo.variant_index;
-                            if self.debug {
-                                if m.selected.is_some() {
-                                    eprintln!("  (returning: {}->{})", m.text , self.match_to_str(&m));
-                                } else {
-                                    eprintln!("  (returning: {} (unchanged))", m.text);
-                                }
-                            }
-                            match_sequence.push(m);
+                if let Some((m,_)) = matches.get(match_index) {
+                    if *output_index == OOV_COPY_FROM_INPUT {
+                        //output is the same as input, we just return the entire match
+                        match_sequence.push(m.clone());
+                        if self.debug {
+                            eprintln!("  (returning: {} (unchanged/oov)", m.text);
                         }
+                    } else {
+                        let stateinfo = states.get(output_index).expect("get stateinfo for output");
+                        let mut m = m.clone();
+                        m.selected = stateinfo.variant_index;
+                        if self.debug {
+                            if m.selected.is_some() {
+                                eprintln!("  (returning: {}->{})", m.text , self.match_to_str(&m));
+                            } else {
+                                eprintln!("  (returning: {} (unchanged/oov))", m.text);
+                            }
+                        }
+                        match_sequence.push(m);
                     }
                 }
             }
@@ -1288,6 +1289,8 @@ impl VariantModel {
 
         match_sequence
     }
+
+
 
     /// Computes and sets the transition probability between two states, i.e. the weight
     /// to assign to this transition in the Finite State Transducer.
@@ -1309,19 +1312,20 @@ impl VariantModel {
                 if self.debug {
                     eprintln!("   (adding transition {}->{}(=EOS): {}->{})", prevstate, state, self.ngram_to_str(&prior), self.ngram_to_str(&ngram) );
                 }
-                (self.get_transition_logprob(ngram, prior), 0)
+                (self.get_transition_logprob(ngram, prior), OOV_COPY_FROM_INPUT) //we use the max
+
             } else {
                 if self.debug {
                     eprintln!("   (adding transition with out-of-vocabulary output (input=output): {}->{}: {}->{:?})", prevstate, state, self.ngram_to_str(&prior), stateinfo.input );
                 }
                 //we have no output, that means we copy from the input and can not compute a proper
                 //transition
-                (TRANSITION_SMOOTHING_LOGPROB, 0) // we use state id 0 to mean 'output copied from input'
+                (TRANSITION_SMOOTHING_LOGPROB, OOV_COPY_FROM_INPUT) //we use the id past the end state to mean 'output copied from input'
             };
             if self.debug {
                 eprintln!("     (transition score={})", transition_logprob);
             }
-            fst.add_tr(prevstate, Tr::new(stateinfo.match_index, output, transition_logprob + stateinfo.emission_logprob, state)).expect("adding transition");
+            fst.add_tr(prevstate, Tr::new(stateinfo.match_index+1, output, transition_logprob + stateinfo.emission_logprob, state)).expect("adding transition");
         /*} else if state.input.is_none() {
             let (transition_logprob, output) = if let Some(vocab_id) = state.output {
                 let ngram = self.into_ngram(vocab_id, &mut None);
@@ -1354,7 +1358,7 @@ impl VariantModel {
                 };
                 eprintln!("   (adding transition from out-of-vocabulary output: {}->{}: {}->{})", prevstate, state, ilabel, olabel);
             }
-            fst.add_tr(prevstate, Tr::new(stateinfo.match_index, output, TRANSITION_SMOOTHING_LOGPROB + stateinfo.emission_logprob, state)).expect("adding transition");
+            fst.add_tr(prevstate, Tr::new(stateinfo.match_index+1, output, TRANSITION_SMOOTHING_LOGPROB + stateinfo.emission_logprob, state)).expect("adding transition");
         }
     }
 
