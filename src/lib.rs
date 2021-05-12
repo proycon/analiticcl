@@ -1441,7 +1441,8 @@ impl VariantModel {
         let bigram = NGram::BiGram(prior.first().unwrap(), word.first().unwrap());
 
         let transition_logprob = if let Some(jointcount) = self.ngrams.get(&bigram) {
-            (priorcount as f32 / *jointcount as f32).ln()
+            let p = (*jointcount as f32 / priorcount as f32).ln();
+            p
         } else {
             TRANSITION_SMOOTHING_LOGPROB
         };
