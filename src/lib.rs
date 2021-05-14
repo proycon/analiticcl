@@ -365,7 +365,7 @@ impl VariantModel {
     ///Read vocabulary (a lexicon or corpus-derived lexicon) from a TSV file
     ///May contain frequency information
     ///The parameters define what value can be read from what column
-    pub fn read_vocabulary(&mut self, filename: &str, params: &VocabParams, lexicon_weight: f32, vocabtype: VocabType) -> Result<(), std::io::Error> {
+    pub fn read_vocabulary(&mut self, filename: &str, params: &VocabParams) -> Result<(), std::io::Error> {
         if self.debug {
             eprintln!("Reading vocabulary from {}...", filename);
         }
@@ -383,7 +383,7 @@ impl VariantModel {
                     } else {
                         1
                     };
-                    self.add_to_vocabulary(text, Some(frequency), Some(lexicon_weight), self.lexicons.len() as u8, vocabtype);
+                    self.add_to_vocabulary(text, Some(frequency), params);
                 }
             }
         }
@@ -397,7 +397,18 @@ impl VariantModel {
     ///Read a variants list of equally weighted variants from a TSV file
     ///Each line simply contains tab-separated variants and all entries on a single line are
     ///considered variants. Consumed much less memory than weighted variants.
-    pub fn read_variants(&mut self, filename: &str, lexicon_weight: f32) -> Result<(), std::io::Error> {
+    pub fn read_variants(&mut self, filename: &str, params: Option<&VocabParams>) -> Result<(), std::io::Error> {
+        let params = if let Some(params) = params {
+            let mut p = params.clone();
+            p.index = self.lexicons.len() as u8;
+            p
+        } else {
+            VocabParams {
+                index: self.lexicons.len() as u8,
+                ..Default::default()
+            }
+        };
+
         if self.debug {
             eprintln!("Reading variants from {}...", filename);
         }
@@ -412,7 +423,7 @@ impl VariantModel {
                     let clusterid = self.variantclusters.len() as VariantClusterId;
                     for variant in variants.iter() {
                         //all variants by definition are added to the combined lexicon
-                        let variantid = self.add_to_vocabulary(variant, None, Some(lexicon_weight), self.lexicons.len() as u8, VocabType::Normal);
+                        let variantid = self.add_to_vocabulary(variant, None, &params);
                         ids.push(variantid);
                         if let Some(vocabvalue) = self.decoder.get_mut(variantid as usize) {
                             let variantref = VariantReference::VariantCluster(clusterid);
@@ -439,7 +450,25 @@ impl VariantModel {
     ///Read a weighted variant list from a TSV file. Contains a canonical/reference form in the
     ///first column, and variants with score (two columns) in the following columns. Consumes much more
     ///memory than equally weighted variants.
-    pub fn read_weighted_variants(&mut self, filename: &str, lexicon_weight: f32, intermediate: bool) -> Result<(), std::io::Error> {
+    pub fn read_weighted_variants(&mut self, filename: &str, params: Option<&VocabParams>, intermediate: bool) -> Result<(), std::io::Error> {
+        let params = if let Some(params) = params {
+            let mut p = params.clone();
+            p.index = self.lexicons.len() as u8;
+            p
+        } else {
+            VocabParams {
+                index: self.lexicons.len() as u8,
+                ..Default::default()
+            }
+        };
+        let intermediate_params = if intermediate {
+            let mut p = params.clone();
+            p.vocab_type = VocabType::Intermediate;
+            p
+        } else {
+            params.clone()
+        };
+
         if self.debug {
             eprintln!("Reading variants from {}...", filename);
         }
@@ -452,15 +481,15 @@ impl VariantModel {
                     let fields: Vec<&str> = line.split("\t").collect();
 
                     let reference = fields.get(0).expect("first item");
-                    let ref_id = self.add_to_vocabulary(reference, None, Some(lexicon_weight), self.lexicons.len() as u8, VocabType::Normal);
+                    let ref_id = self.add_to_vocabulary(reference, None, &params);
                     let mut iter = fields.iter();
 
                     while let (Some(variant), Some(score)) = (iter.next(), iter.next()) {
                         let score = score.parse::<f64>().expect("Scores must be a floating point value");
                         //all variants by definition are added to the lexicon
-                        let variantid = self.add_to_vocabulary(variant, None, Some(lexicon_weight), self.lexicons.len() as u8, match intermediate {
-                                true => VocabType::Intermediate,
-                                false => VocabType::Normal
+                        let variantid = self.add_to_vocabulary(variant, None,  match intermediate {
+                                true => &intermediate_params,
+                                false => &params
                         });
                         if variantid != ref_id {
                             if let Some(vocabvalue) = self.decoder.get_mut(ref_id as usize) {
@@ -493,23 +522,47 @@ impl VariantModel {
 
 
     /// Adds an entry in the vocabulary
-    pub fn add_to_vocabulary(&mut self, text: &str, frequency: Option<u32>, lexicon_weight: Option<f32>, lexicon_index: u8, vocabtype: VocabType) -> VocabId {
+    pub fn add_to_vocabulary(&mut self, text: &str, frequency: Option<u32>, params: &VocabParams) -> VocabId {
         let frequency = frequency.unwrap_or(1);
-        let lexicon_weight = lexicon_weight.unwrap_or(1.0);
         if self.debug {
             eprintln!(" -- Adding to vocabulary: {}", text);
         }
         if let Some(vocab_id) = self.encoder.get(text) {
             let item = self.decoder.get_mut(*vocab_id as usize).expect(&format!("Retrieving existing vocabulary entry {}",vocab_id));
-            item.frequency += frequency;
-            if lexicon_weight > item.lexweight {
-                item.lexweight = lexicon_weight;
-                item.lexindex = lexicon_index;
+            match params.freq_handling {
+                FrequencyHandling::Sum => {
+                    item.frequency += frequency;
+                },
+                FrequencyHandling::Max => {
+                    item.frequency = if frequency > item.frequency { frequency } else { item.frequency };
+                },
+                FrequencyHandling::Min => {
+                    item.frequency = if frequency < item.frequency { frequency } else { item.frequency };
+                }
+                FrequencyHandling::SumIfMoreWeight => {
+                    if params.weight > item.lexweight {
+                        item.frequency += frequency;
+                    }
+                },
+                FrequencyHandling::MaxIfMoreWeight => {
+                    if params.weight > item.lexweight {
+                        item.frequency = if frequency > item.frequency { frequency } else { item.frequency };
+                    }
+                },
+                FrequencyHandling::MinIfMoreWeight => {
+                    if params.weight > item.lexweight {
+                        item.frequency = if frequency < item.frequency { frequency } else { item.frequency };
+                    }
+                }
+            }
+            if params.weight > item.lexweight {
+                item.lexweight = params.weight;
+                item.lexindex = params.index;
             }
             if vocab_id == &BOS || vocab_id == &EOS || vocab_id == &UNK {
                 item.vocabtype = VocabType::NoIndex;
             } else if item.vocabtype == VocabType::Intermediate { //we only override the intermediate type, meaning something can become 'Normal' after having been 'Intermediate', but not vice versa
-                item.vocabtype = vocabtype;
+                item.vocabtype = params.vocab_type;
             }
             *vocab_id
         } else {
@@ -520,10 +573,10 @@ impl VariantModel {
                 norm: text.normalize_to_alphabet(&self.alphabet),
                 frequency: frequency,
                 tokencount: text.chars().filter(|c| *c == ' ').count() as u8 + 1,
-                lexweight: lexicon_weight,
-                lexindex: lexicon_index,
+                lexweight: params.weight,
+                lexindex: params.index,
                 variants: None,
-                vocabtype
+                vocabtype: params.vocab_type
             });
             self.decoder.len() as VocabId - 1
         }

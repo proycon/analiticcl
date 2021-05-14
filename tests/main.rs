@@ -602,7 +602,7 @@ fn test0401_model_build() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
+        model.add_to_vocabulary(text,None,&VocabParams::default());
     }
     model.build();
     assert!(model.has(&"rites"));
@@ -620,7 +620,7 @@ fn test0402_model_anagrams() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
+        model.add_to_vocabulary(text,None,&VocabParams::default());
     }
     model.build();
     assert!(model.has(&"rites"));
@@ -635,7 +635,7 @@ fn test0403_model_anagrams() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
+        model.add_to_vocabulary(text,None,&VocabParams::default());
     }
     model.build();
     model.find_variants("rite", 2, 2, 10, 0.0, StopCriterion::Exhaustive, None);
@@ -647,7 +647,7 @@ fn test0404_score_test() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["huis","huls"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
+        model.add_to_vocabulary(text,None,&VocabParams::default());
     }
     model.build();
     let results = model.find_variants("huys", 2, 2, 10, 0.0, StopCriterion::Exhaustive, None);
@@ -678,7 +678,7 @@ fn test0502_confusable_test() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["huis","huls"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
+        model.add_to_vocabulary(text,None,&VocabParams::default());
     }
     model.add_to_confusables("-[y]+[i]",1.1).expect("added to confusables");
     model.build();
@@ -694,7 +694,7 @@ fn test0503_confusable_test2() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["huis","huls"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
+        model.add_to_vocabulary(text,None,&VocabParams::default());
     }
     model.add_to_confusables("-[y]+[i]",1.1).expect("added to confusables");
     model.build();
@@ -710,7 +710,7 @@ fn test0504_confusable_nomatch() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), false);
     let lexicon: &[&str] = &["huis","huls"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
+        model.add_to_vocabulary(text,None,&VocabParams::default());
     }
     model.add_to_confusables("-[y]+[p]",1.1).expect("added to confusables");
     model.build();
@@ -765,17 +765,57 @@ fn test0603_find_ngrams_unigram2() {
 }
 
 #[test]
-fn test0604_find_ngrams_bigrams() {
+fn test0604_find_ngrams_unigram3() {
+    let text =  "hello, world!";
+    let boundaries = find_boundaries(&text);
+    let ngrams = find_match_ngrams(text, &boundaries, 1, 0, None);
+    assert_eq!( ngrams.len() , 2 );
+    assert_eq!( ngrams.get(0).unwrap().0.text , "hello" );
+    assert_eq!( ngrams.get(1).unwrap().0.text , "world" );
+}
+
+#[test]
+fn test0605_find_ngrams_bigrams() {
     let text = "dit is een mooie test.";
     let boundaries = find_boundaries(&text);
+    eprintln!("{:?}", boundaries);
+    assert_eq!( boundaries.len() , 5 );
     let ngrams = find_match_ngrams(text, &boundaries, 2, 0, None);
-    assert_eq!( ngrams.len() , 5 );
+    eprintln!("{:?}", ngrams);
+    assert_eq!( ngrams.len() , 4 );
     assert_eq!( ngrams.get(0).unwrap().0.text , "dit is" );
     assert_eq!( ngrams.get(1).unwrap().0.text , "is een" );
     assert_eq!( ngrams.get(2).unwrap().0.text , "een mooie" );
     assert_eq!( ngrams.get(3).unwrap().0.text , "mooie test" );
-    assert_eq!( ngrams.get(4).unwrap().0.text , "test." ); //counts as a bigram in this context become it contains an internal boundary
+    //note: final punctuation is a hard boundary and not returned
 }
+
+#[test]
+fn test0606_find_ngrams_bigrams2() {
+    let text =  "hello,world!";
+    let boundaries = find_boundaries(&text);
+    let ngrams = find_match_ngrams(text, &boundaries, 2, 0, None);
+    assert_eq!( ngrams.len() , 1 );
+    assert_eq!( ngrams.get(0).unwrap().0.text , "hello,world" ); //this counts as a bigram ("," is a boundary)
+}
+
+#[test]
+fn test0607_find_ngrams_bigrams3() {
+    let text =  "hello, world!";
+    let boundaries = find_boundaries(&text);
+    let ngrams = find_match_ngrams(text, &boundaries, 2, 0, None);
+    assert_eq!( ngrams.len() , 1 );
+    assert_eq!( ngrams.get(0).unwrap().0.text , "hello, world" ); //this counts as a bigram (", " is a boundary)
+}
+
+#[test]
+fn test0608_find_ngrams_bigrams4() {
+    let text =  "hello!";
+    let boundaries = find_boundaries(&text);
+    let ngrams = find_match_ngrams(text, &boundaries, 2, 0, None);
+    assert_eq!( ngrams.len() , 0 ); //no bigrams in this text
+}
+
 
 #[test]
 fn test0701_find_all_matches_unigram_only() {
@@ -783,7 +823,7 @@ fn test0701_find_all_matches_unigram_only() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["I","think","sink","you","are","right"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
+        model.add_to_vocabulary(text,None,&VocabParams::default());
     }
     model.build();
     let matches = model.find_all_matches("I tink you are rihgt", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 1);
@@ -801,18 +841,19 @@ fn test0701_find_all_matches_unigram_only() {
 fn test0702_find_all_matches() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
-    model.add_to_vocabulary("I",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("think",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("sink",Some(1),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("you",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("are",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("right",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("are right",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("<bos> I",Some(2),None, 0, VocabType::NoIndex);
-    model.add_to_vocabulary("I think",Some(2),None, 0, VocabType::NoIndex);
-    model.add_to_vocabulary("I sink",Some(1),None, 0, VocabType::NoIndex);
-    model.add_to_vocabulary("you are",Some(2),None, 0, VocabType::NoIndex);
-    model.add_to_vocabulary("right <eos>",Some(2),None, 0, VocabType::NoIndex);
+    model.add_to_vocabulary("I",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("think",Some(2), &VocabParams::default());
+    model.add_to_vocabulary("sink",Some(1), &VocabParams::default());
+    model.add_to_vocabulary("you",Some(2), &VocabParams::default());
+
+    model.add_to_vocabulary("are",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("right",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("are right",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("<bos> I",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    model.add_to_vocabulary("I think",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    model.add_to_vocabulary("I sink",Some(1),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
     model.build();
     let matches = model.find_all_matches("I tink you are rihgt", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 2);
     assert!( !matches.is_empty() );
@@ -830,18 +871,18 @@ fn test0702_find_all_matches() {
 fn test0703_find_all_matches_linebreak() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
-    model.add_to_vocabulary("I",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("think",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("sink",Some(1),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("you",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("are",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("right",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("are right",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("<bos> I",Some(2),None, 0, VocabType::NoIndex);
-    model.add_to_vocabulary("I think",Some(2),None, 0, VocabType::NoIndex);
-    model.add_to_vocabulary("I sink",Some(1),None, 0, VocabType::NoIndex);
-    model.add_to_vocabulary("you are",Some(2),None, 0, VocabType::NoIndex);
-    model.add_to_vocabulary("right <eos>",Some(2),None, 0, VocabType::NoIndex);
+    model.add_to_vocabulary("I",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("think",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("sink",Some(1),&VocabParams::default());
+    model.add_to_vocabulary("you",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("are",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("right",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("are right",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("<bos> I",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    model.add_to_vocabulary("I think",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    model.add_to_vocabulary("I sink",Some(1),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
     model.build();
     let matches = model.find_all_matches("I tink you are\nrihgt", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 2);
     assert!( !matches.is_empty() );
@@ -859,23 +900,23 @@ fn test0703_find_all_matches_linebreak() {
 fn test0704_find_all_matches_two_batches() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
-    model.add_to_vocabulary("I",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("think",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("sink",Some(1),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("you",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("are",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("right",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("am",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("sure",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("are right",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("<bos> I",Some(2),None, 0, VocabType::NoIndex);
-    model.add_to_vocabulary("I think",Some(2),None, 0, VocabType::NoIndex);
-    model.add_to_vocabulary("I sink",Some(1),None, 0, VocabType::NoIndex);
-    model.add_to_vocabulary("you are",Some(2),None, 0, VocabType::NoIndex);
-    model.add_to_vocabulary("right <eos>",Some(2),None, 0, VocabType::NoIndex);
-    model.add_to_vocabulary("I am",Some(2),None, 0, VocabType::NoIndex);
-    //model.add_to_vocabulary("am sure",Some(2),None, 0, VocabType::NoIndex); //model has to figure this one out itself using an unknown transition
-    model.add_to_vocabulary("sure <eos>",Some(2),None, 0, VocabType::NoIndex);
+    model.add_to_vocabulary("I",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("think",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("sink",Some(1),&VocabParams::default());
+    model.add_to_vocabulary("you",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("are",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("right",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("am",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("sure",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("are right",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("<bos> I",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    model.add_to_vocabulary("I think",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    model.add_to_vocabulary("I sink",Some(1),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    model.add_to_vocabulary("I am",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    // "am sure" -> model has to figure this one out itself using an unknown transition
+    model.add_to_vocabulary("sure <eos>",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
     model.build();
     let matches = model.find_all_matches("I tink you are rihgt\n\nI am sur", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 2);
     assert!( !matches.is_empty() );

@@ -473,37 +473,44 @@ fn main() {
 
     if args.is_present("lexicon") {
         for filename in args.values_of("lexicon").unwrap().collect::<Vec<&str>>() {
-            model.read_vocabulary(filename, &VocabParams::default(), 1.0, VocabType::Normal).expect(&format!("Error reading lexicon {}", filename));
+            model.read_vocabulary(filename, &VocabParams::default()).expect(&format!("Error reading lexicon {}", filename));
         }
     }
 
     if args.is_present("corpus") {
         for filename in args.values_of("corpus").unwrap().collect::<Vec<&str>>() {
-            model.read_vocabulary(filename, &VocabParams::default(), 0.0, VocabType::Normal).expect(&format!("Error reading corpus lexicon {}", filename));
+            model.read_vocabulary(filename, &VocabParams {
+                weight: 0.0,
+                ..Default::default()
+            }).expect(&format!("Error reading corpus lexicon {}", filename));
         }
     }
 
     if args.is_present("lm") {
         for filename in args.values_of("lm").unwrap().collect::<Vec<&str>>() {
-            model.read_vocabulary(filename, &VocabParams::default(), 0.0, VocabType::NoIndex).expect(&format!("Error reading corpus lexicon {}", filename));
+            model.read_vocabulary(filename, &VocabParams {
+                weight: 0.0,
+                vocab_type: VocabType::NoIndex,
+                ..Default::default()
+            }).expect(&format!("Error reading lm {}", filename));
         }
     }
 
     if args.is_present("variants") {
         for filename in args.values_of("variants").unwrap().collect::<Vec<&str>>() {
-            model.read_variants(filename, 1.0).expect(&format!("Error reading variant list {}", filename));
+            model.read_variants(filename, Some(&VocabParams::default())).expect(&format!("Error reading variant list {}", filename));
         }
     }
 
     if args.is_present("weighted-variants") {
         for filename in args.values_of("weighted-variants").unwrap().collect::<Vec<&str>>() {
-            model.read_weighted_variants(filename, 1.0, false).expect(&format!("Error reading weighted variant list {}", filename));
+            model.read_weighted_variants(filename, Some(&VocabParams::default()), false).expect(&format!("Error reading weighted variant list {}", filename));
         }
     }
 
     if args.is_present("errors") {
         for filename in args.values_of("errors").unwrap().collect::<Vec<&str>>() {
-            model.read_weighted_variants(filename, 1.0, true).expect(&format!("Error reading error list {}", filename));
+            model.read_weighted_variants(filename, Some(&VocabParams::default()), true).expect(&format!("Error reading error list {}", filename));
         }
     }
 

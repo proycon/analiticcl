@@ -68,11 +68,32 @@ pub type VocabDecoder = Vec<VocabValue>;
 ///Maps strings to integers
 pub type VocabEncoder = HashMap<String, VocabId>;
 
+///Frequency handling in case of duplicate items (may be across multiple lexicons), the
+///``*IfMoreWeight`` variants only apply when the item to be added has a higher lexicon weight
+///associated with it.
+#[derive(Clone,Copy,Debug,PartialEq,Eq)]
+pub enum FrequencyHandling {
+    Sum,
+    Max,
+    Min,
+    SumIfMoreWeight,
+    MaxIfMoreWeight,
+    MinIfMoreWeight,
+}
+
+#[derive(Clone,Debug)]
 pub struct VocabParams {
     ///Column containing the Text (if any, 0-indexed)
     pub text_column: u8,
     ///Column containing the absolute frequency (if any, 0-indexed)
-    pub freq_column: Option<u8>
+    pub freq_column: Option<u8>,
+    ///Frequency handling in case of duplicate items (may be across multiple lexicons)
+    pub freq_handling: FrequencyHandling,
+    pub vocab_type: VocabType,
+    /// Lexicon weight
+    pub weight: f32,
+    /// Lexicon index
+    pub index: u8
 }
 
 impl Default for VocabParams {
@@ -80,6 +101,10 @@ impl Default for VocabParams {
         Self {
             text_column: 0,
             freq_column: None,
+            freq_handling: FrequencyHandling::Max,
+            vocab_type: VocabType::Normal,
+            weight: 0.0,
+            index: 0,
         }
     }
 }
