@@ -103,7 +103,7 @@ impl Default for VocabParams {
             freq_column: None,
             freq_handling: FrequencyHandling::Max,
             vocab_type: VocabType::Normal,
-            weight: 0.0,
+            weight: 1.0,
             index: 0,
         }
     }
