@@ -602,7 +602,7 @@ fn test0401_model_build() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0);
+        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
     }
     model.build();
     assert!(model.has(&"rites"));
@@ -620,7 +620,7 @@ fn test0402_model_anagrams() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0);
+        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
     }
     model.build();
     assert!(model.has(&"rites"));
@@ -635,7 +635,7 @@ fn test0403_model_anagrams() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0);
+        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
     }
     model.build();
     model.find_variants("rite", 2, 2, 10, 0.0, StopCriterion::Exhaustive, None);
@@ -647,7 +647,7 @@ fn test0404_score_test() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["huis","huls"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0);
+        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
     }
     model.build();
     let results = model.find_variants("huys", 2, 2, 10, 0.0, StopCriterion::Exhaustive, None);
@@ -678,7 +678,7 @@ fn test0502_confusable_test() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["huis","huls"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0);
+        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
     }
     model.add_to_confusables("-[y]+[i]",1.1).expect("added to confusables");
     model.build();
@@ -694,7 +694,7 @@ fn test0503_confusable_test2() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
     let lexicon: &[&str] = &["huis","huls"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0);
+        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
     }
     model.add_to_confusables("-[y]+[i]",1.1).expect("added to confusables");
     model.build();
@@ -710,7 +710,7 @@ fn test0504_confusable_nomatch() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), false);
     let lexicon: &[&str] = &["huis","huls"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,None, 0);
+        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
     }
     model.add_to_confusables("-[y]+[p]",1.1).expect("added to confusables");
     model.build();
@@ -739,10 +739,10 @@ fn test0601_find_boundaries() {
 }
 
 #[test]
-fn test0602_find_ngrams() {
+fn test0602_find_ngrams_unigram1() {
     let text = "dit is een mooie test";
     let boundaries = find_boundaries(&text);
-    let ngrams = find_ngrams(text, &boundaries, 1, 0);
+    let ngrams = find_match_ngrams(text, &boundaries, 1, 0);
     assert_eq!( ngrams.len() , 5 );
     assert_eq!( ngrams.get(0).unwrap().0.text , "dit" );
     assert_eq!( ngrams.get(1).unwrap().0.text , "is" );
@@ -752,14 +752,76 @@ fn test0602_find_ngrams() {
 }
 
 #[test]
-fn test0603_find_ngrams2() {
+fn test0603_find_ngrams_unigram2() {
     let text = "dit is een mooie test.";
     let boundaries = find_boundaries(&text);
-    let ngrams = find_ngrams(text, &boundaries, 1, 0);
+    let ngrams = find_match_ngrams(text, &boundaries, 1, 0);
     assert_eq!( ngrams.len() , 5 );
     assert_eq!( ngrams.get(0).unwrap().0.text , "dit" );
     assert_eq!( ngrams.get(1).unwrap().0.text , "is" );
     assert_eq!( ngrams.get(2).unwrap().0.text , "een" );
     assert_eq!( ngrams.get(3).unwrap().0.text , "mooie" );
     assert_eq!( ngrams.get(4).unwrap().0.text , "test" );
+}
+
+#[test]
+fn test0604_find_ngrams_bigrams() {
+    let text = "dit is een mooie test.";
+    let boundaries = find_boundaries(&text);
+    let ngrams = find_match_ngrams(text, &boundaries, 2, 0);
+    assert_eq!( ngrams.len() , 5 );
+    assert_eq!( ngrams.get(0).unwrap().0.text , "dit is" );
+    assert_eq!( ngrams.get(1).unwrap().0.text , "is een" );
+    assert_eq!( ngrams.get(2).unwrap().0.text , "een mooie" );
+    assert_eq!( ngrams.get(3).unwrap().0.text , "mooie test" );
+    assert_eq!( ngrams.get(4).unwrap().0.text , "test." ); //counts as a bigram in this context become it contains an internal boundary
+}
+
+#[test]
+fn test0701_find_all_matches_unigram_only() {
+    let (alphabet, _alphabet_size) = get_test_alphabet();
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let lexicon: &[&str] = &["I","think","sink","you","are","right"];
+    for text in lexicon.iter() {
+        model.add_to_vocabulary(text,None,None, 0, VocabType::Normal);
+    }
+    model.build();
+    let matches = model.find_all_matches("I tink you are rihgt", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 1);
+    assert!( !matches.is_empty() );
+    assert_eq!( matches.get(0).unwrap().text , "I" );
+    assert_eq!( matches.get(1).unwrap().text , "tink" );
+    assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
+    assert_eq!( matches.get(2).unwrap().text , "you" );
+    assert_eq!( matches.get(3).unwrap().text , "are" );
+    assert_eq!( matches.get(4).unwrap().text , "rihgt" );
+    assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "right" );
+}
+
+#[test]
+fn test0702_find_all_matches() {
+    let (alphabet, _alphabet_size) = get_test_alphabet();
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    model.add_to_vocabulary("I",Some(2),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("think",Some(2),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("sink",Some(1),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("you",Some(2),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("are",Some(2),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("right",Some(2),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("are right",Some(2),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("<bos> I",Some(2),None, 0, VocabType::NoIndex);
+    model.add_to_vocabulary("I think",Some(2),None, 0, VocabType::NoIndex);
+    model.add_to_vocabulary("I sink",Some(1),None, 0, VocabType::NoIndex);
+    model.add_to_vocabulary("you are",Some(2),None, 0, VocabType::NoIndex);
+    model.add_to_vocabulary("right <eos>",Some(2),None, 0, VocabType::NoIndex);
+    model.build();
+    let matches = model.find_all_matches("I tink you are rihgt", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 2);
+    assert!( !matches.is_empty() );
+    assert_eq!( matches.get(0).unwrap().text , "I" );
+    assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
+    assert_eq!( matches.get(1).unwrap().text , "tink" );
+    assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
+    assert_eq!( matches.get(2).unwrap().text , "you" );
+    assert_eq!( model.match_to_str(matches.get(2).unwrap()) , "you" );
+    assert_eq!( matches.get(3).unwrap().text , "are rihgt" ); //system opts for the bigram here
+    assert_eq!( model.match_to_str(matches.get(3).unwrap()) , "are right" );
 }

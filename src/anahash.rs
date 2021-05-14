@@ -95,8 +95,38 @@ pub trait Anahash: One + Zero {
     fn iter_parents(&self, alphabet_size: CharIndexType) -> DeletionIterator;
     fn iter_recursive(&self, alphabet_size: CharIndexType, params: &SearchParams) -> RecurseDeletionIterator;
     fn iter_recursive_external_cache<'a>(&self, alphabet_size: CharIndexType, params: &SearchParams, cache: &'a mut HashSet<AnaValue>) -> RecurseDeletionIterator<'a>;
-    fn char_count(&self, alphabet_size: CharIndexType) -> u16;
-    fn alphabet_upper_bound(&self, alphabet_size: CharIndexType) -> (CharIndexType, u16);
+
+    /// Computes the number of characters in this anagram
+    fn char_count(&self, alphabet_size: CharIndexType) -> u16 {
+        self.iter(alphabet_size).count() as u16
+    }
+
+
+    /// Count how many times an anagram value occurs in this anagram
+    fn count_matches(&self, value: &AnaValue) -> usize {
+        if let Some(result) = self.delete(value) {
+            1 + result.count_matches(value)
+        } else {
+            0
+        }
+    }
+
+    /// Returns the the upper bound of the alphabet size
+    /// as used in this anavalue, which may be lower
+    /// than the actual alphabet size.
+    /// Returns a character index in the alphabet,
+    /// also returns the character count as 2nd member of the tuple
+    fn alphabet_upper_bound(&self, alphabet_size: CharIndexType) -> (CharIndexType, u16) {
+        let mut maxcharindex = 0;
+        let mut count = 0;
+        for (result, _) in self.iter(alphabet_size) {
+            count += 1;
+            if result.charindex > maxcharindex {
+                maxcharindex = result.charindex;
+            }
+        }
+        (maxcharindex, count)
+    }
 }
 
 impl Anahash for AnaValue {
@@ -183,28 +213,7 @@ impl Anahash for AnaValue {
         self == &AnaValue::empty() || self == &AnaValue::zero()
     }
 
-    /// Computes the number of characters in this anagram
-    fn char_count(&self, alphabet_size: CharIndexType) -> u16 {
-        self.iter(alphabet_size).count() as u16
-    }
 
-
-    /// Returns the the upper bound of the alphabet size
-    /// as used in this anavalue, which may be lower
-    /// than the actual alphabet size.
-    /// Returns a character index in the alphabet,
-    /// also returns the character count as 2nd member of the tuple
-    fn alphabet_upper_bound(&self, alphabet_size: CharIndexType) -> (CharIndexType, u16) {
-        let mut maxcharindex = 0;
-        let mut count = 0;
-        for (result, _) in self.iter(alphabet_size) {
-            count += 1;
-            if result.charindex > maxcharindex {
-                maxcharindex = result.charindex;
-            }
-        }
-        (maxcharindex, count)
-    }
 
 }
 

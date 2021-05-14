@@ -218,7 +218,7 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
     args.push( Arg::with_name("lexicon")
         .long("lexicon")
         .short("l")
-        .help("Lexicon against which all matches are made (may be used multiple times). The lexicon should only contain validated items, if not, use --corpus instead. The lexicon should be a tab separated file with each entry on one line, columns may be used for frequency information. This option may be used multiple times for multiple lexicons.")
+        .help("Lexicon against which all matches are made (may be used multiple times). The lexicon should only contain validated items, if not, use --corpus instead. The lexicon should be a tab separated file with each entry on one line, columns may be used for frequency information. This option may be used multiple times for multiple lexicons. Entries need not be single words but may also be ngrams (space separated tokens).")
         .takes_value(true)
         .number_of_values(1)
         .multiple(true)
@@ -226,7 +226,7 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
     args.push(Arg::with_name("corpus")
         .long("corpus")
         .short("f")
-        .help("Corpus-derived lexicon against which matches are made (may be used multiple times). Format is the same as for --lexicon. The only difference between --lexicon and --corpus is that items from corpus a lexicon loaded through --corpus is given less weight. This option may be used multiple times.")
+        .help("Corpus-derived lexicon/frequency list against which matches are made (may be used multiple times). Format is the same as for --lexicon. The only difference between --lexicon and --corpus is that items from corpus a lexicon loaded through --corpus is given less weight. This option may be used multiple times.")
         .takes_value(true)
         .number_of_values(1)
         .multiple(true)
@@ -409,6 +409,12 @@ fn main() {
                                 .help("Maximum ngram order (1 for unigrams, 2 for bigrams, etc..). This also requires you to load actual ngram frequency lists using --corpus to have any effect.")
                                 .takes_value(true)
                                 .default_value("1"))
+                            .arg(Arg::with_name("lm")
+                                .long("lm")
+                                .help("Corpus-derived list of unigrams and bigrams that are used for simple language modelling, i.e. computation the transition probabilities when finding the optimal sequence of variants. This is a TSV file containing the the ngram in the first column (space character acts as token separator), and the absolute frequency count in the second column. It is also recommended it contains the special tokens <bos> (begin of sentence) and <eos> end of sentence. The items in this list are NOT used for variant matching, use --corpus or even --lexicon instead if you want to also match against these items.")
+                                .takes_value(true)
+                                .number_of_values(1)
+                                .multiple(true))
                     )
                     /*.subcommand(
                         SubCommand::with_name("collect")
@@ -467,13 +473,19 @@ fn main() {
 
     if args.is_present("lexicon") {
         for filename in args.values_of("lexicon").unwrap().collect::<Vec<&str>>() {
-            model.read_vocabulary(filename, &VocabParams::default(), 1.0).expect(&format!("Error reading lexicon {}", filename));
+            model.read_vocabulary(filename, &VocabParams::default(), 1.0, VocabType::Normal).expect(&format!("Error reading lexicon {}", filename));
         }
     }
 
     if args.is_present("corpus") {
         for filename in args.values_of("corpus").unwrap().collect::<Vec<&str>>() {
-            model.read_vocabulary(filename, &VocabParams::default(), 0.0).expect(&format!("Error reading corpus lexicon {}", filename));
+            model.read_vocabulary(filename, &VocabParams::default(), 0.0, VocabType::Normal).expect(&format!("Error reading corpus lexicon {}", filename));
+        }
+    }
+
+    if args.is_present("lm") {
+        for filename in args.values_of("lm").unwrap().collect::<Vec<&str>>() {
+            model.read_vocabulary(filename, &VocabParams::default(), 0.0, VocabType::NoIndex).expect(&format!("Error reading corpus lexicon {}", filename));
         }
     }
 
