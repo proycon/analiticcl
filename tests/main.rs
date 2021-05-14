@@ -806,16 +806,22 @@ fn test0702_find_all_matches() {
     model.add_to_vocabulary("sink",Some(1),None, 0, VocabType::Normal);
     model.add_to_vocabulary("you",Some(2),None, 0, VocabType::Normal);
     model.add_to_vocabulary("are",Some(2),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("right",Some(1),None, 0, VocabType::Normal);
-    model.add_to_vocabulary("are right",Some(1),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("right",Some(2),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("are right",Some(2),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("<bos> I",Some(2),None, 0, VocabType::NoIndex);
+    model.add_to_vocabulary("I think",Some(2),None, 0, VocabType::NoIndex);
+    model.add_to_vocabulary("I sink",Some(1),None, 0, VocabType::NoIndex);
+    model.add_to_vocabulary("you are",Some(2),None, 0, VocabType::NoIndex);
+    model.add_to_vocabulary("right <eos>",Some(2),None, 0, VocabType::NoIndex);
     model.build();
     let matches = model.find_all_matches("I tink you are rihgt", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 2);
     assert!( !matches.is_empty() );
     assert_eq!( matches.get(0).unwrap().text , "I" );
+    assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
     assert_eq!( matches.get(1).unwrap().text , "tink" );
     assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
     assert_eq!( matches.get(2).unwrap().text , "you" );
-    assert_eq!( matches.get(3).unwrap().text , "are" );
-    assert_eq!( matches.get(4).unwrap().text , "rihgt" );
-    assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "right" );
+    assert_eq!( model.match_to_str(matches.get(2).unwrap()) , "you" );
+    assert_eq!( matches.get(3).unwrap().text , "are rihgt" ); //system opts for the bigram here
+    assert_eq!( model.match_to_str(matches.get(3).unwrap()) , "are right" );
 }

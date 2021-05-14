@@ -71,7 +71,7 @@ impl<'a> Match<'a> {
                 }
             }
         }
-        if begin.is_none() {
+        if begin.is_none() || begin.unwrap() >= end {
                 &[]
         } else {
                 &boundaries[begin.unwrap()..end]
@@ -88,7 +88,8 @@ pub struct StateInfo<'a> {
     pub match_index: usize,
     pub variant_index: Option<usize>,
     pub emission_logprob: f32,
-    pub offset: Option<Offset>
+    pub offset: Option<Offset>,
+    pub tokencount: usize,
 }
 
 

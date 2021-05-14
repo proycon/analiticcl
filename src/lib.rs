@@ -1135,7 +1135,8 @@ impl VariantModel {
                         match_index: i,
                         variant_index: Some(j),
                         emission_logprob: score.ln() as f32,
-                        offset: Some(m.offset.clone())
+                        offset: Some(m.offset.clone()),
+                        tokencount: m.internal_boundaries(boundaries).iter().count() + 1 //could possibly be slightly optimised by computing earlier, but is relatively low cost
                     });
                     if self.debug {
                         eprintln!("   (added state {} (match {}, variant {}), input={}, output={}) ", state_id, i, j, m.text, self.decoder.get(*variant as usize).unwrap().text );
@@ -1153,7 +1154,8 @@ impl VariantModel {
                     match_index: i,
                     variant_index: None,
                     emission_logprob: 0.0,
-                    offset: Some(m.offset.clone())
+                    offset: Some(m.offset.clone()),
+                    tokencount: m.internal_boundaries(boundaries).iter().count() + 1 //could possibly be slightly optimised by computing earlier, but is relatively low cost
                 });
                 if self.debug {
                     eprintln!("   (added out-of-vocabulary state {}, input/output={}) ", state_id, m.text );
@@ -1172,6 +1174,7 @@ impl VariantModel {
                             variant_index: None,
                             emission_logprob: 0.0, //the max
                             offset: None,
+                            tokencount: 0,
         };
 
         if self.debug {
@@ -1312,7 +1315,7 @@ impl VariantModel {
                 if self.debug {
                     eprintln!("   (adding transition {}->{}(=EOS): {}->{})", prevstate, state, self.ngram_to_str(&prior), self.ngram_to_str(&ngram) );
                 }
-                (self.get_transition_logprob(ngram, prior), OOV_COPY_FROM_INPUT) //we use the max
+                (self.get_transition_logprob(ngram, prior), 0)  //0=epsilon, no output after the last stage
 
             } else {
                 if self.debug {
@@ -1320,30 +1323,62 @@ impl VariantModel {
                 }
                 //we have no output, that means we copy from the input and can not compute a proper
                 //transition
-                (TRANSITION_SMOOTHING_LOGPROB, OOV_COPY_FROM_INPUT) //we use the id past the end state to mean 'output copied from input'
+                if stateinfo.tokencount > 1 {
+                    //if this is an n-gram, we also count the internal transitions as unknown
+                    //transitions, so there is no bias towards selecting larger n-gram fragments
+                    (TRANSITION_SMOOTHING_LOGPROB * stateinfo.tokencount as f32, OOV_COPY_FROM_INPUT)
+                } else {
+                    (TRANSITION_SMOOTHING_LOGPROB, OOV_COPY_FROM_INPUT)
+                }
             };
             if self.debug {
-                eprintln!("     (transition score={})", transition_logprob);
+                eprintln!("     (p={}, transition score={}, emission score={}, tokencount={})", transition_logprob + stateinfo.emission_logprob, transition_logprob, stateinfo.emission_logprob, stateinfo.tokencount);
             }
-            fst.add_tr(prevstate, Tr::new(stateinfo.match_index+1, output, transition_logprob + stateinfo.emission_logprob, state)).expect("adding transition");
-        /*} else if state.input.is_none() {
-            let (transition_logprob, output) = if let Some(vocab_id) = state.output {
+            fst.add_tr(prevstate, Tr::new(stateinfo.match_index+1, output, -1.0 * (transition_logprob + stateinfo.emission_logprob), state)).expect("adding transition");
+                                                                         // ^-- we remove the sign
+                                                                         // from the logprob
+                                                                         // because shortest_path minimizes
+                                                                         // instead of maximizes
+        } else if prevstate == start {
+            let (transition_logprob, output) = if let Some(vocab_id) = stateinfo.output {
                 let ngram = self.into_ngram(vocab_id, &mut None);
                 let prior = NGram::UniGram(BOS);
-                (self.get_transition_logprob(ngram, prior), state_id)
+                if self.debug {
+                    eprintln!("   (adding transition {}(=BOS)->{}: {}->{})", prevstate, state, self.ngram_to_str(&prior), self.ngram_to_str(&ngram) );
+                }
+                (self.get_transition_logprob(ngram, prior), state)
             } else {
                 //we have no output, that means we copy from the input and can not compute a proper
                 //transition
-                (TRANSITION_SMOOTHING_LOGPROB, 0) // we use state id 0 to mean 'output copied from input'
+                if self.debug {
+                    eprintln!("   (adding transition with out-of-vocabulary output (input=output) {}(=BOS)->{}: {}->{:?})", prevstate, state, "<bos>", stateinfo.input );
+                }
+                if stateinfo.tokencount > 1 {
+                    //if this is an n-gram, we also count the internal transitions as unknown
+                    //transitions, so there is no bias towards selecting larger n-gram fragments
+                    (TRANSITION_SMOOTHING_LOGPROB * stateinfo.tokencount as f32, OOV_COPY_FROM_INPUT)
+                } else {
+                    (TRANSITION_SMOOTHING_LOGPROB, OOV_COPY_FROM_INPUT)
+                }
             };
-            fst.add_tr(prevstate, Tr::new(state.match_index, output, transition_logprob + state.emission_logprob, nextstate)).expect("adding transition");*/
+            if self.debug {
+                eprintln!("     (p={}, transition score={}, emission score={}, tokencount={})", transition_logprob + stateinfo.emission_logprob, transition_logprob, stateinfo.emission_logprob, stateinfo.tokencount);
+            }
+            fst.add_tr(prevstate, Tr::new(stateinfo.match_index+1, output, -1.0 * (transition_logprob + stateinfo.emission_logprob), state)).expect("adding transition");
         } else {
             //we have no previous output symbol, we can not compute a transition, fall back to
             //smoothing
             let output = if stateinfo.output.is_some() {
                 state
             } else {
-                0
+                OOV_COPY_FROM_INPUT
+            };
+            let transition_logprob = if stateinfo.tokencount > 1 {
+                    //if this is an n-gram, we also count the internal transitions as unknown
+                    //transitions, so there is no bias towards selecting larger n-gram fragments
+                    TRANSITION_SMOOTHING_LOGPROB * stateinfo.tokencount as f32
+                } else {
+                    TRANSITION_SMOOTHING_LOGPROB
             };
             if self.debug {
                 let ilabel = if let Some(v) = prevstateinfo.output {
@@ -1357,8 +1392,9 @@ impl VariantModel {
                     stateinfo.input.as_ref().unwrap_or(&"NULL")
                 };
                 eprintln!("   (adding transition from out-of-vocabulary output: {}->{}: {}->{})", prevstate, state, ilabel, olabel);
+                eprintln!("     (p={}, transition score={}, emission score={}, tokens={})", transition_logprob + stateinfo.emission_logprob, transition_logprob ,  stateinfo.emission_logprob, stateinfo.tokencount);
             }
-            fst.add_tr(prevstate, Tr::new(stateinfo.match_index+1, output, TRANSITION_SMOOTHING_LOGPROB + stateinfo.emission_logprob, state)).expect("adding transition");
+            fst.add_tr(prevstate, Tr::new(stateinfo.match_index+1, output, -1.0 * (transition_logprob + stateinfo.emission_logprob), state)).expect("adding transition");
         }
     }
 
@@ -1441,8 +1477,11 @@ impl VariantModel {
         let bigram = NGram::BiGram(prior.first().unwrap(), word.first().unwrap());
 
         let transition_logprob = if let Some(jointcount) = self.ngrams.get(&bigram) {
-            let p = (*jointcount as f32 / priorcount as f32).ln();
-            p
+            if priorcount < *jointcount {
+                (*jointcount as f32).ln()
+            } else {
+                (*jointcount as f32 / priorcount as f32).ln()
+            }
         } else {
             TRANSITION_SMOOTHING_LOGPROB
         };
