@@ -41,7 +41,7 @@ pub enum VocabType {
     Intermediate,
 
     /// Reserved for items that will not be added to the index at all
-    /// for language-model entries and ffor special tokens like BeginOfSentence, EndOfSentence
+    /// for language-model entries and for special tokens like BeginOfSentence, EndOfSentence
     NoIndex,
 }
 
@@ -76,9 +76,11 @@ pub enum FrequencyHandling {
     Sum,
     Max,
     Min,
+    Replace,
     SumIfMoreWeight,
     MaxIfMoreWeight,
     MinIfMoreWeight,
+    ReplaceIfMoreWeight,
 }
 
 #[derive(Clone,Debug)]
@@ -93,14 +95,14 @@ pub struct VocabParams {
     /// Lexicon weight
     pub weight: f32,
     /// Lexicon index
-    pub index: u8
+    pub index: u8,
 }
 
 impl Default for VocabParams {
     fn default() -> Self {
         Self {
             text_column: 0,
-            freq_column: None,
+            freq_column: Some(1),
             freq_handling: FrequencyHandling::Max,
             vocab_type: VocabType::Normal,
             weight: 1.0,

@@ -525,7 +525,7 @@ impl VariantModel {
     pub fn add_to_vocabulary(&mut self, text: &str, frequency: Option<u32>, params: &VocabParams) -> VocabId {
         let frequency = frequency.unwrap_or(1);
         if self.debug {
-            eprintln!(" -- Adding to vocabulary: {}", text);
+            eprintln!(" -- Adding to vocabulary: {}  ({})", text, frequency);
         }
         if let Some(vocab_id) = self.encoder.get(text) {
             let item = self.decoder.get_mut(*vocab_id as usize).expect(&format!("Retrieving existing vocabulary entry {}",vocab_id));
@@ -538,7 +538,10 @@ impl VariantModel {
                 },
                 FrequencyHandling::Min => {
                     item.frequency = if frequency < item.frequency { frequency } else { item.frequency };
-                }
+                },
+                FrequencyHandling::Replace => {
+                    item.frequency = frequency
+                },
                 FrequencyHandling::SumIfMoreWeight => {
                     if params.weight > item.lexweight {
                         item.frequency += frequency;
@@ -553,14 +556,19 @@ impl VariantModel {
                     if params.weight > item.lexweight {
                         item.frequency = if frequency < item.frequency { frequency } else { item.frequency };
                     }
-                }
+                },
+                FrequencyHandling::ReplaceIfMoreWeight => {
+                    if params.weight > item.lexweight {
+                        item.frequency = frequency
+                    }
+                },
             }
             if params.weight > item.lexweight {
                 item.lexweight = params.weight;
                 item.lexindex = params.index;
             }
             if vocab_id == &BOS || vocab_id == &EOS || vocab_id == &UNK {
-                item.vocabtype = VocabType::NoIndex;
+                item.vocabtype = VocabType::NoIndex; //by definition
             } else if item.vocabtype == VocabType::Intermediate { //we only override the intermediate type, meaning something can become 'Normal' after having been 'Intermediate', but not vice versa
                 item.vocabtype = params.vocab_type;
             }
@@ -1521,7 +1529,7 @@ impl VariantModel {
     /// Compute the probability of a transition between two words: $P(w_x|w_(x-1))$
     /// If either parameter is a high-order n-gram, this function will extract the appropriate
     /// unigrams on either side for the computation.
-    /// The final probability is returned as a logprob (base e), if not the bigram or prior are
+    /// The final probability is returned as a logprob (base e), if the bigram or prior are
     /// not found, a uniform smoothing number is returned.
     fn get_transition_logprob(&self, mut ngram: NGram, mut prior: NGram) -> f32 {
         if ngram == NGram::Empty || prior == NGram::Empty {
