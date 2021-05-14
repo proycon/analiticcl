@@ -1044,23 +1044,28 @@ impl VariantModel {
         }
 
         let mut begin: usize = 0;
+        let mut begin_index: usize = 0;
 
         //Compose the text into batches, each batch ends where a hard boundary is found
         for (i, (strength, boundary)) in strengths.iter().zip(boundaries.iter()).enumerate() {
             if *strength == BoundaryStrength::Hard {
-                if self.debug {
-                    eprintln!("  (found hard boundary at {}:{})", boundary.offset.begin, boundary.offset.end);
-                }
+                let text_current = &text[begin..boundary.offset.begin];
 
-                let boundaries = &boundaries[begin..i+1];
+                let boundaries = &boundaries[begin_index..i+1];
+                if self.debug {
+                    eprintln!("  (found hard boundary at {}:{}: {})", boundary.offset.begin, boundary.offset.end, text_current);
+                    for boundary in boundaries.iter() {
+                        eprintln!("    (inner boundary {}:{})", boundary.offset.begin, boundary.offset.end);
+                    }
+                }
 
                 //Gather all segments for this batch
                 let mut all_segments: Vec<(Match<'a>,u8)> = Vec::new(); //second var in tuple corresponds to the ngram order
                 for order in 1..=max_ngram {
-                    all_segments.extend(find_match_ngrams(text, boundaries, order, 0).into_iter());
+                    all_segments.extend(find_match_ngrams(text, boundaries, order, begin, Some(boundary.offset.begin)).into_iter());
                 }
                 if self.debug {
-                    eprintln!("  (processing ngrams: {:?})", all_segments);
+                    eprintln!("  (processing {} ngrams: {:?})", all_segments.len(), all_segments);
                 }
 
                 //find variants for all segments in this batch (in parallel)
@@ -1072,6 +1077,7 @@ impl VariantModel {
                     segment.variants = Some(variants);
                 });
 
+                let l = matches.len();
                 //consolidate the matches, finding a single segmentation that has the best (highest
                 //scoring) solution
                 if max_ngram > 1 {
@@ -1081,7 +1087,7 @@ impl VariantModel {
                     );
                 } else {
                     if self.debug {
-                        eprintln!("(returning matches directly, no need to find most likely sequence for unigrams)");
+                        eprintln!("  (returning matches directly, no need to find most likely sequence for unigrams)");
                     }
                     matches.extend(
                         all_segments.into_iter().map(|(mut m,_)| {
@@ -1090,12 +1096,19 @@ impl VariantModel {
                         })
                     );
                 }
+                if self.debug {
+                    eprintln!("  (added {} matches)", matches.len() - l );
+                }
 
                 begin = boundary.offset.end; //(the hard boundary itself is not included in any variant/sequence matching)
+                begin_index = i+1
             }
 
         }
 
+        if self.debug {
+            eprintln!("(returning {} matches: {:?})", matches.len(), matches);
+        }
         matches
     }
 
@@ -1114,7 +1127,6 @@ impl VariantModel {
         let end = fst.add_state();
         fst.set_start(start).expect("set start state");
         fst.set_final(end, 0.0).expect("set final state");
-
 
         //Maps states back to the index of matches
         let mut states: HashMap<usize,StateInfo<'a>> = HashMap::new();
@@ -1139,7 +1151,7 @@ impl VariantModel {
                         tokencount: m.internal_boundaries(boundaries).iter().count() + 1 //could possibly be slightly optimised by computing earlier, but is relatively low cost
                     });
                     if self.debug {
-                        eprintln!("   (added state {} (match {}, variant {}), input={}, output={}) ", state_id, i, j, m.text, self.decoder.get(*variant as usize).unwrap().text );
+                        eprintln!("   (added state {} (range {}:{}, match {}, variant {}), input={}, output={}) ", state_id, m.offset.begin, m.offset.end ,i, j, m.text, self.decoder.get(*variant as usize).unwrap().text );
                     }
                     state_id
                 }).collect()
@@ -1158,7 +1170,7 @@ impl VariantModel {
                     tokencount: m.internal_boundaries(boundaries).iter().count() + 1 //could possibly be slightly optimised by computing earlier, but is relatively low cost
                 });
                 if self.debug {
-                    eprintln!("   (added out-of-vocabulary state {}, input/output={}) ", state_id, m.text );
+                    eprintln!("   (added out-of-vocabulary state {} (range {}:{}), input/output={}) ", state_id, m.offset.begin, m.offset.end, m.text );
                 }
                 vec!(state_id)
             }
@@ -1196,7 +1208,7 @@ impl VariantModel {
         //For each boundary, add transition from all states directly left of the boundary
         //to all states directly right of the boundary
         for (b, boundary) in boundaries.iter().enumerate() {
-          if boundary.offset.begin >= begin_offset && boundary.offset.end <= end_offset {
+          if boundary.offset.begin >= begin_offset && boundary.offset.begin <= end_offset {
 
             //find all states that end at this boundary
             let prevstates = states.iter().filter_map(|(state,stateinfo)| {
@@ -1217,7 +1229,7 @@ impl VariantModel {
             }).collect();
 
             if self.debug {
-                eprintln!("  (boundary #{}, nextmatches={})", b+1, nextstates.len());
+                eprintln!("  (boundary #{}, {:?}, nextmatches={})", b+1, boundary, nextstates.len());
             }
 
             let mut count = 0;
@@ -1257,7 +1269,7 @@ impl VariantModel {
             fst.draw("/tmp/fst.dot", &DrawingConfig::default() );
         }
         let fst: VectorFst<TropicalWeight> = shortest_path(&fst).expect("computing shortest path fst");
-        for path in fst.paths_iter() {
+        for path in fst.paths_iter() { //iterates over one path (the shortest)
             if self.debug {
                 eprintln!(" (shortest path: {:?})", path);
             }
@@ -1265,7 +1277,9 @@ impl VariantModel {
                 //input labels use +1 because 0 means epsilon in FST context
 
                 let match_index = input_index - 1; //input labels use +1 because 0 means epsilon in FST context
-                eprintln!(" (match_index/ilabel={}, output_index/olabel={})", match_index, output_index);
+                if self.debug {
+                    eprintln!("  (match_index/ilabel={}, output_index/olabel={})", match_index, output_index);
+                }
                 if let Some((m,_)) = matches.get(match_index) {
                     if *output_index == OOV_COPY_FROM_INPUT {
                         //output is the same as input, we just return the entire match
@@ -1514,7 +1528,7 @@ impl VariantModel {
     /// in the vocabulary.
     pub fn match_to_ngram<'a>(&'a self, m: &Match<'a>, boundaries: &[Match<'a>]) -> Result<NGram, String> {
         let internal = m.internal_boundaries(boundaries);
-        let parts = find_match_ngrams(m.text, internal, 1, 0);
+        let parts = find_match_ngrams(m.text, internal, 1, 0, None);
         let mut ngram = NGram::Empty;
         for (part,_) in parts {
             if let Some(vocabid) = self.encoder.get(part.text) {

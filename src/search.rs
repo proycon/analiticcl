@@ -170,29 +170,34 @@ pub fn classify_boundaries(boundaries: &Vec<Match<'_>>) -> Vec<BoundaryStrength>
 
 /// Find all ngrams in the text of the specified order, respecting the boundaries.
 /// This will return a vector of Match instances, referring to the precise (untokenised) text.
-pub fn find_match_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8, offset: usize) -> Vec<(Match<'a>,u8)> {
+pub fn find_match_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8, begin: usize, end: Option<usize>) -> Vec<(Match<'a>,u8)> {
     let mut ngrams = Vec::new();
 
-    let mut begin = 0;
+    let mut begin = begin;
+    let end = end.unwrap_or(text.len());
     let mut i = 0;
     while let Some(boundary) = boundaries.get(i + order as usize - 1) {
+        if boundary.offset.begin > end {
+            break;
+        }
         let ngram = Match::new_empty(&text[begin..boundary.offset.begin], Offset {
-                begin: begin + offset,
-                end: boundary.offset.begin + offset,
+                begin: begin,
+                end: boundary.offset.begin,
         });
-        eprintln!("Found ngram: {}", ngram.text);
         begin = boundaries.get(i).expect("boundary").offset.end;
         i += 1;
         ngrams.push((ngram,order));
     }
 
     //add the last one
-    if begin < text.len() {
-        let ngram = Match::new_empty(&text[begin..], Offset {
-                begin: begin + offset,
-                end: text.len() + offset,
+    if begin < end {
+        let ngram = Match::new_empty(&text[begin..end], Offset {
+                begin: begin,
+                end: end,
         });
-        ngrams.push((ngram,order));
+        if ngram.internal_boundaries(boundaries).iter().count() == order as usize {
+            ngrams.push((ngram,order));
+        }
     }
 
     ngrams

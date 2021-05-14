@@ -742,7 +742,7 @@ fn test0601_find_boundaries() {
 fn test0602_find_ngrams_unigram1() {
     let text = "dit is een mooie test";
     let boundaries = find_boundaries(&text);
-    let ngrams = find_match_ngrams(text, &boundaries, 1, 0);
+    let ngrams = find_match_ngrams(text, &boundaries, 1, 0, None);
     assert_eq!( ngrams.len() , 5 );
     assert_eq!( ngrams.get(0).unwrap().0.text , "dit" );
     assert_eq!( ngrams.get(1).unwrap().0.text , "is" );
@@ -755,7 +755,7 @@ fn test0602_find_ngrams_unigram1() {
 fn test0603_find_ngrams_unigram2() {
     let text = "dit is een mooie test.";
     let boundaries = find_boundaries(&text);
-    let ngrams = find_match_ngrams(text, &boundaries, 1, 0);
+    let ngrams = find_match_ngrams(text, &boundaries, 1, 0, None);
     assert_eq!( ngrams.len() , 5 );
     assert_eq!( ngrams.get(0).unwrap().0.text , "dit" );
     assert_eq!( ngrams.get(1).unwrap().0.text , "is" );
@@ -768,7 +768,7 @@ fn test0603_find_ngrams_unigram2() {
 fn test0604_find_ngrams_bigrams() {
     let text = "dit is een mooie test.";
     let boundaries = find_boundaries(&text);
-    let ngrams = find_match_ngrams(text, &boundaries, 2, 0);
+    let ngrams = find_match_ngrams(text, &boundaries, 2, 0, None);
     assert_eq!( ngrams.len() , 5 );
     assert_eq!( ngrams.get(0).unwrap().0.text , "dit is" );
     assert_eq!( ngrams.get(1).unwrap().0.text , "is een" );
@@ -853,5 +853,45 @@ fn test0703_find_all_matches_linebreak() {
     assert_eq!( model.match_to_str(matches.get(2).unwrap()) , "you" );
     assert_eq!( matches.get(3).unwrap().text , "are\nrihgt" ); //system opts for the bigram here
     assert_eq!( model.match_to_str(matches.get(3).unwrap()) , "are right" );
+}
+
+#[test]
+fn test0704_find_all_matches_two_batches() {
+    let (alphabet, _alphabet_size) = get_test_alphabet();
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    model.add_to_vocabulary("I",Some(2),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("think",Some(2),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("sink",Some(1),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("you",Some(2),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("are",Some(2),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("right",Some(2),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("am",Some(2),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("sure",Some(2),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("are right",Some(2),None, 0, VocabType::Normal);
+    model.add_to_vocabulary("<bos> I",Some(2),None, 0, VocabType::NoIndex);
+    model.add_to_vocabulary("I think",Some(2),None, 0, VocabType::NoIndex);
+    model.add_to_vocabulary("I sink",Some(1),None, 0, VocabType::NoIndex);
+    model.add_to_vocabulary("you are",Some(2),None, 0, VocabType::NoIndex);
+    model.add_to_vocabulary("right <eos>",Some(2),None, 0, VocabType::NoIndex);
+    model.add_to_vocabulary("I am",Some(2),None, 0, VocabType::NoIndex);
+    //model.add_to_vocabulary("am sure",Some(2),None, 0, VocabType::NoIndex); //model has to figure this one out itself using an unknown transition
+    model.add_to_vocabulary("sure <eos>",Some(2),None, 0, VocabType::NoIndex);
+    model.build();
+    let matches = model.find_all_matches("I tink you are rihgt\n\nI am sur", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 2);
+    assert!( !matches.is_empty() );
+    assert_eq!( matches.get(0).unwrap().text , "I" );
+    assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
+    assert_eq!( matches.get(1).unwrap().text , "tink" );
+    assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
+    assert_eq!( matches.get(2).unwrap().text , "you" );
+    assert_eq!( model.match_to_str(matches.get(2).unwrap()) , "you" );
+    assert_eq!( matches.get(3).unwrap().text , "are rihgt" ); //system opts for the bigram here
+    assert_eq!( model.match_to_str(matches.get(3).unwrap()) , "are right" );
+    assert_eq!( matches.get(4).unwrap().text , "I" );
+    assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "I" );
+    assert_eq!( matches.get(5).unwrap().text , "am" );
+    assert_eq!( model.match_to_str(matches.get(5).unwrap()) , "am" );
+    assert_eq!( matches.get(6).unwrap().text , "sur" );
+    assert_eq!( model.match_to_str(matches.get(6).unwrap()) , "sure" );
 }
 
