@@ -380,7 +380,7 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
 
 fn main() {
     let rootargs = App::new("Analiticcl")
-                    .version("0.1")
+                    .version("0.3.0")
                     .author("Maarten van Gompel (proycon) <proycon@anaproy.nl>")
                     .about("Spelling variant matching / approximate string matching / fuzzy search")
                     .subcommand(
