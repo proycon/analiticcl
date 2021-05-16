@@ -151,7 +151,7 @@ fn process_par(model: &VariantModel, inputstream: impl Read, max_anagram_distanc
 
 const MAX_BATCHSIZE_SEARCH: usize = 100;
 
-fn process_search(model: &VariantModel, inputstream: impl Read, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, progress: bool, max_ngram: u8, newline_as_space: bool, per_line: bool) {
+fn process_search(model: &VariantModel, inputstream: impl Read, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, progress: bool, max_ngram: u8, newline_as_space: bool, per_line: bool, singlethread: bool) {
     let mut seqnr = 0;
     let mut prevseqnr = 0;
     let f_buffer = BufReader::new(inputstream);
@@ -184,7 +184,7 @@ fn process_search(model: &VariantModel, inputstream: impl Read, max_anagram_dist
             }
         }
         //parallellisation will occur inside this method:
-        let output = model.find_all_matches(&batch, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, max_ngram);
+        let output = model.find_all_matches(&batch, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, max_ngram, singlethread);
         for result_match in output {
             seqnr += 1;
             if json {
@@ -406,9 +406,9 @@ fn main() {
                             .arg(Arg::with_name("max-ngram-order")
                                 .long("max-ngram-order")
                                 .short("N")
-                                .help("Maximum ngram order (1 for unigrams, 2 for bigrams, etc..). This also requires you to load actual ngram frequency lists using --corpus to have any effect.")
+                                .help("Maximum ngram order (1 for unigrams, 2 for bigrams, etc..). This also requires you to load actual ngram frequency lists using --corpus or --lm to have any effect.")
                                 .takes_value(true)
-                                .default_value("1"))
+                                .default_value("3"))
                             .arg(Arg::with_name("lm")
                                 .long("lm")
                                 .help("Corpus-derived list of unigrams and bigrams that are used for simple language modelling, i.e. computation the transition probabilities when finding the optimal sequence of variants. This is a TSV file containing the the ngram in the first column (space character acts as token separator), and the absolute frequency count in the second column. It is also recommended it contains the special tokens <bos> (begin of sentence) and <eos> end of sentence. The items in this list are NOT used for variant matching, use --corpus or even --lexicon instead if you want to also match against these items.")
@@ -543,7 +543,7 @@ fn main() {
     let perline = args.is_present("per-line");
     let retain_linebreaks = args.is_present("retain-linebreaks");
     let max_ngram = if let Some(value) = args.value_of("max-ngram-order") {
-        value.parse::<u8>().expect("Score threshold should be a small integer")
+        value.parse::<u8>().expect("Max n-gram should be a small integer")
     } else {
         0
     };
@@ -598,7 +598,7 @@ fn main() {
                     let stdin = io::stdin();
                     if rootargs.subcommand_matches("search").is_some() {
                         eprintln!("(accepting standard input; enter text to search for variants, output may be delayed until end of input, enter an empty line to force output earlier)");
-                        process_search(&model, stdin, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress, max_ngram, !retain_linebreaks, perline);
+                        process_search(&model, stdin, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress, max_ngram, !retain_linebreaks, perline, singlethread);
                     } else if singlethread || reverseindex.is_some()  {
                         eprintln!("(accepting standard input; enter input to match, one per line)");
                         process(&model, stdin, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
@@ -611,7 +611,7 @@ fn main() {
                 _ =>  {
                     let f = File::open(filename).expect(format!("ERROR: Unable to open file {}", filename).as_str());
                     if rootargs.subcommand_matches("search").is_some() {
-                        process_search(&model, f, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress, max_ngram, !retain_linebreaks, perline);
+                        process_search(&model, f, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress, max_ngram, !retain_linebreaks, perline, singlethread);
                     } else if singlethread || reverseindex.is_some() {
                         process(&model, f, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
                     } else {

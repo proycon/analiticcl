@@ -1088,7 +1088,7 @@ impl VariantModel {
     }
 
     ///Searches a text and returns all highest-ranking variants found in the text
-    pub fn find_all_matches<'a>(&self, text: &'a str, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, max_ngram: u8) -> Vec<Match<'a>> {
+    pub fn find_all_matches<'a>(&self, text: &'a str, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, max_ngram: u8, singlethread: bool) -> Vec<Match<'a>> {
         let mut matches = Vec::new();
 
         if self.debug {
@@ -1130,13 +1130,24 @@ impl VariantModel {
                 }
 
                 //find variants for all segments in this batch (in parallel)
-                all_segments.par_iter_mut().for_each(|(segment, _)| {
-                    if self.debug {
-                        eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
-                    }
-                    let variants = self.find_variants(&segment.text, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, None);
-                    segment.variants = Some(variants);
-                });
+                if singlethread {
+                    all_segments.iter_mut().for_each(|(segment, _)| {
+                        if self.debug {
+                            eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
+                        }
+                        let variants = self.find_variants(&segment.text, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, None);
+                        segment.variants = Some(variants);
+                    });
+                } else {
+                    all_segments.par_iter_mut().for_each(|(segment, _)| {
+                        if self.debug {
+                            eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
+                        }
+                        let variants = self.find_variants(&segment.text, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, None);
+                        segment.variants = Some(variants);
+                    });
+                }
+
 
                 let l = matches.len();
                 //consolidate the matches, finding a single segmentation that has the best (highest
