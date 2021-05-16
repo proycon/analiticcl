@@ -46,3 +46,14 @@ pub fn get_test_alphabet() -> (Alphabet,CharIndexType) {
     (alphabet, l as CharIndexType)
 }
 
+pub fn get_test_searchparams() -> SearchParameters {
+    SearchParameters {
+        max_edit_distance: 2,
+        max_anagram_distance: 2,
+        max_matches: 10,
+        stop_criterion: StopCriterion::Exhaustive,
+        score_threshold: 0.0,
+        max_ngram: 2,
+        single_thread: false,
+    }
+}

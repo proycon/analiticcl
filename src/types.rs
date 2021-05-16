@@ -23,6 +23,7 @@ pub type Alphabet = Vec<Vec<String>>;
 
 
 
+#[derive(Clone,PartialEq,Debug)]
 pub struct Weights {
     pub ld: f64,
     pub lcs: f64,
@@ -50,6 +51,62 @@ impl Default for Weights {
 impl Weights {
     pub fn sum(&self) -> f64 {
         self.ld + self.lcs + self.freq + self.prefix + self.suffix + self.lex + self.case
+    }
+}
+
+#[derive(Clone,Debug)]
+pub struct SearchParameters {
+    pub max_anagram_distance: u8,
+    pub max_edit_distance: u8,
+    pub max_matches: usize,
+    pub score_threshold: f64,
+    pub stop_criterion: StopCriterion,
+    pub max_ngram: u8,
+    pub single_thread: bool,
+}
+
+impl Default for SearchParameters {
+    fn default() -> Self {
+        Self {
+            max_anagram_distance: 3,
+            max_edit_distance: 3,
+            max_matches: 20,
+            score_threshold: 0.25,
+            stop_criterion: StopCriterion::Exhaustive,
+            max_ngram: 2,
+            single_thread: false,
+        }
+    }
+}
+
+impl SearchParameters {
+    pub fn with_edit_distance(mut self, distance: u8) -> Self {
+        self.max_edit_distance = distance;
+        self
+    }
+    pub fn with_anagram_distance(mut self, distance: u8) -> Self {
+        self.max_anagram_distance = distance;
+        self
+    }
+    pub fn with_max_matches(mut self, matches: usize) -> Self {
+        self.max_matches = matches;
+        self
+    }
+    pub fn with_score_threshold(mut self, threshold: f64) -> Self {
+        self.score_threshold = threshold;
+        self
+    }
+    pub fn with_stop_criterion(mut self, criterion: StopCriterion) -> Self {
+        self.stop_criterion = criterion;
+        self
+    }
+    pub fn with_max_ngram(mut self, max_ngram: u8) -> Self {
+        self.max_ngram = max_ngram;
+        self
+    }
+    pub fn with_single_thread(mut self) -> Self {
+        self.single_thread = true;
+        self
     }
 }
 
@@ -83,7 +140,7 @@ pub struct Distance {
     pub prescore: Option<f64>,
 }
 
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug,Clone,Copy,PartialEq)]
 pub enum StopCriterion {
     Exhaustive,
     StopAtExactMatch,

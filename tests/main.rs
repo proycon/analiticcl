@@ -638,7 +638,7 @@ fn test0403_model_anagrams() {
         model.add_to_vocabulary(text,None,&VocabParams::default());
     }
     model.build();
-    model.find_variants("rite", 2, 2, 10, 0.0, StopCriterion::Exhaustive, None);
+    model.find_variants("rite", &get_test_searchparams(), None);
 }
 
 #[test]
@@ -650,7 +650,7 @@ fn test0404_score_test() {
         model.add_to_vocabulary(text,None,&VocabParams::default());
     }
     model.build();
-    let results = model.find_variants("huys", 2, 2, 10, 0.0, StopCriterion::Exhaustive, None);
+    let results = model.find_variants("huys", &get_test_searchparams(), None);
     //results are a bit indeterministic due to sort_unstable
     //(order of equal-scoring elements is not fixed)
     //we just check if we get two results with the same score
@@ -682,7 +682,7 @@ fn test0502_confusable_test() {
     }
     model.add_to_confusables("-[y]+[i]",1.1).expect("added to confusables");
     model.build();
-    let results = model.find_variants("huys", 2, 2, 10, 0.0, StopCriterion::Exhaustive, None);
+    let results = model.find_variants("huys", &get_test_searchparams(), None);
     assert_eq!( model.decoder.get(results.get(0).unwrap().0 as usize).unwrap().text, "huis");
     assert_eq!( model.decoder.get(results.get(1).unwrap().0 as usize).unwrap().text, "huls");
     assert!( results.get(0).unwrap().1 > results.get(1).unwrap().1, "score of huis should be greater than that of huls" );
@@ -698,7 +698,7 @@ fn test0503_confusable_test2() {
     }
     model.add_to_confusables("-[y]+[i]",1.1).expect("added to confusables");
     model.build();
-    let results = model.find_variants("Huys", 2, 2, 10, 0.0, StopCriterion::Exhaustive, None);
+    let results = model.find_variants("Huys", &get_test_searchparams(), None);
     assert_eq!( model.decoder.get(results.get(0).unwrap().0 as usize).unwrap().text, "huis");
     assert_eq!( model.decoder.get(results.get(1).unwrap().0 as usize).unwrap().text, "huls");
     assert!( results.get(0).unwrap().1 > results.get(1).unwrap().1, "score of huis should be greater than that of huls" );
@@ -714,7 +714,7 @@ fn test0504_confusable_nomatch() {
     }
     model.add_to_confusables("-[y]+[p]",1.1).expect("added to confusables");
     model.build();
-    let results = model.find_variants("Huys", 2, 2, 10, 0.0, StopCriterion::Exhaustive, None);
+    let results = model.find_variants("Huys", &get_test_searchparams(), None);
     assert_eq!( results.len() , 2 );
     assert_eq!( results.get(0).unwrap().1,results.get(1).unwrap().1, "score of huis should be equal to that of huls" );
 }
@@ -826,7 +826,7 @@ fn test0701_find_all_matches_unigram_only() {
         model.add_to_vocabulary(text,None,&VocabParams::default());
     }
     model.build();
-    let matches = model.find_all_matches("I tink you are rihgt", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 1, false);
+    let matches = model.find_all_matches("I tink you are rihgt", &get_test_searchparams().with_max_ngram(1));
     assert!( !matches.is_empty() );
     assert_eq!( matches.get(0).unwrap().text , "I" );
     assert_eq!( matches.get(1).unwrap().text , "tink" );
@@ -855,7 +855,7 @@ fn test0702_find_all_matches() {
     model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
     model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
     model.build();
-    let matches = model.find_all_matches("I tink you are rihgt", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 2, false);
+    let matches = model.find_all_matches("I tink you are rihgt", &get_test_searchparams());
     assert!( !matches.is_empty() );
     assert_eq!( matches.get(0).unwrap().text , "I" );
     assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
@@ -884,7 +884,7 @@ fn test0703_find_all_matches_linebreak() {
     model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
     model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
     model.build();
-    let matches = model.find_all_matches("I tink you are\nrihgt", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 2, false);
+    let matches = model.find_all_matches("I tink you are\nrihgt",&get_test_searchparams());
     assert!( !matches.is_empty() );
     assert_eq!( matches.get(0).unwrap().text , "I" );
     assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
@@ -918,7 +918,7 @@ fn test0704_find_all_matches_two_batches() {
     // "am sure" -> model has to figure this one out itself using an unknown transition
     model.add_to_vocabulary("sure <eos>",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
     model.build();
-    let matches = model.find_all_matches("I tink you are rihgt\n\nI am sur", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 2, false);
+    let matches = model.find_all_matches("I tink you are rihgt\n\nI am sur", &get_test_searchparams());
     assert!( !matches.is_empty() );
     assert_eq!( matches.get(0).unwrap().text , "I" );
     assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );

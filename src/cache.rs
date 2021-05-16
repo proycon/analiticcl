@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::types::*;
 
-#[derive(Default)]
+#[derive(Default,Debug)]
 pub struct Cache {
     pub(crate) visited: HashSet<AnaValue>,
     visited_max_size: usize,

@@ -77,7 +77,7 @@ fn output_reverse_index(model: &VariantModel, reverseindex: &ReverseIndex) {
     }
 }
 
-fn process(model: &VariantModel, inputstream: impl Read, reverseindex: &mut Option<ReverseIndex>, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, cache: &mut Option<Cache>, progress: bool) {
+fn process(model: &VariantModel, inputstream: impl Read, reverseindex: &mut Option<ReverseIndex>, searchparams: &SearchParameters, output_lexmatch: bool, json: bool, cache: &mut Option<Cache>, progress: bool) {
     let mut seqnr = 0;
     let f_buffer = BufReader::new(inputstream);
     let mut progresstime = SystemTime::now();
@@ -87,7 +87,7 @@ fn process(model: &VariantModel, inputstream: impl Read, reverseindex: &mut Opti
             if progress && seqnr % 1000 == 1 {
                 progresstime = show_progress(seqnr, progresstime, 1000);
             }
-            let variants = model.find_variants(&input, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, cache.as_mut());
+            let variants = model.find_variants(&input, searchparams, cache.as_mut());
             if let Some(reverseindex) = reverseindex.as_mut() {
                 //we are asked to build a reverse index
                 for (vocab_id,score) in variants.iter() {
@@ -108,7 +108,7 @@ fn process(model: &VariantModel, inputstream: impl Read, reverseindex: &mut Opti
 
 const MAX_BATCHSIZE: usize = 1000;
 
-fn process_par(model: &VariantModel, inputstream: impl Read, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, progress: bool) -> io::Result<()> {
+fn process_par(model: &VariantModel, inputstream: impl Read, searchparams: &SearchParameters, output_lexmatch: bool, json: bool, progress: bool) -> io::Result<()> {
     let mut seqnr = 0;
     let f_buffer = BufReader::new(inputstream);
     let mut progresstime = SystemTime::now();
@@ -131,7 +131,7 @@ fn process_par(model: &VariantModel, inputstream: impl Read, max_anagram_distanc
         let output: Vec<_> = batch
             .par_iter()
             .map(|input| {
-                (input, model.find_variants(&input, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, None))
+                (input, model.find_variants(&input, searchparams, None))
             }).collect();
         for (input, variants) in output {
             seqnr += 1;
@@ -151,7 +151,7 @@ fn process_par(model: &VariantModel, inputstream: impl Read, max_anagram_distanc
 
 const MAX_BATCHSIZE_SEARCH: usize = 100;
 
-fn process_search(model: &VariantModel, inputstream: impl Read, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, output_lexmatch: bool, json: bool, progress: bool, max_ngram: u8, newline_as_space: bool, per_line: bool, singlethread: bool) {
+fn process_search(model: &VariantModel, inputstream: impl Read, searchparams: &SearchParameters, output_lexmatch: bool, json: bool, progress: bool, newline_as_space: bool, per_line: bool) {
     let mut seqnr = 0;
     let mut prevseqnr = 0;
     let f_buffer = BufReader::new(inputstream);
@@ -184,7 +184,7 @@ fn process_search(model: &VariantModel, inputstream: impl Read, max_anagram_dist
             }
         }
         //parallellisation will occur inside this method:
-        let output = model.find_all_matches(&batch, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, max_ngram, singlethread);
+        let output = model.find_all_matches(&batch, searchparams);
         for result_match in output {
             seqnr += 1;
             if json {
@@ -290,7 +290,7 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
     args.push(Arg::with_name("stop-iterative")
         .short("S")
         .long("stop-iterative")
-        .help("Seek iteratively and stop after gathering enough matches, as represented by this threshold")
+        .help("Seek iteratively and stop after gathering enough matches, the number of which is represented by this threshold")
         .takes_value(true)
         .required(false));
     args.push(Arg::with_name("score-threshold")
@@ -524,28 +524,31 @@ fn main() {
     eprintln!("Building model...");
     model.build();
 
-    let max_anagram_distance: u8 = args.value_of("max-anagram-distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
-    let max_edit_distance: u8 = args.value_of("max-edit-distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255");
-    let max_matches: usize = args.value_of("max-matches").unwrap().parse::<usize>().expect("Maximum matches should should be an integer (0 for unlimited)");
-    let score_threshold: f64 = args.value_of("score-threshold").unwrap().parse::<f64>().expect("Score threshold should be a floating point number");
     let output_lexmatch = args.is_present("output-lexmatch");
     let progress = args.is_present("progress");
-    let stop_criterion = match (args.is_present("stop-exact"), args.is_present("stop-iterative")) {
-        (true, true) => StopCriterion::IterativeStopAtExactMatch(args.value_of("stop-iterative").unwrap().parse::<usize>().expect("Cut-off value should be an integer")),
-        (false, true) => StopCriterion::Iterative(args.value_of("stop-iterative").unwrap().parse::<usize>().expect("Stop-iterative threshold should be an integer")),
-        (true, false) => StopCriterion::StopAtExactMatch,
-        (false, false) => StopCriterion::Exhaustive
-    };
     let json = args.is_present("json");
-    let singlethread = args.is_present("single-thread") || args.is_present("debug") || args.is_present("interactive");
 
     //settings for Search mode
     let perline = args.is_present("per-line");
     let retain_linebreaks = args.is_present("retain-linebreaks");
-    let max_ngram = if let Some(value) = args.value_of("max-ngram-order") {
-        value.parse::<u8>().expect("Max n-gram should be a small integer")
-    } else {
-        0
+
+    let searchparams = SearchParameters {
+        max_anagram_distance: args.value_of("max-anagram-distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255"),
+        max_edit_distance: args.value_of("max-edit-distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255"),
+        max_matches: args.value_of("max-matches").unwrap().parse::<usize>().expect("Maximum matches should should be an integer (0 for unlimited)"),
+        score_threshold: args.value_of("score-threshold").unwrap().parse::<f64>().expect("Score threshold should be a floating point number"),
+        stop_criterion: match (args.is_present("stop-exact"), args.is_present("stop-iterative")) {
+            (true, true) => StopCriterion::IterativeStopAtExactMatch(args.value_of("stop-iterative").unwrap().parse::<usize>().expect("Cut-off value should be an integer")),
+            (false, true) => StopCriterion::Iterative(args.value_of("stop-iterative").unwrap().parse::<usize>().expect("Stop-iterative threshold should be an integer")),
+            (true, false) => StopCriterion::StopAtExactMatch,
+            (false, false) => StopCriterion::Exhaustive
+        },
+        single_thread: args.is_present("single-thread") || args.is_present("debug") || args.is_present("interactive"),
+        max_ngram: if let Some(value) = args.value_of("max-ngram-order") {
+            value.parse::<u8>().expect("Max n-gram should be a small integer")
+        } else {
+            0
+        }
     };
 
 
@@ -598,25 +601,25 @@ fn main() {
                     let stdin = io::stdin();
                     if rootargs.subcommand_matches("search").is_some() {
                         eprintln!("(accepting standard input; enter text to search for variants, output may be delayed until end of input, enter an empty line to force output earlier)");
-                        process_search(&model, stdin, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress, max_ngram, !retain_linebreaks, perline, singlethread);
-                    } else if singlethread || reverseindex.is_some()  {
+                        process_search(&model, stdin, &searchparams, output_lexmatch, json, progress, !retain_linebreaks, perline);
+                    } else if searchparams.single_thread || reverseindex.is_some()  {
                         eprintln!("(accepting standard input; enter input to match, one per line)");
-                        process(&model, stdin, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
+                        process(&model, stdin, &mut reverseindex, &searchparams, output_lexmatch, json, &mut cache, progress);
                     } else {
                         eprintln!("(accepting standard input; enter input to match, one per line, output may be delayed until end of input due to parallellisation)");
                         //normal parallel behaviour
-                        process_par(&model, stdin, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress).expect("I/O Error");
+                        process_par(&model, stdin, &searchparams, output_lexmatch, json, progress).expect("I/O Error");
                     }
                 },
                 _ =>  {
                     let f = File::open(filename).expect(format!("ERROR: Unable to open file {}", filename).as_str());
                     if rootargs.subcommand_matches("search").is_some() {
-                        process_search(&model, f, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress, max_ngram, !retain_linebreaks, perline, singlethread);
-                    } else if singlethread || reverseindex.is_some() {
-                        process(&model, f, &mut reverseindex, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, &mut cache, progress);
+                        process_search(&model, f, &searchparams, output_lexmatch, json, progress, !retain_linebreaks, perline);
+                    } else if searchparams.single_thread || reverseindex.is_some() {
+                        process(&model, f, &mut reverseindex, &searchparams, output_lexmatch, json, &mut cache, progress);
                     } else {
                         //normal parallel behaviour
-                        process_par(&model, f, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, output_lexmatch, json, progress).expect("I/O Error");
+                        process_par(&model, f, &searchparams, output_lexmatch, json, progress).expect("I/O Error");
                     }
                 }
             }

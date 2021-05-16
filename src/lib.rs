@@ -592,7 +592,7 @@ impl VariantModel {
 
     /// Find variants in the vocabulary for a given string (in its totality), returns a vector of vocabulaly ID and score pairs
     /// The resulting vocabulary Ids can be resolved through `get_vocab()`
-    pub fn find_variants(&self, input: &str, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, cache: Option<&mut Cache>) -> Vec<(VocabId, f64)> {
+    pub fn find_variants(&self, input: &str, params: &SearchParameters, cache: Option<&mut Cache>) -> Vec<(VocabId, f64)> {
 
         //Compute the anahash
         let normstring = input.normalize_to_alphabet(&self.alphabet);
@@ -604,8 +604,8 @@ impl VariantModel {
 
         //Compute neighbouring anahashes and find the nearest anahashes in the model
         let anahashes = self.find_nearest_anahashes(&anahash, &normstring,
-                                                    min(max_anagram_distance, max_dynamic_distance),
-                                                    stop_criterion,
+                                                    min(params.max_anagram_distance, max_dynamic_distance),
+                                                    params.stop_criterion,
                                                     if let Some(cache) = cache {
                                                        Some(&mut cache.visited)
                                                     } else {
@@ -614,15 +614,15 @@ impl VariantModel {
 
         //Get the instances pertaining to the collected hashes, within a certain maximum distance
         //and compute distances
-        let variants = self.gather_instances(&anahashes, &normstring, input, min(max_edit_distance, max_dynamic_distance));
+        let variants = self.gather_instances(&anahashes, &normstring, input, min(params.max_edit_distance, max_dynamic_distance));
 
-        self.score_and_rank(variants, input, max_matches, score_threshold)
+        self.score_and_rank(variants, input, params.max_matches, params.score_threshold)
     }
 
 
     /// Find the nearest anahashes that exists in the model (computing anahashes in the
     /// neigbhourhood if needed).
-    pub fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, normstring: &Vec<u8>, max_distance: u8,  stop_criterion: StopCriterion, cache: Option<&mut HashSet<AnaValue>>) -> HashSet<&'a AnaValue> {
+    pub(crate) fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, normstring: &Vec<u8>, max_distance: u8,  stop_criterion: StopCriterion, cache: Option<&mut HashSet<AnaValue>>) -> HashSet<&'a AnaValue> {
         let mut nearest: HashSet<&AnaValue> = HashSet::new();
 
         let begintime = if self.debug {
@@ -803,7 +803,7 @@ impl VariantModel {
 
 
     /// Gather instances and their edit distances, given a search string (normalised to the alphabet) and anagram hashes
-    pub fn gather_instances(&self, nearest_anagrams: &HashSet<&AnaValue>, querystring: &[u8], query: &str, max_edit_distance: u8) -> Vec<(VocabId,Distance)> {
+    pub(crate) fn gather_instances(&self, nearest_anagrams: &HashSet<&AnaValue>, querystring: &[u8], query: &str, max_edit_distance: u8) -> Vec<(VocabId,Distance)> {
         let mut found_instances = Vec::new();
         let mut pruned_instances = 0;
 
@@ -882,7 +882,7 @@ impl VariantModel {
 
 
     /// Rank and score all variants
-    pub fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, input: &str, max_matches: usize, score_threshold: f64 ) -> Vec<(VocabId,f64)> {
+    pub(crate) fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, input: &str, max_matches: usize, score_threshold: f64 ) -> Vec<(VocabId,f64)> {
         let mut results: Vec<(VocabId,f64)> = Vec::new();
         let mut max_distance = 0;
         let mut max_freq = 0;
@@ -1088,7 +1088,7 @@ impl VariantModel {
     }
 
     ///Searches a text and returns all highest-ranking variants found in the text
-    pub fn find_all_matches<'a>(&self, text: &'a str, max_anagram_distance: u8, max_edit_distance: u8, max_matches: usize, score_threshold: f64, stop_criterion: StopCriterion, max_ngram: u8, singlethread: bool) -> Vec<Match<'a>> {
+    pub fn find_all_matches<'a>(&self, text: &'a str, params: &SearchParameters) -> Vec<Match<'a>> {
         let mut matches = Vec::new();
 
         if self.debug {
@@ -1122,7 +1122,7 @@ impl VariantModel {
 
                 //Gather all segments for this batch
                 let mut all_segments: Vec<(Match<'a>,u8)> = Vec::new(); //second var in tuple corresponds to the ngram order
-                for order in 1..=max_ngram {
+                for order in 1..=params.max_ngram {
                     all_segments.extend(find_match_ngrams(text, boundaries, order, begin, Some(boundary.offset.begin)).into_iter());
                 }
                 if self.debug {
@@ -1130,12 +1130,12 @@ impl VariantModel {
                 }
 
                 //find variants for all segments in this batch (in parallel)
-                if singlethread {
+                if params.single_thread {
                     all_segments.iter_mut().for_each(|(segment, _)| {
                         if self.debug {
                             eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
                         }
-                        let variants = self.find_variants(&segment.text, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, None);
+                        let variants = self.find_variants(&segment.text, params, None);
                         segment.variants = Some(variants);
                     });
                 } else {
@@ -1143,7 +1143,7 @@ impl VariantModel {
                         if self.debug {
                             eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
                         }
-                        let variants = self.find_variants(&segment.text, max_anagram_distance, max_edit_distance, max_matches, score_threshold, stop_criterion, None);
+                        let variants = self.find_variants(&segment.text, params, None);
                         segment.variants = Some(variants);
                     });
                 }
@@ -1152,7 +1152,7 @@ impl VariantModel {
                 let l = matches.len();
                 //consolidate the matches, finding a single segmentation that has the best (highest
                 //scoring) solution
-                if max_ngram > 1 {
+                if params.max_ngram > 1 {
                     //(debug will be handled in the called method)
                     matches.extend(
                         self.most_likely_sequence(all_segments, boundaries, begin, boundary.offset.begin).into_iter()
