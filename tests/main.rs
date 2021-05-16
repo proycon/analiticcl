@@ -826,7 +826,7 @@ fn test0701_find_all_matches_unigram_only() {
         model.add_to_vocabulary(text,None,&VocabParams::default());
     }
     model.build();
-    let matches = model.find_all_matches("I tink you are rihgt", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 1);
+    let matches = model.find_all_matches("I tink you are rihgt", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 1, false);
     assert!( !matches.is_empty() );
     assert_eq!( matches.get(0).unwrap().text , "I" );
     assert_eq!( matches.get(1).unwrap().text , "tink" );
@@ -855,7 +855,7 @@ fn test0702_find_all_matches() {
     model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
     model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
     model.build();
-    let matches = model.find_all_matches("I tink you are rihgt", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 2);
+    let matches = model.find_all_matches("I tink you are rihgt", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 2, false);
     assert!( !matches.is_empty() );
     assert_eq!( matches.get(0).unwrap().text , "I" );
     assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
@@ -884,7 +884,7 @@ fn test0703_find_all_matches_linebreak() {
     model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
     model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
     model.build();
-    let matches = model.find_all_matches("I tink you are\nrihgt", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 2);
+    let matches = model.find_all_matches("I tink you are\nrihgt", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 2, false);
     assert!( !matches.is_empty() );
     assert_eq!( matches.get(0).unwrap().text , "I" );
     assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
@@ -918,7 +918,7 @@ fn test0704_find_all_matches_two_batches() {
     // "am sure" -> model has to figure this one out itself using an unknown transition
     model.add_to_vocabulary("sure <eos>",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
     model.build();
-    let matches = model.find_all_matches("I tink you are rihgt\n\nI am sur", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 2);
+    let matches = model.find_all_matches("I tink you are rihgt\n\nI am sur", 2, 2, 10, 0.0, StopCriterion::Exhaustive, 2, false);
     assert!( !matches.is_empty() );
     assert_eq!( matches.get(0).unwrap().text , "I" );
     assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
