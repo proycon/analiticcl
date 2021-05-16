@@ -11,24 +11,35 @@ use rayon::prelude::*;
 
 use analiticcl::*;
 
-fn output_matches_as_tsv(model: &VariantModel, input: &str, variants: Option<&Vec<(VocabId, f64)>>, offset: Option<Offset>, output_lexmatch: bool) {
+fn output_matches_as_tsv(model: &VariantModel, input: &str, variants: Option<&Vec<(VocabId, f64)>>, selected: Option<usize>, offset: Option<Offset>, output_lexmatch: bool) {
     print!("{}",input);
     if let Some(offset) = offset {
         print!("\t{}:{}",offset.begin, offset.end);
     }
     if let Some(variants) = variants {
-        for (vocab_id, score) in variants {
+        if let Some(selected) = selected {
+            //output selected value before all others
+            let (vocab_id, score) = variants.get(selected).expect("selected item must exist");
             let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
             print!("\t{}\t{}\t", vocabvalue.text, score);
             if  output_lexmatch {
                 print!("\t{}", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
             }
         }
+        for (i, (vocab_id, score)) in variants.iter().enumerate() {
+            if selected.is_none() || selected.unwrap() != i { //output all others
+                let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
+                print!("\t{}\t{}\t", vocabvalue.text, score);
+                if  output_lexmatch {
+                    print!("\t{}", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
+                }
+            }
+        }
     }
     println!();
 }
 
-fn output_matches_as_json(model: &VariantModel, input: &str, variants: Option<&Vec<(VocabId, f64)>>, offset: Option<Offset>, output_lexmatch: bool, seqnr: usize) {
+fn output_matches_as_json(model: &VariantModel, input: &str, variants: Option<&Vec<(VocabId, f64)>>, selected: Option<usize>, offset: Option<Offset>, output_lexmatch: bool, seqnr: usize) {
     if seqnr > 1 {
         println!(",")
     }
@@ -39,16 +50,31 @@ fn output_matches_as_json(model: &VariantModel, input: &str, variants: Option<&V
     if let Some(variants) = variants {
         println!(", \"variants\": [ ");
         let l = variants.len();
-        for (i, (vocab_id, score)) in variants.iter().enumerate() {
+        if let Some(selected) = selected {
+            let (vocab_id, score) = variants.get(selected).expect("selected item must exist");
             let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
             print!("        {{ \"text\": \"{}\", \"score\": {}", vocabvalue.text.replace("\"","\\\""), score);
             if  output_lexmatch {
                 print!(", \"lexicon\": \"{}\"", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
             }
-            if i < l - 1 {
+            if 0 < l - 1 {
                 println!(" }},");
             } else {
                 println!(" }}");
+            }
+        }
+        for (i, (vocab_id, score)) in variants.iter().enumerate() {
+            if selected.is_none() || selected.unwrap() != i { //output all others
+                let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
+                print!("        {{ \"text\": \"{}\", \"score\": {}", vocabvalue.text.replace("\"","\\\""), score);
+                if  output_lexmatch {
+                    print!(", \"lexicon\": \"{}\"", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
+                }
+                if i < l - 1 {
+                    println!(" }},");
+                } else {
+                    println!(" }}");
+                }
             }
         }
         println!("    ] }}");
@@ -94,10 +120,10 @@ fn process(model: &VariantModel, inputstream: impl Read, reverseindex: &mut Opti
                     model.add_to_reverse_index(reverseindex, &input, *vocab_id, *score);
                 }
             } else if json {
-                output_matches_as_json(model, &input, Some(&variants), None, output_lexmatch, seqnr);
+                output_matches_as_json(model, &input, Some(&variants), Some(0), None, output_lexmatch, seqnr);
             } else {
                 //Normal output mode
-                output_matches_as_tsv(model, &input, Some(&variants), None,  output_lexmatch);
+                output_matches_as_tsv(model, &input, Some(&variants), Some(0), None,  output_lexmatch);
             }
             if let Some(cache) = cache {
                 cache.check();
@@ -136,10 +162,10 @@ fn process_par(model: &VariantModel, inputstream: impl Read, searchparams: &Sear
         for (input, variants) in output {
             seqnr += 1;
             if json {
-                output_matches_as_json(model, &input, Some(&variants), None, output_lexmatch, seqnr);
+                output_matches_as_json(model, &input, Some(&variants), Some(0), None, output_lexmatch, seqnr);
             } else {
                 //Normal output mode
-                output_matches_as_tsv(model, &input, Some(&variants), None, output_lexmatch);
+                output_matches_as_tsv(model, &input, Some(&variants), Some(0), None, output_lexmatch);
             }
         }
         if progress {
@@ -188,10 +214,10 @@ fn process_search(model: &VariantModel, inputstream: impl Read, searchparams: &S
         for result_match in output {
             seqnr += 1;
             if json {
-                output_matches_as_json(model, result_match.text, result_match.variants.as_ref(), Some(result_match.offset), output_lexmatch, seqnr);
+                output_matches_as_json(model, result_match.text, result_match.variants.as_ref(), result_match.selected, Some(result_match.offset), output_lexmatch, seqnr);
             } else {
                 //Normal output mode
-                output_matches_as_tsv(model, result_match.text, result_match.variants.as_ref(), Some(result_match.offset), output_lexmatch);
+                output_matches_as_tsv(model, result_match.text, result_match.variants.as_ref(), result_match.selected, Some(result_match.offset), output_lexmatch);
             }
         }
         if progress {
