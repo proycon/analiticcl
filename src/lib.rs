@@ -10,6 +10,7 @@ use std::collections::{HashMap,HashSet,BTreeMap};
 use std::cmp::min;
 use sesdiff::shortest_edit_script;
 use std::time::SystemTime;
+use std::sync::Arc;
 use rayon::prelude::*;
 use rustfst::prelude::*;
 
@@ -1193,12 +1194,21 @@ impl VariantModel {
 
         //Build a finite state transducer
         let mut fst = VectorFst::<TropicalWeight>::new();
+        let mut symtab_in = SymbolTable::new(); //only used for drawing the FST in debug mode
+        let mut symtab_out = SymbolTable::new(); //only used for drawing the FST in debug mode
 
         //add initial and final stage
         let start = fst.add_state();
         let end = fst.add_state();
         fst.set_start(start).expect("set start state");
         fst.set_final(end, 0.0).expect("set final state");
+
+        if self.debug {
+            //add necessary padding so symbol table lines up with the values we use
+            //needed only for drawing the FST
+            symtab_out.add_symbol("<dummy1>");
+            symtab_out.add_symbol("<dummy2>");
+        }
 
         //Maps states back to the index of matches
         let mut states: HashMap<usize,StateInfo<'a>> = HashMap::new();
@@ -1209,10 +1219,18 @@ impl VariantModel {
         //                                            v---- emission logprob
         let match_states: Vec<Vec<StateId>> = matches.iter().enumerate().map(|(i, (m, _order))| {
 
+            if self.debug {
+                symtab_in.add_symbol(m.text);
+            }
+
             //for each match we add FST states for all variants
             if m.variants.is_some() && !m.variants.as_ref().unwrap().is_empty() {
                 m.variants.as_ref().unwrap().iter().enumerate().map(|(j, (variant, score))| {
                     let state_id = fst.add_state();
+                    if self.debug {
+                        let variant_text = self.decoder.get(*variant as usize).expect("variant_text").text.as_str();
+                        symtab_out.add_symbol(variant_text);
+                    }
                     states.insert(state_id, StateInfo {
                         input: Some(m.text),
                         output: Some(*variant),
@@ -1232,6 +1250,9 @@ impl VariantModel {
                 //we use the maximum emission logprob (0), transition probability will be penalised
                 //down to the uniform smoothing factor in later computations
                 let state_id = fst.add_state();
+                if self.debug {
+                    symtab_out.add_symbol(m.text);
+                }
                 states.insert(state_id, StateInfo {
                     input: Some(m.text),
                     output: None, //this means we copy the input
@@ -1261,6 +1282,14 @@ impl VariantModel {
                             tokencount: 0,
         };
 
+        let copy_symbol = if self.debug {
+            let label = symtab_out.add_symbol("[copy]");
+            eprintln!("   (copy label set to {})", label);
+            label
+        } else {
+            OOV_COPY_FROM_INPUT
+        };
+
         if self.debug {
             eprintln!(" (added {} FST states)", states.len());
             eprintln!(" (adding transition from the start state)");
@@ -1270,7 +1299,7 @@ impl VariantModel {
             if nextmatch.offset.begin == begin_offset {
                 for state in match_states.get(i).expect("getting nextmatch") {
                     let stateinfo = states.get(state).expect("getting state info");
-                    self.compute_fst_transition(&mut fst, *state, stateinfo, &dummy_stateinfo, start, start, end);
+                    self.compute_fst_transition(&mut fst, *state, stateinfo, &dummy_stateinfo, start, start, end, copy_symbol);
                 }
             }
         });
@@ -1311,7 +1340,7 @@ impl VariantModel {
                 let prevstateinfo = states.get(prevstate).expect("getting prevstate info" );
                 for nextstate in nextstates.iter() {
                     let stateinfo = states.get(nextstate).expect("getting nextstate info");
-                    self.compute_fst_transition(&mut fst, *nextstate, stateinfo,prevstateinfo, *prevstate, start, end);
+                    self.compute_fst_transition(&mut fst, *nextstate, stateinfo,prevstateinfo, *prevstate, start, end, copy_symbol);
                     count += 1;
                 }
 
@@ -1320,7 +1349,7 @@ impl VariantModel {
                     if self.debug {
                         eprintln!("  (adding transition to end state)");
                     }
-                    self.compute_fst_transition(&mut fst, end, &dummy_stateinfo, prevstateinfo, *prevstate, start, end);
+                    self.compute_fst_transition(&mut fst, end, &dummy_stateinfo, prevstateinfo, *prevstate, start, end, copy_symbol);
                     count += 1;
                 }
 
@@ -1338,7 +1367,12 @@ impl VariantModel {
         if self.debug {
             eprintln!(" (computed FST: {:?})", fst);
             eprintln!(" (finding shortest path)");
-            fst.draw("/tmp/fst.dot", &DrawingConfig::default() );
+            symtab_in.add_symbol("<final>");
+            fst.set_input_symbols(Arc::new(symtab_in));
+            fst.set_output_symbols(Arc::new(symtab_out));
+            if let Err(e) = fst.draw("/tmp/fst.dot", &DrawingConfig::default() ) {
+                panic!("FST draw error: {}", e);
+            }
         }
         let fst: VectorFst<TropicalWeight> = shortest_path(&fst).expect("computing shortest path fst");
         for path in fst.paths_iter() { //iterates over one path (the shortest)
@@ -1353,7 +1387,7 @@ impl VariantModel {
                     eprintln!("  (match_index/ilabel={}, output_index/olabel={})", match_index, output_index);
                 }
                 if let Some((m,_)) = matches.get(match_index) {
-                    if *output_index == OOV_COPY_FROM_INPUT {
+                    if *output_index == copy_symbol {
                         //output is the same as input, we just return the entire match
                         match_sequence.push(m.clone());
                         if self.debug {
@@ -1385,7 +1419,7 @@ impl VariantModel {
     /// to assign to this transition in the Finite State Transducer.
     /// The transition probability depends only on two states (Markov assumption) which
     /// is a simplification of reality.
-    fn compute_fst_transition<'a>(&self, fst: &mut VectorFst<TropicalWeight>, state: usize, stateinfo: &StateInfo<'a>, prevstateinfo: &StateInfo<'a>, prevstate: StateId, start: StateId, end: StateId) {
+    fn compute_fst_transition<'a>(&self, fst: &mut VectorFst<TropicalWeight>, state: usize, stateinfo: &StateInfo<'a>, prevstateinfo: &StateInfo<'a>, prevstate: StateId, start: StateId, end: StateId, copy_symbol: usize) {
         if let Some(previous_output) = prevstateinfo.output {
             //normal transition with known previous output
             let prior = self.into_ngram(previous_output, &mut None);
@@ -1412,9 +1446,9 @@ impl VariantModel {
                 if stateinfo.tokencount > 1 {
                     //if this is an n-gram, we also count the internal transitions as unknown
                     //transitions, so there is no bias towards selecting larger n-gram fragments
-                    (TRANSITION_SMOOTHING_LOGPROB * stateinfo.tokencount as f32, OOV_COPY_FROM_INPUT)
+                    (TRANSITION_SMOOTHING_LOGPROB * stateinfo.tokencount as f32, copy_symbol)
                 } else {
-                    (TRANSITION_SMOOTHING_LOGPROB, OOV_COPY_FROM_INPUT)
+                    (TRANSITION_SMOOTHING_LOGPROB, copy_symbol)
                 }
             };
             if self.debug {
@@ -1442,9 +1476,9 @@ impl VariantModel {
                 if stateinfo.tokencount > 1 {
                     //if this is an n-gram, we also count the internal transitions as unknown
                     //transitions, so there is no bias towards selecting larger n-gram fragments
-                    (TRANSITION_SMOOTHING_LOGPROB * stateinfo.tokencount as f32, OOV_COPY_FROM_INPUT)
+                    (TRANSITION_SMOOTHING_LOGPROB * stateinfo.tokencount as f32, copy_symbol)
                 } else {
-                    (TRANSITION_SMOOTHING_LOGPROB, OOV_COPY_FROM_INPUT)
+                    (TRANSITION_SMOOTHING_LOGPROB, copy_symbol)
                 }
             };
             if self.debug {
@@ -1457,7 +1491,7 @@ impl VariantModel {
             let output = if stateinfo.output.is_some() {
                 state
             } else {
-                OOV_COPY_FROM_INPUT
+                copy_symbol
             };
             let transition_logprob = if stateinfo.tokencount > 1 {
                     //if this is an n-gram, we also count the internal transitions as unknown
