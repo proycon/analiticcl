@@ -1204,18 +1204,27 @@ impl VariantModel {
 
 
         //adds states for all boundaries
+        let mut final_found = false;
         let states: Vec<usize> = boundaries.iter().map(|boundary| {
             let state = fst.add_state();
             if boundary.offset.end == end_offset {
+                final_found = true;
                 fst.set_final(state, 0.0).expect("set end state");
             }
             state
         }).collect();
 
+        if !final_found { //sanity check
+            panic!("no final state found");
+        }
+
+        if self.debug {
+            eprintln!(" (added {} states ({} boundaries), not including the start state)", states.len(), boundaries.len());
+        }
+
         let mut output_symbols: Vec<OutputSymbol> = vec!(
             OutputSymbol { vocab_id: 0, symbol: 0, match_index: 0, variant_index: None, boundary_index: 0 }, //first entry is a dummy entry because the 0 symbol is reserved for epsilon
         );
-        let copy_symbol = 1;
 
         //add transitions between the boundary states
         for (match_index, m) in matches.iter().enumerate() {
@@ -1238,11 +1247,11 @@ impl VariantModel {
             }
 
             let prevstate= if let Some(prevboundary) = prevboundary {
-                *states.get(prevboundary + 1).expect("state must exist")
+                *states.get(prevboundary).expect("prev state must exist")
             } else {
                 start
             };
-            let nextstate = *states.get(nextboundary.expect("next boundary must exist") + 1).expect("state must exist");
+            let nextstate = *states.get(nextboundary.expect("next boundary must exist")).expect("next state must exist");
 
             if m.variants.is_some() && !m.variants.as_ref().unwrap().is_empty() {
                 for (variant_index, (variant, score)) in m.variants.as_ref().unwrap().iter().enumerate() {
@@ -1295,18 +1304,22 @@ impl VariantModel {
         let fst: VectorFst<TropicalWeight> = shortest_path_with_config(&fst, ShortestPathConfig::default().with_nshortest(params.max_seq) ).expect("computing shortest path fst");
         let mut sequences: Vec<Sequence> = Vec::new();
         let mut best_lm_logprob: f32 = -99999999.0;
-        for path in fst.paths_iter() { //iterates over the n shortest path hypotheses
+        for (i, path)  in fst.paths_iter().enumerate() { //iterates over the n shortest path hypotheses (does not return them in weighted order)
             let w: f32 = *path.weight.value();
             let mut sequence = Sequence::new(w * -1.0f32);
             if self.debug {
-                eprintln!(" (shortest path: {:?})", path);
+                eprintln!("  (#{}, path: {:?})", i+1, path);
             }
             for (input_symbol, output_symbol) in path.ilabels.iter().zip(path.olabels.iter()) {
                 let output_symbol = output_symbols.get(*output_symbol).expect("expected valid output symbol");
                 sequence.output_symbols.push(output_symbol.clone());
             }
 
-            sequence.lm_logprob = self.lm_score(&sequence, &matches, &boundaries);
+            let (lm_logprob, perplexity) = self.lm_score(&sequence, &matches, &boundaries);
+            sequence.lm_logprob = lm_logprob;
+            if self.debug {
+                eprintln!("    (lm_logprob: {}, perplexity: {}, variant_logprob: {})", sequence.lm_logprob, perplexity, -1.0 * w);
+            }
             if sequence.lm_logprob > best_lm_logprob {
                 best_lm_logprob = sequence.lm_logprob;
             }
@@ -1315,12 +1328,15 @@ impl VariantModel {
 
         let mut best_score: f32 = -99999999.0;
         let mut best_sequence: Option<Sequence> = None;
-        for sequence in sequences {
-            let norm_lm_logprob = sequence.lm_logprob - best_lm_logprob;
+        for (i, sequence) in sequences.into_iter().enumerate() {
+            //let norm_lm_logprob = sequence.lm_logprob - best_lm_logprob;
             //because we compute this in log-space this is essentially a weighted geometric mean
             //rather than an arithmetic mean. The geometric mean should be a good fit for normalised
             //pseudo-probability ratios like our scores.
-            let score = (params.lm_weight * norm_lm_logprob + params.variantmodel_weight * sequence.emission_logprob) / (params.lm_weight + params.variantmodel_weight); //note: the denominator isn't really relevant for finding the best score
+            let score = (params.lm_weight * sequence.lm_logprob + params.variantmodel_weight * sequence.emission_logprob) / (params.lm_weight + params.variantmodel_weight); //note: the denominator isn't really relevant for finding the best score
+            if self.debug {
+                eprintln!("    (#{}, score={}, lm_logprob={}, variant_logprob={})", i+1, score, sequence.lm_logprob, sequence.emission_logprob);
+            }
             if score > best_score {
                 best_score = score;
                 best_sequence = Some(sequence);
@@ -1337,9 +1353,8 @@ impl VariantModel {
     }
 
 
-    /// Computes the perplexity for a given sequence, returns the perplexity in logarithmic space
-    /// (so the value is to be maximised to find the actual 'lowest' perplexity)
-    pub fn lm_score<'a>(&self, sequence: &Sequence, matches: &[Match<'a>], boundaries: &[Match<'a>]) -> f32 {
+    /// Computes the logprob and perplexity for a given sequence
+    pub fn lm_score<'a>(&self, sequence: &Sequence, matches: &[Match<'a>], boundaries: &[Match<'a>]) -> (f32,f64) {
 
         //step 1: collect all tokens in the sequence
 
@@ -1426,8 +1441,8 @@ impl VariantModel {
         //PP(W) = (1/P(w1...wN))^(1/N)
         // in logspace: PP(W) = -1.0/N * Log(P(w1...Wn))
 
-        let perplexity = -1.0/(n as f32) * logprob;
-        perplexity
+        let perplexity = -1.0/(n as f64) * logprob as f64;
+        (logprob, perplexity)
     }
 
 

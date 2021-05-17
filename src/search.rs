@@ -105,7 +105,7 @@ impl Sequence {
     pub fn new(emission_logprob: f32) -> Self {
         Self {
             output_symbols: Vec::new(),
-            emission_logprob: 0.0,
+            emission_logprob,
             lm_logprob: 0.0,
         }
     }
