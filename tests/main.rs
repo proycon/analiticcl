@@ -744,11 +744,11 @@ fn test0602_find_ngrams_unigram1() {
     let boundaries = find_boundaries(&text);
     let ngrams = find_match_ngrams(text, &boundaries, 1, 0, None);
     assert_eq!( ngrams.len() , 5 );
-    assert_eq!( ngrams.get(0).unwrap().0.text , "dit" );
-    assert_eq!( ngrams.get(1).unwrap().0.text , "is" );
-    assert_eq!( ngrams.get(2).unwrap().0.text , "een" );
-    assert_eq!( ngrams.get(3).unwrap().0.text , "mooie" );
-    assert_eq!( ngrams.get(4).unwrap().0.text , "test" );
+    assert_eq!( ngrams.get(0).unwrap().text , "dit" );
+    assert_eq!( ngrams.get(1).unwrap().text , "is" );
+    assert_eq!( ngrams.get(2).unwrap().text , "een" );
+    assert_eq!( ngrams.get(3).unwrap().text , "mooie" );
+    assert_eq!( ngrams.get(4).unwrap().text , "test" );
 }
 
 #[test]
@@ -757,11 +757,11 @@ fn test0603_find_ngrams_unigram2() {
     let boundaries = find_boundaries(&text);
     let ngrams = find_match_ngrams(text, &boundaries, 1, 0, None);
     assert_eq!( ngrams.len() , 5 );
-    assert_eq!( ngrams.get(0).unwrap().0.text , "dit" );
-    assert_eq!( ngrams.get(1).unwrap().0.text , "is" );
-    assert_eq!( ngrams.get(2).unwrap().0.text , "een" );
-    assert_eq!( ngrams.get(3).unwrap().0.text , "mooie" );
-    assert_eq!( ngrams.get(4).unwrap().0.text , "test" );
+    assert_eq!( ngrams.get(0).unwrap().text , "dit" );
+    assert_eq!( ngrams.get(1).unwrap().text , "is" );
+    assert_eq!( ngrams.get(2).unwrap().text , "een" );
+    assert_eq!( ngrams.get(3).unwrap().text , "mooie" );
+    assert_eq!( ngrams.get(4).unwrap().text , "test" );
 }
 
 #[test]
@@ -770,8 +770,8 @@ fn test0604_find_ngrams_unigram3() {
     let boundaries = find_boundaries(&text);
     let ngrams = find_match_ngrams(text, &boundaries, 1, 0, None);
     assert_eq!( ngrams.len() , 2 );
-    assert_eq!( ngrams.get(0).unwrap().0.text , "hello" );
-    assert_eq!( ngrams.get(1).unwrap().0.text , "world" );
+    assert_eq!( ngrams.get(0).unwrap().text , "hello" );
+    assert_eq!( ngrams.get(1).unwrap().text , "world" );
 }
 
 #[test]
@@ -783,10 +783,10 @@ fn test0605_find_ngrams_bigrams() {
     let ngrams = find_match_ngrams(text, &boundaries, 2, 0, None);
     eprintln!("{:?}", ngrams);
     assert_eq!( ngrams.len() , 4 );
-    assert_eq!( ngrams.get(0).unwrap().0.text , "dit is" );
-    assert_eq!( ngrams.get(1).unwrap().0.text , "is een" );
-    assert_eq!( ngrams.get(2).unwrap().0.text , "een mooie" );
-    assert_eq!( ngrams.get(3).unwrap().0.text , "mooie test" );
+    assert_eq!( ngrams.get(0).unwrap().text , "dit is" );
+    assert_eq!( ngrams.get(1).unwrap().text , "is een" );
+    assert_eq!( ngrams.get(2).unwrap().text , "een mooie" );
+    assert_eq!( ngrams.get(3).unwrap().text , "mooie test" );
     //note: final punctuation is a hard boundary and not returned
 }
 
@@ -796,7 +796,7 @@ fn test0606_find_ngrams_bigrams2() {
     let boundaries = find_boundaries(&text);
     let ngrams = find_match_ngrams(text, &boundaries, 2, 0, None);
     assert_eq!( ngrams.len() , 1 );
-    assert_eq!( ngrams.get(0).unwrap().0.text , "hello,world" ); //this counts as a bigram ("," is a boundary)
+    assert_eq!( ngrams.get(0).unwrap().text , "hello,world" ); //this counts as a bigram ("," is a boundary)
 }
 
 #[test]
@@ -805,7 +805,7 @@ fn test0607_find_ngrams_bigrams3() {
     let boundaries = find_boundaries(&text);
     let ngrams = find_match_ngrams(text, &boundaries, 2, 0, None);
     assert_eq!( ngrams.len() , 1 );
-    assert_eq!( ngrams.get(0).unwrap().0.text , "hello, world" ); //this counts as a bigram (", " is a boundary)
+    assert_eq!( ngrams.get(0).unwrap().text , "hello, world" ); //this counts as a bigram (", " is a boundary)
 }
 
 #[test]

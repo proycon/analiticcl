@@ -11,6 +11,7 @@ use std::cmp::min;
 use sesdiff::shortest_edit_script;
 use std::time::SystemTime;
 use std::sync::Arc;
+use std::convert::TryFrom;
 use rayon::prelude::*;
 use rustfst::prelude::*;
 
@@ -1122,7 +1123,7 @@ impl VariantModel {
                 }
 
                 //Gather all segments for this batch
-                let mut all_segments: Vec<(Match<'a>,u8)> = Vec::new(); //second var in tuple corresponds to the ngram order
+                let mut all_segments: Vec<Match<'a>> = Vec::new(); //second var in tuple corresponds to the ngram order
                 for order in 1..=params.max_ngram {
                     all_segments.extend(find_match_ngrams(text, boundaries, order, begin, Some(boundary.offset.begin)).into_iter());
                 }
@@ -1132,7 +1133,7 @@ impl VariantModel {
 
                 //find variants for all segments in this batch (in parallel)
                 if params.single_thread {
-                    all_segments.iter_mut().for_each(|(segment, _)| {
+                    all_segments.iter_mut().for_each(|(segment)| {
                         if self.debug {
                             eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
                         }
@@ -1140,7 +1141,7 @@ impl VariantModel {
                         segment.variants = Some(variants);
                     });
                 } else {
-                    all_segments.par_iter_mut().for_each(|(segment, _)| {
+                    all_segments.par_iter_mut().for_each(|(segment)| {
                         if self.debug {
                             eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
                         }
@@ -1156,14 +1157,14 @@ impl VariantModel {
                 if params.max_ngram > 1 {
                     //(debug will be handled in the called method)
                     matches.extend(
-                        self.most_likely_sequence(all_segments, boundaries, begin, boundary.offset.begin).into_iter()
+                        self.most_likely_sequence(all_segments, boundaries, begin, boundary.offset.begin, params).into_iter()
                     );
                 } else {
                     if self.debug {
                         eprintln!("  (returning matches directly, no need to find most likely sequence for unigrams)");
                     }
                     matches.extend(
-                        all_segments.into_iter().map(|(mut m,_)| {
+                        all_segments.into_iter().map(|(mut m)| {
                             m.selected = Some(0); //select the first (highest ranking) option
                             m
                         })
@@ -1187,7 +1188,7 @@ impl VariantModel {
 
 
     /// Find the solution that maximizes the variant scores, decodes using a Weighted Finite State Transducer
-    fn most_likely_sequence<'a>(&self, matches: Vec<(Match<'a>,u8)>, boundaries: &[Match<'a>], begin_offset: usize, end_offset: usize) -> Vec<Match<'a>> {
+    fn most_likely_sequence<'a>(&self, matches: Vec<Match<'a>>, boundaries: &[Match<'a>], begin_offset: usize, end_offset: usize, params: &SearchParameters) -> Vec<Match<'a>> {
         if self.debug {
             eprintln!("(building FST for finding most likely sequence in range {}:{})", begin_offset, end_offset);
         }
@@ -1197,326 +1198,239 @@ impl VariantModel {
         let mut symtab_in = SymbolTable::new(); //only used for drawing the FST in debug mode
         let mut symtab_out = SymbolTable::new(); //only used for drawing the FST in debug mode
 
-        //add initial and final stage
+        //add initial state
         let start = fst.add_state();
-        let end = fst.add_state();
         fst.set_start(start).expect("set start state");
-        fst.set_final(end, 0.0).expect("set final state");
 
-        if self.debug {
-            //add necessary padding so symbol table lines up with the values we use
-            //needed only for drawing the FST
-            symtab_out.add_symbol("<dummy1>");
-            symtab_out.add_symbol("<dummy2>");
-        }
 
-        //Maps states back to the index of matches
-        let mut states: HashMap<usize,StateInfo<'a>> = HashMap::new();
+        //adds states for all boundaries
+        let states: Vec<usize> = boundaries.iter().map(|boundary| {
+            let state = fst.add_state();
+            if boundary.offset.end == end_offset {
+                fst.set_final(state, 0.0).expect("set end state");
+            }
+            state
+        }).collect();
 
-        // Add FST states for all our matches
-        //                           v--- inputsymbol
-        //                                     v---- state id, double as output symbol
-        //                                            v---- emission logprob
-        let match_states: Vec<Vec<StateId>> = matches.iter().enumerate().map(|(i, (m, _order))| {
+        let mut output_symbols: Vec<OutputSymbol> = vec!(
+            OutputSymbol { vocab_id: 0, symbol: 0, match_index: 0, variant_index: None, boundary_index: 0 }, //first entry is a dummy entry because the 0 symbol is reserved for epsilon
+        );
+        let copy_symbol = 1;
+
+        //add transitions between the boundary states
+        for (match_index, m) in matches.iter().enumerate() {
 
             if self.debug {
-                symtab_in.add_symbol(m.text);
+                symtab_in.add_symbol(m.text); //symbol_index = match_index + 1
             }
 
-            //for each match we add FST states for all variants
+            let mut prevboundary: Option<usize> = None;
+            let mut nextboundary: Option<usize> = None;
+
+            let input_symbol = match_index + 1;
+
+            for (i, boundary) in boundaries.iter().enumerate() {
+                if m.offset.begin == boundary.offset.end  {
+                    prevboundary = Some(i)
+                } else if m.offset.end == boundary.offset.begin  {
+                    nextboundary = Some(i)
+                }
+            }
+
+            let prevstate= if let Some(prevboundary) = prevboundary {
+                *states.get(prevboundary + 1).expect("state must exist")
+            } else {
+                start
+            };
+            let nextstate = *states.get(nextboundary.expect("next boundary must exist") + 1).expect("state must exist");
+
             if m.variants.is_some() && !m.variants.as_ref().unwrap().is_empty() {
-                m.variants.as_ref().unwrap().iter().enumerate().map(|(j, (variant, score))| {
-                    let state_id = fst.add_state();
+                for (variant_index, (variant, score)) in m.variants.as_ref().unwrap().iter().enumerate() {
+                    let output_symbol = output_symbols.len();
+                    output_symbols.push( OutputSymbol {
+                        vocab_id: *variant,
+                        symbol: output_symbol,
+                        match_index,
+                        variant_index: Some(variant_index),
+                        boundary_index: nextboundary.expect("next boundary must exist")
+                    });
+
                     if self.debug {
                         let variant_text = self.decoder.get(*variant as usize).expect("variant_text").text.as_str();
                         symtab_out.add_symbol(variant_text);
                     }
-                    states.insert(state_id, StateInfo {
-                        input: Some(m.text),
-                        output: Some(*variant),
-                        match_index: i,
-                        variant_index: Some(j),
-                        emission_logprob: score.ln() as f32,
-                        offset: Some(m.offset.clone()),
-                        tokencount: m.internal_boundaries(boundaries).iter().count() + 1 //could possibly be slightly optimised by computing earlier, but is relatively low cost
-                    });
-                    if self.debug {
-                        eprintln!("   (added state {} (range {}:{}, match {}, variant {}), input={}, output={}) ", state_id, m.offset.begin, m.offset.end ,i, j, m.text, self.decoder.get(*variant as usize).unwrap().text );
-                    }
-                    state_id
-                }).collect()
+
+                    fst.add_tr(prevstate, Tr::new(input_symbol, output_symbol, -1.0 * score.ln() as f32, nextstate)).expect("adding transition");
+                }
             } else {
-                //we have no variants at all, input = output
-                //we use the maximum emission logprob (0), transition probability will be penalised
-                //down to the uniform smoothing factor in later computations
-                let state_id = fst.add_state();
+                let output_symbol = output_symbols.len();
+                output_symbols.push( OutputSymbol {
+                    vocab_id: 0, //0 vocab_id means we have an Out-of-Vocabulary word to copy from input
+                    symbol: output_symbol,
+                    match_index,
+                    variant_index: None,
+                    boundary_index: nextboundary.expect("next boundary must exist")
+                });
+
                 if self.debug {
                     symtab_out.add_symbol(m.text);
                 }
-                states.insert(state_id, StateInfo {
-                    input: Some(m.text),
-                    output: None, //this means we copy the input
-                    match_index: i,
-                    variant_index: None,
-                    emission_logprob: 0.0,
-                    offset: Some(m.offset.clone()),
-                    tokencount: m.internal_boundaries(boundaries).iter().count() + 1 //could possibly be slightly optimised by computing earlier, but is relatively low cost
-                });
-                if self.debug {
-                    eprintln!("   (added out-of-vocabulary state {} (range {}:{}), input/output={}) ", state_id, m.offset.begin, m.offset.end, m.text );
-                }
-                vec!(state_id)
+
+                fst.add_tr(prevstate, Tr::new(input_symbol, output_symbol, -1.0 * OOV_EMISSION_PROB, nextstate)).expect("adding transition");
             }
-        }).collect();
-
-        //dummy stateinfo for start and end state
-        let dummy_stateinfo = StateInfo {
-                            input: None,
-                            output: None,
-                            match_index: matches.len(), //a match_index because the start/end state is not tied to a match
-                                                            //at least this way we can separate it
-                                                            //easily form the rest
-                            variant_index: None,
-                            emission_logprob: 0.0, //the max
-                            offset: None,
-                            tokencount: 0,
-        };
-
-        let copy_symbol = if self.debug {
-            let label = symtab_out.add_symbol("[copy]");
-            eprintln!("   (copy label set to {})", label);
-            label
-        } else {
-            OOV_COPY_FROM_INPUT
-        };
-
-        if self.debug {
-            eprintln!(" (added {} FST states)", states.len());
-            eprintln!(" (adding transition from the start state)");
-        }
-        matches.iter().enumerate().for_each(|(i, (nextmatch, _))| {
-            //Add transitions from the start state;
-            if nextmatch.offset.begin == begin_offset {
-                for state in match_states.get(i).expect("getting nextmatch") {
-                    let stateinfo = states.get(state).expect("getting state info");
-                    self.compute_fst_transition(&mut fst, *state, stateinfo, &dummy_stateinfo, start, start, end, copy_symbol);
-                }
-            }
-        });
-
-
-
-        //For each boundary, add transition from all states directly left of the boundary
-        //to all states directly right of the boundary
-        for (b, boundary) in boundaries.iter().enumerate() {
-          if boundary.offset.begin >= begin_offset && boundary.offset.begin <= end_offset {
-
-            //find all states that end at this boundary
-            let prevstates = states.iter().filter_map(|(state,stateinfo)| {
-                if stateinfo.offset.is_some() && stateinfo.offset.as_ref().unwrap().end == boundary.offset.begin {
-                    Some(state)
-                } else {
-                    None
-                }
-            });
-
-            //find all states that start at this boundary
-            let nextstates: Vec<usize> = states.iter().filter_map(|(state,stateinfo)| {
-                if stateinfo.offset.is_some() && stateinfo.offset.as_ref().unwrap().begin == boundary.offset.end {
-                    Some(*state)
-                } else {
-                    None
-                }
-            }).collect();
-
-            if self.debug {
-                eprintln!("  (boundary #{}, {:?}, nextmatches={})", b+1, boundary, nextstates.len());
-            }
-
-            let mut count = 0;
-
-            //compute and add all state transitions
-            for prevstate in prevstates {
-                let prevstateinfo = states.get(prevstate).expect("getting prevstate info" );
-                for nextstate in nextstates.iter() {
-                    let stateinfo = states.get(nextstate).expect("getting nextstate info");
-                    self.compute_fst_transition(&mut fst, *nextstate, stateinfo,prevstateinfo, *prevstate, start, end, copy_symbol);
-                    count += 1;
-                }
-
-                if prevstateinfo.offset.is_some() && prevstateinfo.offset.as_ref().unwrap().end == end_offset {
-                    //Add transitions to the end state
-                    if self.debug {
-                        eprintln!("  (adding transition to end state)");
-                    }
-                    self.compute_fst_transition(&mut fst, end, &dummy_stateinfo, prevstateinfo, *prevstate, start, end, copy_symbol);
-                    count += 1;
-                }
-
-            }
-
-            if self.debug {
-                eprintln!("   (added {} transitions)", count);
-            }
-          }
         }
 
-
-        let mut match_sequence = Vec::new();
+        //find the n most likely sequences, note that we only consider the variant scores here,
+        //language modelling (considering context) is applied in a separate step later
 
         if self.debug {
             eprintln!(" (computed FST: {:?})", fst);
             eprintln!(" (finding shortest path)");
-            symtab_in.add_symbol("<final>");
             fst.set_input_symbols(Arc::new(symtab_in));
             fst.set_output_symbols(Arc::new(symtab_out));
             if let Err(e) = fst.draw("/tmp/fst.dot", &DrawingConfig::default() ) {
                 panic!("FST draw error: {}", e);
             }
         }
-        let fst: VectorFst<TropicalWeight> = shortest_path(&fst).expect("computing shortest path fst");
-        for path in fst.paths_iter() { //iterates over one path (the shortest)
+        let fst: VectorFst<TropicalWeight> = shortest_path_with_config(&fst, ShortestPathConfig::default().with_nshortest(params.max_seq) ).expect("computing shortest path fst");
+        let mut sequences: Vec<Sequence> = Vec::new();
+        let mut best_lm_logprob: f32 = -99999999.0;
+        for path in fst.paths_iter() { //iterates over the n shortest path hypotheses
+            let w: f32 = *path.weight.value();
+            let mut sequence = Sequence::new(w * -1.0f32);
             if self.debug {
                 eprintln!(" (shortest path: {:?})", path);
             }
-            for (input_index, output_index) in path.ilabels.iter().zip(path.olabels.iter()) {
-                //input labels use +1 because 0 means epsilon in FST context
+            for (input_symbol, output_symbol) in path.ilabels.iter().zip(path.olabels.iter()) {
+                let output_symbol = output_symbols.get(*output_symbol).expect("expected valid output symbol");
+                sequence.output_symbols.push(output_symbol.clone());
+            }
 
-                let match_index = input_index - 1; //input labels use +1 because 0 means epsilon in FST context
-                if self.debug {
-                    eprintln!("  (match_index/ilabel={}, output_index/olabel={})", match_index, output_index);
-                }
-                if let Some((m,_)) = matches.get(match_index) {
-                    if *output_index == copy_symbol {
-                        //output is the same as input, we just return the entire match
-                        match_sequence.push(m.clone());
-                        if self.debug {
-                            eprintln!("  (returning: {} (unchanged/oov)", m.text);
-                        }
-                    } else {
-                        let stateinfo = states.get(output_index).expect("get stateinfo for output");
-                        let mut m = m.clone();
-                        m.selected = stateinfo.variant_index;
-                        if self.debug {
-                            if m.selected.is_some() {
-                                eprintln!("  (returning: {}->{})", m.text , self.match_to_str(&m));
-                            } else {
-                                eprintln!("  (returning: {} (unchanged/oov))", m.text);
-                            }
-                        }
-                        match_sequence.push(m);
+            sequence.lm_logprob = self.lm_score(&sequence, &matches, &boundaries);
+            if sequence.lm_logprob > best_lm_logprob {
+                best_lm_logprob = sequence.lm_logprob;
+            }
+            sequences.push(sequence);
+        }
+
+        let mut best_score: f32 = -99999999.0;
+        let mut best_sequence: Option<Sequence> = None;
+        for sequence in sequences {
+            let norm_lm_logprob = sequence.lm_logprob - best_lm_logprob;
+            //because we compute this in log-space this is essentially a weighted geometric mean
+            //rather than an arithmetic mean. The geometric mean should be a good fit for normalised
+            //pseudo-probability ratios like our scores.
+            let score = (params.lm_weight * norm_lm_logprob + params.variantmodel_weight * sequence.emission_logprob) / (params.lm_weight + params.variantmodel_weight); //note: the denominator isn't really relevant for finding the best score
+            if score > best_score {
+                best_score = score;
+                best_sequence = Some(sequence);
+            }
+        }
+
+        //return matches corresponding to best sequence
+        best_sequence.expect("there must be a best sequence").output_symbols.into_iter().map(|osym| {
+            let m = matches.get(osym.match_index).expect("match should be in bounds");
+            let mut m = m.clone();
+            m.selected = osym.variant_index;
+            m
+        }).collect()
+    }
+
+
+    /// Computes the perplexity for a given sequence, returns the perplexity in logarithmic space
+    /// (so the value is to be maximised to find the actual 'lowest' perplexity)
+    pub fn lm_score<'a>(&self, sequence: &Sequence, matches: &[Match<'a>], boundaries: &[Match<'a>]) -> f32 {
+
+        //step 1: collect all tokens in the sequence
+
+        let mut tokens: Vec<Option<VocabId>> = Vec::with_capacity(sequence.output_symbols.len() + 5); //little bit of extra space to prevent needing to reallocate too quickly and to hold the BOS/EOS markers
+        tokens.push(Some(BOS));
+
+
+        for output_symbol in sequence.output_symbols.iter() {
+            let m = matches.get(output_symbol.match_index).expect("match should be in bounds");
+            let next_boundary = boundaries.get(output_symbol.boundary_index).expect("boundary should be in bounds");
+
+            if output_symbol.vocab_id == 0  {
+                //out of vocabulary (copied from input)
+                tokens.push(None);
+            } else {
+                let mut ngram = self.into_ngram(output_symbol.vocab_id, &mut None);
+                loop {
+                    match ngram.pop_first() {
+                        NGram::Empty => break,
+                        unigram => tokens.push(unigram.first())
                     }
                 }
             }
+
+            //add boundary as a token too
+            if !next_boundary.text.trim().is_empty() {
+                if let Some(vocab_id) = self.encoder.get(next_boundary.text.trim()) {
+                let mut ngram = self.into_ngram(*vocab_id, &mut None);
+                    loop {
+                        match ngram.pop_first() {
+                            NGram::Empty => break,
+                            unigram => tokens.push(unigram.first())
+                        }
+                    }
+                } else {
+                    //out of vocabulary boundary tokens (copied from input)
+                    tokens.push(None);
+                }
+            }
+
         }
 
-        match_sequence
+        tokens.push(Some(EOS));
+
+
+        //move a sliding window over the tokens
+        let mut logprob = 0.0;
+        let mut n = 0;
+        for i in 1..=tokens.len() - 1 {
+            if let Ok(bigram) = NGram::from_option_list(&tokens[i-1..i+1]) {
+                let prior = NGram::from_option_list(&tokens[i-1..i]).expect("extracting prior");
+
+                let priorcount = if let Some(priorcount) = self.ngrams.get(&prior) {
+                    *priorcount
+                } else {
+                    1
+                };
+
+                //Do we have a joint probability for the bigram that forms the transition?
+                if let Some(jointcount) = self.ngrams.get(&bigram) {
+                    if priorcount < *jointcount {
+                        //sanity check, shouldn't be the case, correct:
+                        logprob +=  (*jointcount as f32).ln()
+                    } else {
+                        logprob += (*jointcount as f32 / priorcount as f32).ln()
+                    }
+                } else {
+                    logprob += TRANSITION_SMOOTHING_LOGPROB
+                }
+
+                n += 1;
+            } else {
+                //if we have an out of vocabulary bigram or prior we fall back to add-on smoothing
+                //simply setting the count of that ngram/prior to 1
+                //for the perplexity computation this means the score doesn't change, but n does
+                //increase (so we end up with a lower perplexity)
+                n += 1;
+                logprob += TRANSITION_SMOOTHING_LOGPROB
+            }
+
+
+        }
+
+        //PP(W) = (1/P(w1...wN))^(1/N)
+        // in logspace: PP(W) = -1.0/N * Log(P(w1...Wn))
+
+        let perplexity = -1.0/(n as f32) * logprob;
+        perplexity
     }
 
 
-
-    /// Computes and sets the transition probability between two states, i.e. the weight
-    /// to assign to this transition in the Finite State Transducer.
-    /// The transition probability depends only on two states (Markov assumption) which
-    /// is a simplification of reality.
-    fn compute_fst_transition<'a>(&self, fst: &mut VectorFst<TropicalWeight>, state: usize, stateinfo: &StateInfo<'a>, prevstateinfo: &StateInfo<'a>, prevstate: StateId, start: StateId, end: StateId, copy_symbol: usize) {
-        if let Some(previous_output) = prevstateinfo.output {
-            //normal transition with known previous output
-            let prior = self.into_ngram(previous_output, &mut None);
-            let (transition_logprob, output) = if let Some(vocab_id) = stateinfo.output {
-                let ngram = self.into_ngram(vocab_id, &mut None);
-                if self.debug {
-                    eprintln!("   (adding transition {}->{}: {}->{})", prevstate, state, self.ngram_to_str(&prior), self.ngram_to_str(&ngram) );
-                }
-                (self.get_transition_logprob(ngram, prior), state)
-            } else if state == end {
-                //connect to the end state
-                let ngram = NGram::UniGram(EOS);
-                if self.debug {
-                    eprintln!("   (adding transition {}->{}(=EOS): {}->{})", prevstate, state, self.ngram_to_str(&prior), self.ngram_to_str(&ngram) );
-                }
-                (self.get_transition_logprob(ngram, prior), 0)  //0=epsilon, no output after the last stage
-
-            } else {
-                if self.debug {
-                    eprintln!("   (adding transition with out-of-vocabulary output (input=output): {}->{}: {}->{:?})", prevstate, state, self.ngram_to_str(&prior), stateinfo.input );
-                }
-                //we have no output, that means we copy from the input and can not compute a proper
-                //transition
-                if stateinfo.tokencount > 1 {
-                    //if this is an n-gram, we also count the internal transitions as unknown
-                    //transitions, so there is no bias towards selecting larger n-gram fragments
-                    (TRANSITION_SMOOTHING_LOGPROB * stateinfo.tokencount as f32, copy_symbol)
-                } else {
-                    (TRANSITION_SMOOTHING_LOGPROB, copy_symbol)
-                }
-            };
-            if self.debug {
-                eprintln!("     (p={}, transition score={}, emission score={}, tokencount={})", transition_logprob + stateinfo.emission_logprob, transition_logprob, stateinfo.emission_logprob, stateinfo.tokencount);
-            }
-            fst.add_tr(prevstate, Tr::new(stateinfo.match_index+1, output, -1.0 * (transition_logprob + stateinfo.emission_logprob), state)).expect("adding transition");
-                                                                         // ^-- we remove the sign
-                                                                         // from the logprob
-                                                                         // because shortest_path minimizes
-                                                                         // instead of maximizes
-        } else if prevstate == start {
-            let (transition_logprob, output) = if let Some(vocab_id) = stateinfo.output {
-                let ngram = self.into_ngram(vocab_id, &mut None);
-                let prior = NGram::UniGram(BOS);
-                if self.debug {
-                    eprintln!("   (adding transition {}(=BOS)->{}: {}->{})", prevstate, state, self.ngram_to_str(&prior), self.ngram_to_str(&ngram) );
-                }
-                (self.get_transition_logprob(ngram, prior), state)
-            } else {
-                //we have no output, that means we copy from the input and can not compute a proper
-                //transition
-                if self.debug {
-                    eprintln!("   (adding transition with out-of-vocabulary output (input=output) {}(=BOS)->{}: {}->{:?})", prevstate, state, "<bos>", stateinfo.input );
-                }
-                if stateinfo.tokencount > 1 {
-                    //if this is an n-gram, we also count the internal transitions as unknown
-                    //transitions, so there is no bias towards selecting larger n-gram fragments
-                    (TRANSITION_SMOOTHING_LOGPROB * stateinfo.tokencount as f32, copy_symbol)
-                } else {
-                    (TRANSITION_SMOOTHING_LOGPROB, copy_symbol)
-                }
-            };
-            if self.debug {
-                eprintln!("     (p={}, transition score={}, emission score={}, tokencount={})", transition_logprob + stateinfo.emission_logprob, transition_logprob, stateinfo.emission_logprob, stateinfo.tokencount);
-            }
-            fst.add_tr(prevstate, Tr::new(stateinfo.match_index+1, output, -1.0 * (transition_logprob + stateinfo.emission_logprob), state)).expect("adding transition");
-        } else {
-            //we have no previous output symbol, we can not compute a transition, fall back to
-            //smoothing
-            let output = if stateinfo.output.is_some() {
-                state
-            } else {
-                copy_symbol
-            };
-            let transition_logprob = if stateinfo.tokencount > 1 {
-                    //if this is an n-gram, we also count the internal transitions as unknown
-                    //transitions, so there is no bias towards selecting larger n-gram fragments
-                    TRANSITION_SMOOTHING_LOGPROB * stateinfo.tokencount as f32
-                } else {
-                    TRANSITION_SMOOTHING_LOGPROB
-            };
-            if self.debug {
-                let ilabel = if let Some(v) = prevstateinfo.output {
-                    self.decoder.get(v as usize).unwrap().text.as_str()
-                } else {
-                    prevstateinfo.input.as_ref().unwrap_or(&"NULL")
-                };
-                let olabel = if let Some(v) = stateinfo.output {
-                    self.decoder.get(v as usize).unwrap().text.as_str()
-                } else {
-                    stateinfo.input.as_ref().unwrap_or(&"NULL")
-                };
-                eprintln!("   (adding transition from out-of-vocabulary output: {}->{}: {}->{})", prevstate, state, ilabel, olabel);
-                eprintln!("     (p={}, transition score={}, emission score={}, tokens={})", transition_logprob + stateinfo.emission_logprob, transition_logprob ,  stateinfo.emission_logprob, stateinfo.tokencount);
-            }
-            fst.add_tr(prevstate, Tr::new(stateinfo.match_index+1, output, -1.0 * (transition_logprob + stateinfo.emission_logprob), state)).expect("adding transition");
-        }
-    }
 
     /// Add an ngram for language modelling
     pub fn add_ngram(&mut self, ngram: NGram, frequency: u32) {
@@ -1571,48 +1485,6 @@ impl VariantModel {
         }
     }
 
-    /// Compute the probability of a transition between two words: $P(w_x|w_(x-1))$
-    /// If either parameter is a high-order n-gram, this function will extract the appropriate
-    /// unigrams on either side for the computation.
-    /// The final probability is returned as a logprob (base e), if the bigram or prior are
-    /// not found, a uniform smoothing number is returned.
-    fn get_transition_logprob(&self, mut ngram: NGram, mut prior: NGram) -> f32 {
-        if ngram == NGram::Empty || prior == NGram::Empty {
-            return TRANSITION_SMOOTHING_LOGPROB;
-        }
-
-        if prior.len() > 1 {
-            prior = prior.pop_last(); //we can only handle one word of history, discard the rest
-        }
-
-        let word = ngram.pop_first();
-
-        let priorcount = if let Some(priorcount) = self.ngrams.get(&prior) {
-            *priorcount
-        } else {
-            1
-        };
-
-        //Do we have a joint probability for the bigram that forms the transition?
-        let bigram = NGram::BiGram(prior.first().unwrap(), word.first().unwrap());
-
-        let transition_logprob = if let Some(jointcount) = self.ngrams.get(&bigram) {
-            if priorcount < *jointcount {
-                (*jointcount as f32).ln()
-            } else {
-                (*jointcount as f32 / priorcount as f32).ln()
-            }
-        } else {
-            TRANSITION_SMOOTHING_LOGPROB
-        };
-
-        if ngram.len() >= 1 {
-            //recursion step for subquents parts of the ngram
-            transition_logprob + self.get_transition_logprob(ngram, word)
-        } else {
-            transition_logprob
-        }
-    }
 
     /// Gives the text representation for this match, always uses the solution (if any) and falls
     /// back to the input text only when no solution was found.
@@ -1636,7 +1508,7 @@ impl VariantModel {
         let internal = m.internal_boundaries(boundaries);
         let parts = find_match_ngrams(m.text, internal, 1, 0, None);
         let mut ngram = NGram::Empty;
-        for (part,_) in parts {
+        for part in parts {
             if let Some(vocabid) = self.encoder.get(part.text) {
                 ngram.push(*vocabid);
             } else {

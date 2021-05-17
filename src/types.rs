@@ -62,7 +62,10 @@ pub struct SearchParameters {
     pub score_threshold: f64,
     pub stop_criterion: StopCriterion,
     pub max_ngram: u8,
+    pub max_seq: usize,
     pub single_thread: bool,
+    pub lm_weight: f32,
+    pub variantmodel_weight: f32
 }
 
 impl Default for SearchParameters {
@@ -75,6 +78,9 @@ impl Default for SearchParameters {
             stop_criterion: StopCriterion::Exhaustive,
             max_ngram: 2,
             single_thread: false,
+            max_seq: 250,
+            lm_weight: 1.0,
+            variantmodel_weight: 1.0,
         }
     }
 }
@@ -104,8 +110,20 @@ impl SearchParameters {
         self.max_ngram = max_ngram;
         self
     }
+    pub fn with_max_seq(mut self, max_seq: usize) -> Self {
+        self.max_seq = max_seq;
+        self
+    }
     pub fn with_single_thread(mut self) -> Self {
         self.single_thread = true;
+        self
+    }
+    pub fn with_lm_weight(mut self, weight: f32) -> Self {
+        self.lm_weight = weight;
+        self
+    }
+    pub fn with_variantmodel_weight(mut self, weight: f32) -> Self {
+        self.variantmodel_weight = weight;
         self
     }
 }
@@ -184,12 +202,22 @@ pub enum NGram {
 }
 
 impl NGram {
-    pub fn from_vec(v: Vec<VocabId>) -> Result<Self, &'static str> {
+    pub fn from_list(v: &[VocabId]) -> Result<Self, &'static str> {
         match v.len() {
             0 => Ok(NGram::Empty),
             1 => Ok(NGram::UniGram(v[0])),
             2 => Ok(NGram::BiGram(v[0],v[1])),
             3 => Ok(NGram::TriGram(v[0],v[1],v[2])),
+            _ => Err("Only supporting unigrams, bigrams and trigrams")
+        }
+    }
+
+    pub fn from_option_list(v: &[Option<VocabId>]) -> Result<Self, &'static str> {
+        match v {
+            [] => Ok(NGram::Empty),
+            [Some(a)] => Ok(NGram::UniGram(*a)),
+            [Some(a),Some(b)] => Ok(NGram::BiGram(*a,*b)),
+            [Some(a),Some(b),Some(c)] => Ok(NGram::TriGram(*a,*b,*c)),
             _ => Err("Only supporting unigrams, bigrams and trigrams")
         }
     }

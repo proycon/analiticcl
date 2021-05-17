@@ -80,18 +80,37 @@ impl<'a> Match<'a> {
 }
 
 ///Indicates an output label is out of vocabulary and should simply be copied from input
-pub(crate) const OOV_COPY_FROM_INPUT: usize = 9999999;
+pub(crate) const OOV_EMISSION_PROB: f32 = -2.3025850929940455; //p = 0.1
 
-pub struct StateInfo<'a> {
-    pub input: Option<&'a str>,
-    pub output: Option<VocabId>,
+
+
+#[derive(PartialEq,PartialOrd,Clone,Debug)]
+pub struct OutputSymbol {
+    pub vocab_id: VocabId,
     pub match_index: usize,
     pub variant_index: Option<usize>,
-    pub emission_logprob: f32,
-    pub offset: Option<Offset>,
-    pub tokencount: usize,
+    pub boundary_index: usize, //index of the next/right boundary
+    pub symbol: usize,
 }
 
+
+#[derive(Clone,Debug)]
+pub struct Sequence {
+    pub output_symbols: Vec<OutputSymbol>,
+    pub emission_logprob: f32,
+    pub lm_logprob: f32,
+}
+
+impl Sequence {
+    pub fn new(emission_logprob: f32) -> Self {
+        Self {
+            output_symbols: Vec::new(),
+            emission_logprob: 0.0,
+            lm_logprob: 0.0,
+        }
+    }
+
+}
 
 #[derive(PartialEq,PartialOrd,Copy,Clone,Debug)]
 pub enum BoundaryStrength {
@@ -170,7 +189,7 @@ pub fn classify_boundaries(boundaries: &Vec<Match<'_>>) -> Vec<BoundaryStrength>
 
 /// Find all ngrams in the text of the specified order, respecting the boundaries.
 /// This will return a vector of Match instances, referring to the precise (untokenised) text.
-pub fn find_match_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8, begin: usize, end: Option<usize>) -> Vec<(Match<'a>,u8)> {
+pub fn find_match_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8, begin: usize, end: Option<usize>) -> Vec<Match<'a>> {
     let mut ngrams = Vec::new();
 
     let mut begin = begin;
@@ -186,7 +205,7 @@ pub fn find_match_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8,
         });
         begin = boundaries.get(i).expect("boundary").offset.end;
         i += 1;
-        ngrams.push((ngram,order));
+        ngrams.push(ngram);
     }
 
     //add the last one
@@ -196,7 +215,7 @@ pub fn find_match_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8,
                 end: end,
         });
         if ngram.internal_boundaries(boundaries).iter().count() == order as usize {
-            ngrams.push((ngram,order));
+            ngrams.push(ngram);
         }
     }
 

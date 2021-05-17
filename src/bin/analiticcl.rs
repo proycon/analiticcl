@@ -435,12 +435,28 @@ fn main() {
                                 .help("Maximum ngram order (1 for unigrams, 2 for bigrams, etc..). This also requires you to load actual ngram frequency lists using --corpus or --lm to have any effect.")
                                 .takes_value(true)
                                 .default_value("3"))
+                            .arg(Arg::with_name("max-seq")
+                                .long("max-seq")
+                                .short("Q")
+                                .help("Maximum number of candidate sequences to take along to the language modelling stage")
+                                .takes_value(true)
+                                .default_value("250"))
                             .arg(Arg::with_name("lm")
                                 .long("lm")
                                 .help("Corpus-derived list of unigrams and bigrams that are used for simple language modelling, i.e. computation the transition probabilities when finding the optimal sequence of variants. This is a TSV file containing the the ngram in the first column (space character acts as token separator), and the absolute frequency count in the second column. It is also recommended it contains the special tokens <bos> (begin of sentence) and <eos> end of sentence. The items in this list are NOT used for variant matching, use --corpus or even --lexicon instead if you want to also match against these items.")
                                 .takes_value(true)
                                 .number_of_values(1)
                                 .multiple(true))
+                            .arg(Arg::with_name("weight-lm")
+                                .long("weight-lm")
+                                .help("Weight attributed to the language model")
+                                .takes_value(true)
+                                .default_value("1.0"))
+                            .arg(Arg::with_name("weight-variant-model")
+                                .long("weight-variant-model")
+                                .help("Weight attributed to the variant model")
+                                .takes_value(true)
+                                .default_value("1.0"))
                     )
                     /*.subcommand(
                         SubCommand::with_name("collect")
@@ -574,7 +590,22 @@ fn main() {
             value.parse::<u8>().expect("Max n-gram should be a small integer")
         } else {
             0
-        }
+        },
+        lm_weight: if args.is_present("weight-lm") {
+            args.value_of("weight-lm").unwrap().parse::<f32>().expect("Language model weight should be a floating point number")
+        } else {
+            1.0
+        },
+        variantmodel_weight: if args.is_present("weight-variant-model") {
+            args.value_of("weight-variant-model").unwrap().parse::<f32>().expect("Variant model weight should be a floating point number")
+        } else {
+            1.0
+        },
+        max_seq: if args.is_present("max-seq") {
+            args.value_of("max-seq").unwrap().parse::<usize>().expect("max-seq must be an integer")
+        } else {
+            250
+        },
     };
 
 

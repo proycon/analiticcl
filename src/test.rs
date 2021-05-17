@@ -55,5 +55,8 @@ pub fn get_test_searchparams() -> SearchParameters {
         score_threshold: 0.0,
         max_ngram: 2,
         single_thread: false,
+        lm_weight: 1.0,
+        variantmodel_weight: 1.0,
+        max_seq: 250,
     }
 }
