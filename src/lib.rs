@@ -11,7 +11,6 @@ use std::cmp::min;
 use sesdiff::shortest_edit_script;
 use std::time::SystemTime;
 use std::sync::Arc;
-use std::convert::TryFrom;
 use std::str::FromStr;
 use rayon::prelude::*;
 use rustfst::prelude::*;
@@ -1134,7 +1133,7 @@ impl VariantModel {
 
                 //find variants for all segments in this batch (in parallel)
                 if params.single_thread {
-                    all_segments.iter_mut().for_each(|(segment)| {
+                    all_segments.iter_mut().for_each(|segment| {
                         if self.debug {
                             eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
                         }
@@ -1142,7 +1141,7 @@ impl VariantModel {
                         segment.variants = Some(variants);
                     });
                 } else {
-                    all_segments.par_iter_mut().for_each(|(segment)| {
+                    all_segments.par_iter_mut().for_each(|segment| {
                         if self.debug {
                             eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
                         }
@@ -1165,7 +1164,7 @@ impl VariantModel {
                         eprintln!("  (returning matches directly, no need to find most likely sequence for unigrams)");
                     }
                     matches.extend(
-                        all_segments.into_iter().map(|(mut m)| {
+                        all_segments.into_iter().map(|mut m| {
                             m.selected = Some(0); //select the first (highest ranking) option
                             m
                         })
@@ -1320,12 +1319,12 @@ impl VariantModel {
             if self.debug {
                 eprintln!("  (#{}, path: {:?})", i+1, path);
             }
-            for (input_symbol, output_symbol) in path.ilabels.iter().zip(path.olabels.iter()) {
+            for output_symbol in path.olabels.iter() {
                 let output_symbol = output_symbols.get(*output_symbol).expect("expected valid output symbol");
                 sequence.output_symbols.push(output_symbol.clone());
             }
 
-            let (lm_logprob, perplexity) = self.lm_score(&sequence, &matches, &boundaries);
+            let (lm_logprob, _perplexity) = self.lm_score(&sequence, &boundaries);
             sequence.lm_logprob = lm_logprob;
             if sequence.lm_logprob > best_lm_logprob {
                 best_lm_logprob = sequence.lm_logprob;
@@ -1372,7 +1371,7 @@ impl VariantModel {
 
 
     /// Computes the logprob and perplexity for a given sequence
-    pub fn lm_score<'a>(&self, sequence: &Sequence, matches: &[Match<'a>], boundaries: &[Match<'a>]) -> (f32,f64) {
+    pub fn lm_score<'a>(&self, sequence: &Sequence, boundaries: &[Match<'a>]) -> (f32,f64) {
 
         //step 1: collect all tokens in the sequence
 
@@ -1381,7 +1380,6 @@ impl VariantModel {
 
 
         for output_symbol in sequence.output_symbols.iter() {
-            let m = matches.get(output_symbol.match_index).expect("match should be in bounds");
             let next_boundary = boundaries.get(output_symbol.boundary_index).expect("boundary should be in bounds");
 
             if output_symbol.vocab_id == 0  {

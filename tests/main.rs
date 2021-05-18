@@ -3,14 +3,13 @@
 
 extern crate sesdiff;
 
-use std::str::FromStr;
 use analiticcl::*;
 use analiticcl::test::*;
 
 
 #[test]
 fn test0001_alphabet() {
-    let (alphabet, alphabet_size) = get_test_alphabet();
+    let (alphabet, _alphabet_size) = get_test_alphabet();
     assert_eq!(alphabet.len(), 27);
 }
 
@@ -27,7 +26,7 @@ fn test0002_primes() {
 
 #[test]
 fn test0102_hash_hash() {
-    let (alphabet, alphabet_size) = get_test_alphabet();
+    let (_alphabet, _alphabet_size) = get_test_alphabet();
 
     //this is a hash that would overflow any normal 64-bit int, but it should hash fine
     assert_eq!(AnaValue::empty(), AnaValue::from(1 as usize));
@@ -35,7 +34,7 @@ fn test0102_hash_hash() {
 
 #[test]
 fn test0103_hash_basic() {
-    let (alphabet, alphabet_size) = get_test_alphabet();
+    let (alphabet, _alphabet_size) = get_test_alphabet();
 
     assert_eq!("a".anahash(&alphabet), AnaValue::from(2 as usize));
     assert_eq!("b".anahash(&alphabet), AnaValue::from(3 as usize));
@@ -49,7 +48,7 @@ fn test0103_hash_basic() {
 
 #[test]
 fn test0103_hash_alphabet_equivalence() {
-    let (alphabet, alphabet_size) = get_test_alphabet();
+    let (alphabet, _alphabet_size) = get_test_alphabet();
 
     //the alphabet may define multiple values that map to the same
     //the provided example alphabet does so for case-differences
@@ -62,7 +61,7 @@ fn test0103_hash_alphabet_equivalence() {
 
 #[test]
 fn test0104_hash_big() {
-    let (alphabet, alphabet_size) = get_test_alphabet();
+    let (alphabet, _alphabet_size) = get_test_alphabet();
 
     //this is a hash that would overflow any normal 64-bit int, but it should hash fine
     assert!("xyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyz".anahash(&alphabet) > AnaValue::empty());
@@ -71,7 +70,7 @@ fn test0104_hash_big() {
 
 #[test]
 fn test0105_hash_anagram() {
-    let (alphabet, alphabet_size) = get_test_alphabet();
+    let (alphabet, _alphabet_size) = get_test_alphabet();
     assert_eq!("stressed".anahash(&alphabet),"desserts".anahash(&alphabet) );
     assert_eq!("dormitory".anahash(&alphabet),"dirtyroom".anahash(&alphabet) );
     assert_eq!("presents".anahash(&alphabet),"serpents".anahash(&alphabet) );
@@ -79,7 +78,7 @@ fn test0105_hash_anagram() {
 
 #[test]
 fn test0106_hash_insertion() {
-    let (alphabet, alphabet_size) = get_test_alphabet();
+    let (alphabet, _alphabet_size) = get_test_alphabet();
 
     let ab = "ab".anahash(&alphabet);
     let c = "c".anahash(&alphabet);
@@ -91,7 +90,7 @@ fn test0106_hash_insertion() {
 
 #[test]
 fn test0107_hash_containment() {
-    let (alphabet, alphabet_size) = get_test_alphabet();
+    let (alphabet, _alphabet_size) = get_test_alphabet();
 
     let ab = "ab".anahash(&alphabet);
     let c = "c".anahash(&alphabet);
@@ -109,7 +108,7 @@ fn test0107_hash_containment() {
 
 #[test]
 fn test0108_hash_deletion() {
-    let (alphabet, alphabet_size) = get_test_alphabet();
+    let (alphabet, _alphabet_size) = get_test_alphabet();
 
     let ab = "ab".anahash(&alphabet);
     let b = "b".anahash(&alphabet);
@@ -593,7 +592,7 @@ fn test0304_suffixlen() {
 #[test]
 fn test0400_model_load() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    let model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let _model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
 }
 
 #[test]

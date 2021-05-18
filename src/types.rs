@@ -1,6 +1,5 @@
 use ibig::UBig;
 use std::collections::HashMap;
-use std::mem;
 
 ///Each type gets assigned an ID integer, carries no further meaning
 pub type VocabId = u64;

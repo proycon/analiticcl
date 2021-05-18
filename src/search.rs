@@ -1,10 +1,4 @@
-use std::io::{self, BufReader,BufRead,Read};
-use std::time::SystemTime;
-use std::collections::HashMap;
-
 use crate::types::*;
-use crate::vocab::*;
-use crate::index::Variant;
 
 
 pub const TRANSITION_SMOOTHING_LOGPROB: f32 = -13.815510557964274;
