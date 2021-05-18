@@ -11,6 +11,7 @@ use std::cmp::min;
 use sesdiff::shortest_edit_script;
 use std::time::SystemTime;
 use std::sync::Arc;
+use std::cmp::Ordering;
 use std::str::FromStr;
 use rayon::prelude::*;
 use rustfst::prelude::*;
@@ -1357,8 +1358,16 @@ impl VariantModel {
         for sequence in sequences.into_iter() {
             //we normalize both LM and variant model scores to be in the range 1.0 (best) - 0.0 (worst)
             //for the language model, we *ignore* the logarithmic nature to get a more evenly spread ranking (otherwise all probality mass would be close to 0)
-            let norm_lm_prob: f64 = 1.0 - ((best_lm_logprob as f64 - sequence.lm_logprob as f64) / (best_lm_logprob as f64 - worst_lm_logprob as f64));
-            let norm_variant_prob: f64 = 1.0 - ((best_variant_logprob.exp() as f64 - sequence.emission_logprob.exp() as f64) / (best_variant_logprob.exp() as f64 - worst_variant_logprob.exp() as f64));
+            let norm_lm_prob: f64 = if best_lm_logprob == worst_lm_logprob {
+                1.0 //corner case there is only one item
+            } else {
+                1.0 - ((best_lm_logprob as f64 - sequence.lm_logprob as f64) / (best_lm_logprob as f64 - worst_lm_logprob as f64))
+            };
+            let norm_variant_prob: f64 = if best_variant_logprob == worst_variant_logprob {
+                1.0 //corner case in which there is only one item
+            } else {
+                1.0 - ((best_variant_logprob.exp() as f64 - sequence.emission_logprob.exp() as f64) / (best_variant_logprob.exp() as f64 - worst_variant_logprob.exp() as f64))
+            };
 
             let score = (params.lm_weight as f64 * norm_lm_prob + params.variantmodel_weight as f64 * norm_variant_prob) / (params.lm_weight as f64 + params.variantmodel_weight as f64); //note: the denominator isn't really relevant for finding the best score
             if self.debug {
@@ -1372,7 +1381,7 @@ impl VariantModel {
 
         if self.debug {
             //debug mode: output all candidate sequences and their scores in order
-            debug_ranked.as_mut().unwrap().sort_by(|a,b| b.3.partial_cmp(&a.3).unwrap() ); //sort by score
+            debug_ranked.as_mut().unwrap().sort_by(|a,b| b.3.partial_cmp(&a.3).unwrap_or(Ordering::Equal) ); //sort by score
             for (i, (sequence, norm_lm_logprob, norm_variant_logprob, score)) in debug_ranked.unwrap().into_iter().enumerate() {
                 eprintln!("  (#{}, score={}, lm_logprob={} (norm={}, * {}), variant_logprob={} (norm={}, * {})", i+1, score, sequence.lm_logprob, norm_lm_logprob, params.lm_weight, sequence.emission_logprob, norm_variant_logprob, params.variantmodel_weight);
                 let mut text: String = String::new();
