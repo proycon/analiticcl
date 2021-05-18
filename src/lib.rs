@@ -381,7 +381,7 @@ impl VariantModel {
                     let text = fields.get(params.text_column as usize).expect("Expected text column not found");
                     let frequency = if let Some(freq_column) = params.freq_column {
                         self.have_freq = true;
-                        fields.get(freq_column as usize).expect("Expected frequency column not found").parse::<u32>().expect("frequency should be a valid integer")
+                        fields.get(freq_column as usize).unwrap_or(&"1").parse::<u32>().expect("frequency should be a valid integer")
                     } else {
                         1
                     };
