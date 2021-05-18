@@ -1332,16 +1332,34 @@ impl VariantModel {
             sequences.push(sequence);
         }
 
+        let mut debug_ranked: Option<Vec<(Sequence, f32)>> = if self.debug {
+            Some(Vec::new())
+        } else {
+            None
+        };
+
         let mut best_score: f32 = -99999999.0;
         let mut best_sequence: Option<Sequence> = None;
-        for (i, sequence) in sequences.into_iter().enumerate() {
+        for sequence in sequences.into_iter() {
             //let norm_lm_logprob = sequence.lm_logprob - best_lm_logprob;
             //because we compute this in log-space this is essentially a weighted geometric mean
             //rather than an arithmetic mean. The geometric mean should be a good fit for normalised
             //pseudo-probability ratios like our scores.
             let score = (params.lm_weight * sequence.lm_logprob + params.variantmodel_weight * sequence.emission_logprob) / (params.lm_weight + params.variantmodel_weight); //note: the denominator isn't really relevant for finding the best score
             if self.debug {
-                eprintln!("  (#{}, score={}, lm_logprob={}, variant_logprob={})", i+1, score, sequence.lm_logprob, sequence.emission_logprob);
+                debug_ranked.as_mut().unwrap().push( (sequence.clone(), score) );
+            }
+            if score > best_score {
+                best_score = score;
+                best_sequence = Some(sequence);
+            }
+        }
+
+        if self.debug {
+            //debug mode: output all candidates in order
+            debug_ranked.as_mut().unwrap().sort_by(|a,b| b.1.partial_cmp(&a.1).unwrap() ); //sort by score
+            for (i, (sequence, score)) in debug_ranked.unwrap().into_iter().enumerate() {
+                eprintln!("  (#{}, score={}, lm_logprob={} (* {}), variant_logprob={} (* {})", i+1, score, sequence.lm_logprob, params.lm_weight, sequence.emission_logprob, params.variantmodel_weight);
                 let mut text: String = String::new();
                 for output_symbol in sequence.output_symbols.iter() {
                     if output_symbol.vocab_id > 0{
@@ -1353,10 +1371,6 @@ impl VariantModel {
                     text += " | ";
                 }
                 eprintln!("    (text={})", text);
-            }
-            if score > best_score {
-                best_score = score;
-                best_sequence = Some(sequence);
             }
         }
 
