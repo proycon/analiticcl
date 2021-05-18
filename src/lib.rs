@@ -1313,8 +1313,12 @@ impl VariantModel {
         let fst: VectorFst<TropicalWeight> = shortest_path_with_config(&fst, ShortestPathConfig::default().with_nshortest(params.max_seq) ).expect("computing shortest path fst");
         let mut sequences: Vec<Sequence> = Vec::new();
         let mut best_lm_logprob: f32 = -99999999.0;
+        let mut worst_lm_logprob: f32 = 0.0;
+        let mut best_variant_logprob: f32 = -99999999.0;
+        let mut worst_variant_logprob: f32 = 0.0;
         for (i, path)  in fst.paths_iter().enumerate() { //iterates over the n shortest path hypotheses (does not return them in weighted order)
             let w: f32 = *path.weight.value();
+            let variant_logprob = w * -1.0;
             let mut sequence = Sequence::new(w * -1.0f32);
             if self.debug {
                 eprintln!("  (#{}, path: {:?})", i+1, path);
@@ -1329,25 +1333,36 @@ impl VariantModel {
             if sequence.lm_logprob > best_lm_logprob {
                 best_lm_logprob = sequence.lm_logprob;
             }
+            if sequence.lm_logprob < worst_lm_logprob {
+                worst_lm_logprob = sequence.lm_logprob;
+            }
+            if variant_logprob > best_variant_logprob {
+                best_variant_logprob = variant_logprob;
+            }
+            if variant_logprob < worst_variant_logprob {
+                worst_variant_logprob = variant_logprob;
+            }
             sequences.push(sequence);
         }
 
-        let mut debug_ranked: Option<Vec<(Sequence, f32)>> = if self.debug {
+        let mut debug_ranked: Option<Vec<(Sequence, f64, f64, f64)>> = if self.debug {
             Some(Vec::new())
         } else {
             None
         };
 
-        let mut best_score: f32 = -99999999.0;
+        //Compute the normalizes scores
+        let mut best_score: f64 = -99999999.0;
         let mut best_sequence: Option<Sequence> = None;
         for sequence in sequences.into_iter() {
-            //let norm_lm_logprob = sequence.lm_logprob - best_lm_logprob;
-            //because we compute this in log-space this is essentially a weighted geometric mean
-            //rather than an arithmetic mean. The geometric mean should be a good fit for normalised
-            //pseudo-probability ratios like our scores.
-            let score = (params.lm_weight * sequence.lm_logprob + params.variantmodel_weight * sequence.emission_logprob) / (params.lm_weight + params.variantmodel_weight); //note: the denominator isn't really relevant for finding the best score
+            //we normalize both LM and variant model scores to be in the range 1.0 (best) - 0.0 (worst)
+            //for the language model, we *ignore* the logarithmic nature to get a more evenly spread ranking (otherwise all probality mass would be close to 0)
+            let norm_lm_prob: f64 = 1.0 - ((best_lm_logprob as f64 - sequence.lm_logprob as f64) / (best_lm_logprob as f64 - worst_lm_logprob as f64));
+            let norm_variant_prob: f64 = 1.0 - ((best_variant_logprob.exp() as f64 - sequence.emission_logprob.exp() as f64) / (best_variant_logprob.exp() as f64 - worst_variant_logprob.exp() as f64));
+
+            let score = (params.lm_weight as f64 * norm_lm_prob + params.variantmodel_weight as f64 * norm_variant_prob) / (params.lm_weight as f64 + params.variantmodel_weight as f64); //note: the denominator isn't really relevant for finding the best score
             if self.debug {
-                debug_ranked.as_mut().unwrap().push( (sequence.clone(), score) );
+                debug_ranked.as_mut().unwrap().push( (sequence.clone(), norm_lm_prob, norm_variant_prob, score) );
             }
             if score > best_score {
                 best_score = score;
@@ -1356,10 +1371,10 @@ impl VariantModel {
         }
 
         if self.debug {
-            //debug mode: output all candidates in order
-            debug_ranked.as_mut().unwrap().sort_by(|a,b| b.1.partial_cmp(&a.1).unwrap() ); //sort by score
-            for (i, (sequence, score)) in debug_ranked.unwrap().into_iter().enumerate() {
-                eprintln!("  (#{}, score={}, lm_logprob={} (* {}), variant_logprob={} (* {})", i+1, score, sequence.lm_logprob, params.lm_weight, sequence.emission_logprob, params.variantmodel_weight);
+            //debug mode: output all candidate sequences and their scores in order
+            debug_ranked.as_mut().unwrap().sort_by(|a,b| b.3.partial_cmp(&a.3).unwrap() ); //sort by score
+            for (i, (sequence, norm_lm_logprob, norm_variant_logprob, score)) in debug_ranked.unwrap().into_iter().enumerate() {
+                eprintln!("  (#{}, score={}, lm_logprob={} (norm={}, * {}), variant_logprob={} (norm={}, * {})", i+1, score, sequence.lm_logprob, norm_lm_logprob, params.lm_weight, sequence.emission_logprob, norm_variant_logprob, params.variantmodel_weight);
                 let mut text: String = String::new();
                 for output_symbol in sequence.output_symbols.iter() {
                     if output_symbol.vocab_id > 0{
