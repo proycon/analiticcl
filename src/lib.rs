@@ -1207,7 +1207,7 @@ impl VariantModel {
         let mut final_found = false;
         let states: Vec<usize> = boundaries.iter().map(|boundary| {
             let state = fst.add_state();
-            if boundary.offset.end == end_offset {
+            if boundary.offset.begin == end_offset || boundary.offset.end == end_offset {
                 final_found = true;
                 fst.set_final(state, 0.0).expect("set end state");
             }
@@ -1317,9 +1317,6 @@ impl VariantModel {
 
             let (lm_logprob, perplexity) = self.lm_score(&sequence, &matches, &boundaries);
             sequence.lm_logprob = lm_logprob;
-            if self.debug {
-                eprintln!("    (lm_logprob: {}, perplexity: {}, variant_logprob: {})", sequence.lm_logprob, perplexity, -1.0 * w);
-            }
             if sequence.lm_logprob > best_lm_logprob {
                 best_lm_logprob = sequence.lm_logprob;
             }
@@ -1335,7 +1332,18 @@ impl VariantModel {
             //pseudo-probability ratios like our scores.
             let score = (params.lm_weight * sequence.lm_logprob + params.variantmodel_weight * sequence.emission_logprob) / (params.lm_weight + params.variantmodel_weight); //note: the denominator isn't really relevant for finding the best score
             if self.debug {
-                eprintln!("    (#{}, score={}, lm_logprob={}, variant_logprob={})", i+1, score, sequence.lm_logprob, sequence.emission_logprob);
+                eprintln!("  (#{}, score={}, lm_logprob={}, variant_logprob={})", i+1, score, sequence.lm_logprob, sequence.emission_logprob);
+                let mut text: String = String::new();
+                for output_symbol in sequence.output_symbols.iter() {
+                    if output_symbol.vocab_id > 0{
+                        text += self.decoder.get(output_symbol.vocab_id as usize).expect("vocab").text.as_str();
+                    } else {
+                        let m = matches.get(output_symbol.match_index).expect("match index must exist");
+                        text += m.text;
+                    }
+                    text += " | ";
+                }
+                eprintln!("    (text={})", text);
             }
             if score > best_score {
                 best_score = score;
