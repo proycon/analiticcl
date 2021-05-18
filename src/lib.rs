@@ -1171,7 +1171,7 @@ impl VariantModel {
                     );
                 }
                 if self.debug {
-                    eprintln!("  (added {} matches)", matches.len() - l );
+                    eprintln!("  (added sequence of {} matches)", matches.len() - l );
                 }
 
                 begin = boundary.offset.end; //(the hard boundary itself is not included in any variant/sequence matching)
@@ -1266,7 +1266,8 @@ impl VariantModel {
 
                     if self.debug {
                         let variant_text = self.decoder.get(*variant as usize).expect("variant_text").text.as_str();
-                        symtab_out.add_symbol(variant_text);
+                        eprintln!("   (transition {}->{} with symbol {}->{} and score {})", prevstate, nextstate, input_symbol, output_symbol, -1.0 * score.ln() as f32);
+                        assert!(symtab_out.add_symbol(variant_text) == output_symbol);
                     }
 
                     fst.add_tr(prevstate, Tr::new(input_symbol, output_symbol, -1.0 * score.ln() as f32, nextstate)).expect("adding transition");
@@ -1282,7 +1283,8 @@ impl VariantModel {
                 });
 
                 if self.debug {
-                    symtab_out.add_symbol(m.text);
+                    eprintln!("   (transition {}->{} with OOV symbol {}->{} and score {})", prevstate, nextstate, input_symbol, output_symbol, -1.0 * OOV_EMISSION_PROB);
+                    assert!(symtab_out.add_symbol(m.text) == output_symbol);
                 }
 
                 fst.add_tr(prevstate, Tr::new(input_symbol, output_symbol, -1.0 * OOV_EMISSION_PROB, nextstate)).expect("adding transition");
@@ -1294,6 +1296,8 @@ impl VariantModel {
 
         if self.debug {
             eprintln!(" (computed FST: {:?})", fst);
+            eprintln!("   (symtab_in={:?})", symtab_in);
+            eprintln!("   (symtab_out={:?})", symtab_out);
             eprintln!(" (finding shortest path)");
             fst.set_input_symbols(Arc::new(symtab_in));
             fst.set_output_symbols(Arc::new(symtab_out));
