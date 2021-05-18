@@ -12,6 +12,7 @@ use sesdiff::shortest_edit_script;
 use std::time::SystemTime;
 use std::sync::Arc;
 use std::convert::TryFrom;
+use std::str::FromStr;
 use rayon::prelude::*;
 use rustfst::prelude::*;
 
@@ -1265,9 +1266,12 @@ impl VariantModel {
                     });
 
                     if self.debug {
-                        let variant_text = self.decoder.get(*variant as usize).expect("variant_text").text.as_str();
+                        let mut variant_text = String::new();
+                        variant_text += self.decoder.get(*variant as usize).expect("variant_text").text.as_str();
+                        variant_text += format!(" ({})", output_symbol).as_str(); //we encode the output symbol in the text otherwise the symbol table returns the old match
                         eprintln!("   (transition {}->{} with symbol {}->{} and score {})", prevstate, nextstate, input_symbol, output_symbol, -1.0 * score.ln() as f32);
-                        assert!(symtab_out.add_symbol(variant_text) == output_symbol);
+                        let osym = symtab_out.add_symbol(variant_text);
+                        assert!(osym == output_symbol);
                     }
 
                     fst.add_tr(prevstate, Tr::new(input_symbol, output_symbol, -1.0 * score.ln() as f32, nextstate)).expect("adding transition");
@@ -1284,6 +1288,8 @@ impl VariantModel {
 
                 if self.debug {
                     eprintln!("   (transition {}->{} with OOV symbol {}->{} and score {})", prevstate, nextstate, input_symbol, output_symbol, -1.0 * OOV_EMISSION_PROB);
+                    let mut variant_text = String::from_str(m.text).expect("from str");
+                    variant_text += format!(" ({})", output_symbol).as_str(); //we encode the output symbol in the text otherwise the symbol table returns the old match
                     assert!(symtab_out.add_symbol(m.text) == output_symbol);
                 }
 
