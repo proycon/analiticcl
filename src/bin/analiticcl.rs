@@ -19,11 +19,12 @@ fn output_matches_as_tsv(model: &VariantModel, input: &str, variants: Option<&Ve
     if let Some(variants) = variants {
         if let Some(selected) = selected {
             //output selected value before all others
-            let (vocab_id, score) = variants.get(selected).expect("selected item must exist");
-            let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
-            print!("\t{}\t{}\t", vocabvalue.text, score);
-            if  output_lexmatch {
-                print!("\t{}", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
+            if let Some((vocab_id, score)) = variants.get(selected) {
+                let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
+                print!("\t{}\t{}\t", vocabvalue.text, score);
+                if  output_lexmatch {
+                    print!("\t{}", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
+                }
             }
         }
         for (i, (vocab_id, score)) in variants.iter().enumerate() {
@@ -51,16 +52,17 @@ fn output_matches_as_json(model: &VariantModel, input: &str, variants: Option<&V
         println!(", \"variants\": [ ");
         let l = variants.len();
         if let Some(selected) = selected {
-            let (vocab_id, score) = variants.get(selected).expect("selected item must exist");
-            let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
-            print!("        {{ \"text\": \"{}\", \"score\": {}", vocabvalue.text.replace("\"","\\\""), score);
-            if  output_lexmatch {
-                print!(", \"lexicon\": \"{}\"", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
-            }
-            if 0 < l - 1 {
-                println!(" }},");
-            } else {
-                println!(" }}");
+            if let Some((vocab_id, score)) = variants.get(selected) {
+                let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
+                print!("        {{ \"text\": \"{}\", \"score\": {}", vocabvalue.text.replace("\"","\\\""), score);
+                if  output_lexmatch {
+                    print!(", \"lexicon\": \"{}\"", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
+                }
+                if 0 < l - 1 {
+                    println!(" }},");
+                } else {
+                    println!(" }}");
+                }
             }
         }
         for (i, (vocab_id, score)) in variants.iter().enumerate() {
