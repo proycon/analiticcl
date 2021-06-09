@@ -30,12 +30,8 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Topic :: Text Processing :: Linguistic",
     ],
-    package_dir={"": "py_src"},
     packages=[
         "analiticcl",
     ],
-    package_data={
-        "analiticcl": ["py.typed", "__init__.pyi"],
-    },
     zip_safe=False,
 )
