@@ -51,7 +51,7 @@ model.build()
 result = model.find_variants("udnerstand", SearchParameters(max_edit_distance=3)))
 print(json.dumps(result, ensure_ascii=False, indent=4))
 print()
-results = model.find_all_matches("I do not udnerstand the problem", SearchParameters(max_edit_distance=3,max_ngram=1))
+results = model.find_all_matches("I do not udnerstand the probleem", SearchParameters(max_edit_distance=3,max_ngram=1))
 print(json.dumps(results, ensure_ascii=False, indent=4))
 ```
 
@@ -371,90 +371,55 @@ Output:
         ]
     },
     {
-        "input": "problem",
+        "input": "probleem",
         "offset": {
             "begin": 24,
-            "end": 31
+            "end": 32
         },
         "variants": [
             {
                 "text": "problem",
-                "score": 1.0,
+                "score": 0.9231950844854071,
                 "lexicon": "../../../examples/eng.aspell.lexicon"
             },
             {
                 "text": "problems",
-                "score": 0.7647849462365592,
-                "lexicon": "../../../examples/eng.aspell.lexicon"
-            },
-            {
-                "text": "problem's",
-                "score": 0.6953405017921146,
+                "score": 0.6908602150537635,
                 "lexicon": "../../../examples/eng.aspell.lexicon"
             },
             {
                 "text": "probe",
-                "score": 0.6298003072196621,
+                "score": 0.5913978494623656,
                 "lexicon": "../../../examples/eng.aspell.lexicon"
             },
             {
-                "text": "prob",
-                "score": 0.608294930875576,
+                "text": "proclaim",
+                "score": 0.5766129032258065,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "probated",
+                "score": 0.543010752688172,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "probates",
+                "score": 0.543010752688172,
                 "lexicon": "../../../examples/eng.aspell.lexicon"
             },
             {
                 "text": "prole",
-                "score": 0.5745007680491552,
+                "score": 0.5322580645161291,
                 "lexicon": "../../../examples/eng.aspell.lexicon"
             },
             {
-                "text": "prom",
-                "score": 0.5679723502304147,
+                "text": "prowlers",
+                "score": 0.4959677419354839,
                 "lexicon": "../../../examples/eng.aspell.lexicon"
             },
             {
-                "text": "prowler",
-                "score": 0.5468509984639017,
-                "lexicon": "../../../examples/eng.aspell.lexicon"
-            },
-            {
-                "text": "prowled",
-                "score": 0.5468509984639017,
-                "lexicon": "../../../examples/eng.aspell.lexicon"
-            },
-            {
-                "text": "probing",
-                "score": 0.5391705069124424,
-                "lexicon": "../../../examples/eng.aspell.lexicon"
-            },
-            {
-                "text": "probate",
-                "score": 0.5391705069124424,
-                "lexicon": "../../../examples/eng.aspell.lexicon"
-            },
-            {
-                "text": "probity",
-                "score": 0.5391705069124424,
-                "lexicon": "../../../examples/eng.aspell.lexicon"
-            },
-            {
-                "text": "probe's",
-                "score": 0.5391705069124424,
-                "lexicon": "../../../examples/eng.aspell.lexicon"
-            },
-            {
-                "text": "program",
-                "score": 0.5161290322580645,
-                "lexicon": "../../../examples/eng.aspell.lexicon"
-            },
-            {
-                "text": "poem",
-                "score": 0.5046082949308756,
-                "lexicon": "../../../examples/eng.aspell.lexicon"
-            },
-            {
-                "text": "proofed",
-                "score": 0.49308755760368667,
+                "text": "parolees",
+                "score": 0.44220430107526887,
                 "lexicon": "../../../examples/eng.aspell.lexicon"
             }
         ]
