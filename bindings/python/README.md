@@ -21,7 +21,7 @@ pip install analiticcl
 
 ### from source
 
-To use this method, you need to have the Rust installed and in your ``$PATH``. Install it through your package manager or through rustup:
+To use this method, you need to have Rust installed and in your ``$PATH``. Install it through your package manager or through rustup:
 
 ```
 curl https://sh.rustup.rs -sSf | sh -s -- -y
@@ -43,15 +43,422 @@ python setup.py install
 
 ```python
 from analiticcl import VariantModel, Weights, SearchParameters
+import json
 
 model = VariantModel("examples/simple.alphabet.tsv", Weights(), debug=False)
 model.read_lexicon("examples/eng.aspell.lexicon")
 model.build()
-print(model.find_variants("udnerstand", SearchParameters()))
+result = model.find_variants("udnerstand", SearchParameters(max_edit_distance=3)))
+print(json.dumps(result, ensure_ascii=False, indent=4))
+print()
+results = model.find_all_matches("I do not udnerstand the problem", SearchParameters(max_edit_distance=3,max_ngram=1))
+print(json.dumps(results, ensure_ascii=False, indent=4))
 ```
+
 
 Output:
 
-```python
-[{'text': 'understand', 'score': 0.8978494623655915, 'lexicon': '/home/proycon/work/analiticcl/examples/eng.aspell.lexicon'}, {'text': 'understands', 'score': 0.6725317693059629, 'lexicon': '/home/proycon/work/analiticcl/examples/eng.aspell.lexicon'}, {'text': 'understood', 'score': 0.6036866359447004, 'lexicon': '/home/proycon/work/analiticcl/examples/eng.aspell.lexicon'}, {'text': 'understate', 'score': 0.5967741935483871, 'lexicon': '/home/proycon/work/analiticcl/examples/eng.aspell.lexicon'}]
+```json
+[
+    {
+        "text": "understand",
+        "score": 0.8978494623655915,
+        "lexicon": "../../../examples/eng.aspell.lexicon"
+    },
+    {
+        "text": "understands",
+        "score": 0.6725317693059629,
+        "lexicon": "../../../examples/eng.aspell.lexicon"
+    },
+    {
+        "text": "understood",
+        "score": 0.6036866359447004,
+        "lexicon": "../../../examples/eng.aspell.lexicon"
+    },
+    {
+        "text": "understate",
+        "score": 0.5967741935483871,
+        "lexicon": "../../../examples/eng.aspell.lexicon"
+    }
+]
+```
+
+```json
+[
+    {
+        "input": "I",
+        "offset": {
+            "begin": 0,
+            "end": 1
+        },
+        "variants": [
+            {
+                "text": "I",
+                "score": 0.8387096774193549,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "i",
+                "score": 0.8064516129032258,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            }
+        ]
+    },
+    {
+        "input": "do",
+        "offset": {
+            "begin": 2,
+            "end": 4
+        },
+        "variants": [
+            {
+                "text": "do",
+                "score": 1.0,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "dog",
+                "score": 0.6236559139784946,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "doc",
+                "score": 0.6236559139784946,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "doz",
+                "score": 0.6236559139784946,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "dob",
+                "score": 0.6236559139784946,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "doe",
+                "score": 0.6236559139784946,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "dot",
+                "score": 0.6236559139784946,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "dos",
+                "score": 0.6236559139784946,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "ado",
+                "score": 0.6236559139784946,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "don",
+                "score": 0.6236559139784946,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "d",
+                "score": 0.5967741935483871,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "o",
+                "score": 0.5967741935483871,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "DOD",
+                "score": 0.5913978494623655,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            }
+        ]
+    },
+    {
+        "input": "not",
+        "offset": {
+            "begin": 5,
+            "end": 8
+        },
+        "variants": [
+            {
+                "text": "not",
+                "score": 1.0,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "knot",
+                "score": 0.6370967741935484,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "note",
+                "score": 0.6370967741935484,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "snot",
+                "score": 0.6370967741935484,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "no",
+                "score": 0.6236559139784946,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "nowt",
+                "score": 0.5967741935483871,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "No",
+                "score": 0.5913978494623655,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "OT",
+                "score": 0.5913978494623655,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "pot",
+                "score": 0.5698924731182795,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            }
+        ]
+    },
+    {
+        "input": "udnerstand",
+        "offset": {
+            "begin": 9,
+            "end": 19
+        },
+        "variants": [
+            {
+                "text": "understand",
+                "score": 0.8978494623655915,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "understands",
+                "score": 0.6725317693059629,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "understood",
+                "score": 0.6036866359447004,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "understate",
+                "score": 0.5967741935483871,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            }
+        ]
+    },
+    {
+        "input": "the",
+        "offset": {
+            "begin": 20,
+            "end": 23
+        },
+        "variants": [
+            {
+                "text": "the",
+                "score": 1.0,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "thee",
+                "score": 0.6908602150537635,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "thew",
+                "score": 0.6370967741935484,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "then",
+                "score": 0.6370967741935484,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "them",
+                "score": 0.6370967741935484,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "they",
+                "score": 0.6370967741935484,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "he",
+                "score": 0.6236559139784946,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "Thea",
+                "score": 0.6048387096774194,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "Th",
+                "score": 0.5913978494623655,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "He",
+                "score": 0.5913978494623655,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "thy",
+                "score": 0.5698924731182795,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "she",
+                "score": 0.5698924731182795,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "tho",
+                "score": 0.5698924731182795,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "Thu",
+                "score": 0.5376344086021505,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "Che",
+                "score": 0.5376344086021505,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "THC",
+                "score": 0.5376344086021505,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "tee",
+                "score": 0.5161290322580645,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "toe",
+                "score": 0.5161290322580645,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "tie",
+                "score": 0.5161290322580645,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "Te",
+                "score": 0.510752688172043,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            }
+        ]
+    },
+    {
+        "input": "problem",
+        "offset": {
+            "begin": 24,
+            "end": 31
+        },
+        "variants": [
+            {
+                "text": "problem",
+                "score": 1.0,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "problems",
+                "score": 0.7647849462365592,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "problem's",
+                "score": 0.6953405017921146,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "probe",
+                "score": 0.6298003072196621,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "prob",
+                "score": 0.608294930875576,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "prole",
+                "score": 0.5745007680491552,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "prom",
+                "score": 0.5679723502304147,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "prowler",
+                "score": 0.5468509984639017,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "prowled",
+                "score": 0.5468509984639017,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "probing",
+                "score": 0.5391705069124424,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "probate",
+                "score": 0.5391705069124424,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "probity",
+                "score": 0.5391705069124424,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "probe's",
+                "score": 0.5391705069124424,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "program",
+                "score": 0.5161290322580645,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "poem",
+                "score": 0.5046082949308756,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            },
+            {
+                "text": "proofed",
+                "score": 0.49308755760368667,
+                "lexicon": "../../../examples/eng.aspell.lexicon"
+            }
+        ]
+    }
+]
+
 ```
