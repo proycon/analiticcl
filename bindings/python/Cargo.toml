@@ -17,6 +17,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = "0.13.2"
+rayon = "1.5.0"
 
 [dependencies.analiticcl]
 version = "*"

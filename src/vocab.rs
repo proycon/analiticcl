@@ -111,6 +111,17 @@ impl Default for VocabParams {
     }
 }
 
+impl VocabParams {
+    pub fn with_weight(mut self, weight: f32) -> Self {
+        self.weight = weight;
+        self
+    }
+    pub fn with_vocab_type(mut self, vocab_type: VocabType) -> Self {
+        self.vocab_type = vocab_type;
+        self
+    }
+}
+
 pub const BOS: VocabId = 0;
 pub const EOS: VocabId = 1;
 pub const UNK: VocabId = 2;
