@@ -593,7 +593,7 @@ impl VariantModel {
         }
     }
 
-    /// Find variants in the vocabulary for a given string (in its totality), returns a vector of vocabulaly ID and score pairs
+    /// Find variants in the vocabulary for a given string (in its totality), returns a vector of vocabulary ID and score pairs
     /// The resulting vocabulary Ids can be resolved through `get_vocab()`
     pub fn find_variants(&self, input: &str, params: &SearchParameters, cache: Option<&mut Cache>) -> Vec<(VocabId, f64)> {
 
