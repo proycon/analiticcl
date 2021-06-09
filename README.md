@@ -1,4 +1,5 @@
 [![Crate](https://img.shields.io/crates/v/analiticcl.svg)](https://crates.io/crates/analiticcl)
+[![Docs](https://docs.rs/analiticcl/badge.svg)](https://docs.rs/analiticcl/)
 [![GitHub build](https://github.com/proycon/analiticcl/actions/workflows/analiticcl.yml/badge.svg?branch=master)](https://github.com/proycon/analiticcl/actions/)
 [![GitHub release](https://img.shields.io/github/release/proycon/analiticcl.svg)](https://GitHub.com/proycon/analiticcl/releases/)
 [![Project Status: WIP – Initial development is in progress, but there has not yet been a stable, usable release suitable for the public.](https://www.repostatus.org/badges/latest/wip.svg)](https://www.repostatus.org/#wip)

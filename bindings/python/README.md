@@ -429,3 +429,10 @@ Output:
 ]
 
 ```
+
+## Documentation
+
+The python binding exposes only a minimal interface, you can use Python's ``help()`` function to get information on the
+classes provided. For more details information, please consult the [Analiticcl's rust API documentation](https://docs.rs/analiticcl/). The interfaces that are available in the binding are analogous the rust versions.
+
+
