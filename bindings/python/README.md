@@ -55,6 +55,8 @@ results = model.find_all_matches("I do not udnerstand the probleem", SearchParam
 print(json.dumps(results, ensure_ascii=False, indent=4))
 ```
 
+**Note:** all offsets reported by analiticcl are utf-8 byte-offsets, not character offsets!
+
 
 Output:
 
