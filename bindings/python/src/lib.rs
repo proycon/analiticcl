@@ -16,8 +16,42 @@ pub struct PyWeights {
 #[pymethods]
 impl PyWeights {
     #[new]
-    fn new() -> Self {
-        Self::default()
+    #[args(
+        kwargs = "**"
+    )]
+    fn new(kwargs: Option<&PyDict>) -> Self {
+        let mut instance = Self::default();
+        if let Some(kwargs) = kwargs {
+            for (key, value) in kwargs {
+                if let Some(key) = key.extract().unwrap() {
+                    match key {
+                        "ld" => if let Ok(Some(value)) = value.extract() {
+                            instance.weights.ld = value
+                         },
+                        "lcs" => if let Ok(Some(value)) = value.extract() {
+                            instance.weights.lcs = value
+                         },
+                        "freq" => if let Ok(Some(value)) = value.extract() {
+                            instance.weights.freq = value
+                         },
+                        "prefix" => if let Ok(Some(value)) = value.extract() {
+                            instance.weights.prefix = value
+                         },
+                        "suffix" => if let Ok(Some(value)) = value.extract() {
+                            instance.weights.suffix = value
+                         },
+                        "lex" => if let Ok(Some(value)) = value.extract() {
+                            instance.weights.lex = value
+                         },
+                        "case" => if let Ok(Some(value)) = value.extract() {
+                            instance.weights.case = value
+                         },
+                        _ => eprintln!("Ignored unknown kwargs option {}", key),
+                    }
+                }
+            }
+        }
+        instance
     }
 
     #[getter]
@@ -62,8 +96,48 @@ pub struct PySearchParameters {
 #[pymethods]
 impl PySearchParameters {
     #[new]
-    fn new() -> Self {
-        Self::default()
+    #[args(
+        kwargs = "**"
+    )]
+    fn new(kwargs: Option<&PyDict>) -> Self {
+        let mut instance = Self::default();
+        if let Some(kwargs) = kwargs {
+            for (key, value) in kwargs {
+                if let Some(key) = key.extract().unwrap() {
+                    match key {
+                        "max_anagram_distance" => if let Ok(Some(value)) = value.extract() {
+                            instance.data.max_anagram_distance = value
+                         },
+                        "max_edit_distance" => if let Ok(Some(value)) = value.extract() {
+                            instance.data.max_edit_distance = value
+                         },
+                        "max_matches" => if let Ok(Some(value)) = value.extract() {
+                            instance.data.max_matches = value
+                         },
+                        "score_threshold" => if let Ok(Some(value)) = value.extract() {
+                            instance.data.score_threshold = value
+                         },
+                        "max_ngram" => if let Ok(Some(value)) = value.extract() {
+                            instance.data.max_ngram = value
+                         },
+                        "max_seq" => if let Ok(Some(value)) = value.extract() {
+                            instance.data.max_seq = value
+                         },
+                        "single_thread" => if let Ok(Some(value)) = value.extract() {
+                            instance.data.single_thread = value
+                         },
+                        "lm_weight" => if let Ok(Some(value)) = value.extract() {
+                            instance.data.lm_weight = value
+                         },
+                        "variantmodel_weight" => if let Ok(Some(value)) = value.extract() {
+                            instance.data.variantmodel_weight = value
+                         },
+                        _ => eprintln!("Ignored unknown kwargs option {}", key),
+                    }
+                }
+            }
+        }
+        instance
     }
 
     #[getter]
@@ -113,8 +187,33 @@ pub struct PyVocabParams {
 #[pymethods]
 impl PyVocabParams {
     #[new]
-    fn new() -> Self {
-        Self::default()
+    #[args(
+        kwargs = "**"
+    )]
+    fn new(kwargs: Option<&PyDict>) -> Self {
+        let mut instance = Self::default();
+        if let Some(kwargs) = kwargs {
+            for (key, value) in kwargs {
+                if let Some(key) = key.extract().unwrap() {
+                    match key {
+                        "text_column" => if let Ok(Some(value)) = value.extract() {
+                            instance.data.text_column = value
+                         },
+                        "freq_column" => if let Ok(Some(value)) = value.extract() {
+                            instance.data.freq_column = value
+                         },
+                        "weight" => if let Ok(Some(value)) = value.extract() {
+                            instance.data.weight = value
+                         },
+                        "index" => if let Ok(Some(value)) = value.extract() {
+                            instance.data.index = value
+                         },
+                        _ => eprintln!("Ignored unknown kwargs option {}", key),
+                    }
+                }
+            }
+        }
+        instance
     }
 
     #[getter]
@@ -135,18 +234,18 @@ impl PyVocabParams {
     #[setter]
     fn set_index(&mut self, value: u8) -> PyResult<()> { self.data.index = value; Ok(()) }
 
-    fn freqhandling_sum(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::Sum; }
-    fn freqhandling_max(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::Max; }
-    fn freqhandling_min(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::Min; }
-    fn freqhandling_replace(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::Replace; }
-    fn freqhandling_sumifmoreweight(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::SumIfMoreWeight; }
-    fn freqhandling_maxifmoreweight(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::MaxIfMoreWeight; }
-    fn freqhandling_minifmoreweight(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::MinIfMoreWeight; }
-    fn freqhandling_replaceifmoreweight(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::ReplaceIfMoreWeight; }
+    fn with_freqhandling_sum(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::Sum; }
+    fn with_freqhandling_max(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::Max; }
+    fn with_freqhandling_min(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::Min; }
+    fn with_freqhandling_replace(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::Replace; }
+    fn with_freqhandling_sumifmoreweight(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::SumIfMoreWeight; }
+    fn with_freqhandling_maxifmoreweight(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::MaxIfMoreWeight; }
+    fn with_freqhandling_minifmoreweight(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::MinIfMoreWeight; }
+    fn with_freqhandling_replaceifmoreweight(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::ReplaceIfMoreWeight; }
 
-    fn vocabtype_normal(&mut self) { self.data.vocab_type = libanaliticcl::VocabType::Normal}
-    fn vocabtype_intermediate(&mut self) { self.data.vocab_type = libanaliticcl::VocabType::Intermediate}
-    fn vocabtype_noindex(&mut self) { self.data.vocab_type = libanaliticcl::VocabType::NoIndex}
+    fn with_vocabtype_normal(&mut self) { self.data.vocab_type = libanaliticcl::VocabType::Normal}
+    fn with_vocabtype_intermediate(&mut self) { self.data.vocab_type = libanaliticcl::VocabType::Intermediate}
+    fn with_vocabtype_noindex(&mut self) { self.data.vocab_type = libanaliticcl::VocabType::NoIndex}
 }
 
 
@@ -158,7 +257,12 @@ pub struct PyVariantModel {
 #[pymethods]
 impl PyVariantModel {
     #[new]
-    fn __new__(alphabet_file: &str, weights: PyRef<PyWeights>, debug: bool) -> Self {
+    #[args(
+        alphabet_file,
+        weights,
+        debug=false
+    )]
+    fn new(alphabet_file: &str, weights: PyRef<PyWeights>, debug: bool) -> Self {
         Self {
             model: libanaliticcl::VariantModel::new(alphabet_file, weights.weights.clone(), debug)
         }
@@ -283,6 +387,7 @@ impl PyVariantModel {
         }
         Ok(results)
     }
+
     ///Searches a text and returns all highest-ranking variants found in the text
     fn find_all_matches<'py>(&self, text: &str, params: PyRef<PySearchParameters>, py: Python<'py>) -> PyResult<&'py PyList> {
         let params_data = &params.data;
