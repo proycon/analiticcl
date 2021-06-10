@@ -468,7 +468,8 @@ fn main() {
                     .arg(Arg::with_name("debug")
                         .long("debug")
                         .short("D")
-                        .help("Debug")
+                        .help("Set debug level, can be set to 1 or 2")
+                        .takes_value(true)
                         .required(false))
                     .get_matches();
 
@@ -510,7 +511,7 @@ fn main() {
     let mut model = VariantModel::new(
         args.value_of("alphabet").unwrap(),
         weights,
-        rootargs.is_present("debug")
+        rootargs.value_of("debug").unwrap_or("0").parse::<u8>().expect("Debug level should be a 0, 1 or 2")
     );
 
     eprintln!("Loading lexicons...");

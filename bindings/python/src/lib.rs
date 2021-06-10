@@ -260,9 +260,9 @@ impl PyVariantModel {
     #[args(
         alphabet_file,
         weights,
-        debug=false
+        debug=0
     )]
-    fn new(alphabet_file: &str, weights: PyRef<PyWeights>, debug: bool) -> Self {
+    fn new(alphabet_file: &str, weights: PyRef<PyWeights>, debug: u8) -> Self {
         Self {
             model: libanaliticcl::VariantModel::new(alphabet_file, weights.weights.clone(), debug)
         }
