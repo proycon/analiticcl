@@ -75,3 +75,19 @@ multi-threaded (8 threads, no caching):
 @ 5000 - processing speed was 266 items per second
 ```
 
+## Bounds check in find_nearest_anahashes
+
+without:
+
+found 19877 anagram matches in total (in 97266 μs)
+found 19877 anagram matches in total (in 93189 μs)
+found 19877 anagram matches in total (in 93682 μs)
+
+with:
+
+found 19877 anagram matches in total (in 111490 μs)
+found 19877 anagram matches in total (in 112529 μs)
+found 19877 anagram matches in total (in 110981 μs)
+
+
+
