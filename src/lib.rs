@@ -733,12 +733,12 @@ impl VariantModel {
         // Do a breadth first search for deletions
         for (deletion,distance) in iterator {
             if self.debug {
-                eprintln!(" (testing deletion at distance {} for anavalue {})", distance, deletion.value);
+                eprintln!(" (testing deletion at distance {}: anavalue {})", distance, deletion.value);
             }
 
             if let Some((matched_anahash, _node)) = self.index.get_key_value(&deletion) {
                 if self.debug {
-                    eprintln!("  (deletion matches)");
+                    eprintln!("  (deletion matches with index)");
                 }
                 //This deletion exists in the model
                 nearest.insert(matched_anahash);
@@ -786,7 +786,7 @@ impl VariantModel {
                     }));*/
                 }
                 if self.debug {
-                    eprintln!("  (added {} out of {} candidates, preventing duplicates)", nearest.len() - beginlength , count);
+                    eprintln!("   (added {} out of {} candidates, preventing duplicates)", nearest.len() - beginlength , count);
                 }
             }
             lastdistance = distance;
@@ -809,6 +809,7 @@ impl VariantModel {
     pub(crate) fn gather_instances(&self, nearest_anagrams: &HashSet<&AnaValue>, querystring: &[u8], query: &str, max_edit_distance: u8) -> Vec<(VocabId,Distance)> {
         let mut found_instances = Vec::new();
         let mut pruned_instances = 0;
+        let mut ignored_instances = 0;
 
         let begintime = if self.debug {
             Some(SystemTime::now())
@@ -817,59 +818,59 @@ impl VariantModel {
         };
 
         for anahash in nearest_anagrams {
-            if let Some(node) = self.index.get(anahash) {
-                for vocab_id in node.instances.iter() {
-                    if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
-                        if let Some(ld) = damerau_levenshtein(querystring, &vocabitem.norm, max_edit_distance) {
-                            //we only get here if we make the max_edit_distance cut-off
-                            let distance = Distance {
-                                ld: ld,
-                                lcs: if self.weights.lcs > 0.0 { longest_common_substring_length(querystring, &vocabitem.norm) } else { 0 },
-                                prefixlen: if self.weights.prefix > 0.0 { common_prefix_length(querystring, &vocabitem.norm) } else { 0 },
-                                suffixlen: if self.weights.suffix > 0.0 { common_suffix_length(querystring, &vocabitem.norm) } else { 0 },
-                                freq: if self.weights.freq > 0.0 { vocabitem.frequency } else { 0 },
-                                lex: if self.weights.lex > 0.0 { vocabitem.lexweight } else { 0.0 },
-                                samecase: if self.weights.case > 0.0 { vocabitem.text.chars().next().expect("first char").is_lowercase() == query.chars().next().expect("first char").is_lowercase() } else { true },
-                                prescore: None,
-                            };
-                            //match will be added to found_instances at the end of the block (we
-                            //need to borrow the distance for a bit still)
+            let node = self.index.get(anahash).expect("all anahashes from nearest_anagrams must occur in the index");
+            for vocab_id in node.instances.iter() {
+                let vocabitem = self.decoder.get(*vocab_id as usize).expect("vocabulary id must exist in the decoder");
+                if let Some(ld) = damerau_levenshtein(querystring, &vocabitem.norm, max_edit_distance) {
+                    //we only get here if we make the max_edit_distance cut-off
+                    let distance = Distance {
+                        ld: ld,
+                        lcs: if self.weights.lcs > 0.0 { longest_common_substring_length(querystring, &vocabitem.norm) } else { 0 },
+                        prefixlen: if self.weights.prefix > 0.0 { common_prefix_length(querystring, &vocabitem.norm) } else { 0 },
+                        suffixlen: if self.weights.suffix > 0.0 { common_suffix_length(querystring, &vocabitem.norm) } else { 0 },
+                        freq: if self.weights.freq > 0.0 { vocabitem.frequency } else { 0 },
+                        lex: if self.weights.lex > 0.0 { vocabitem.lexweight } else { 0.0 },
+                        samecase: if self.weights.case > 0.0 { vocabitem.text.chars().next().expect("first char").is_lowercase() == query.chars().next().expect("first char").is_lowercase() } else { true },
+                        prescore: None,
+                    };
+                    //match will be added to found_instances at the end of the block (we
+                    //need to borrow the distance for a bit still)
 
-                            //Does this vocabulary item make explicit references to variants?
-                            //If so, we add those too. This is only the case if the user loaded
-                            //variantlists/error lists.
-                            if let Some(variantrefs) = &vocabitem.variants {
-                                for variantref in variantrefs.iter() {
-                                    match variantref {
-                                        VariantReference::VariantCluster(cluster_id) => {
-                                            if let Some(variants) = self.variantclusters.get(cluster_id) {
-                                                //add all variants in the cluster
-                                                for variant_id in variants.iter() {
-                                                    //we clone do not recompute the distance to the
-                                                    //variant, all variants are considered of
-                                                    //equal-weight, we use the originally computed
-                                                    //distance:
-                                                    found_instances.push((*variant_id, distance.clone()));
-                                                }
-                                            }
-                                        },
-                                        VariantReference::WeightedVariant((vocab_id, score)) => {
-                                            let mut variantdistance = distance.clone();
-                                            variantdistance.prescore = Some(*score);
-                                            found_instances.push((*vocab_id,variantdistance));
+                    //Does this vocabulary item make explicit references to variants?
+                    //If so, we add those too. This is only the case if the user loaded
+                    //variantlists/error lists.
+                    if let Some(variantrefs) = &vocabitem.variants {
+                        for variantref in variantrefs.iter() {
+                            match variantref {
+                                VariantReference::VariantCluster(cluster_id) => {
+                                    if let Some(variants) = self.variantclusters.get(cluster_id) {
+                                        //add all variants in the cluster
+                                        for variant_id in variants.iter() {
+                                            //we clone do not recompute the distance to the
+                                            //variant, all variants are considered of
+                                            //equal-weight, we use the originally computed
+                                            //distance:
+                                            found_instances.push((*variant_id, distance.clone()));
                                         }
                                     }
+                                },
+                                VariantReference::WeightedVariant((vocab_id, score)) => {
+                                    let mut variantdistance = distance.clone();
+                                    variantdistance.prescore = Some(*score);
+                                    found_instances.push((*vocab_id,variantdistance));
                                 }
                             }
-
-                            //add the original match
-                            if vocabitem.vocabtype == VocabType::Normal {
-                                found_instances.push((*vocab_id,distance));
-                            }
-                        } else {
-                            pruned_instances += 1;
                         }
                     }
+
+                    //add the original match
+                    if vocabitem.vocabtype == VocabType::Normal {
+                        found_instances.push((*vocab_id,distance));
+                    } else {
+                        ignored_instances += 1;
+                    }
+                } else {
+                    pruned_instances += 1;
                 }
             }
         }
@@ -877,7 +878,7 @@ impl VariantModel {
         if self.debug {
             let endtime = SystemTime::now();
             let duration = endtime.duration_since(begintime.expect("begintime")).expect("clock can't go backwards").as_micros();
-            eprintln!("(found {} instances (pruned {}) over {} anagrams in {} μs)", found_instances.len(), pruned_instances, nearest_anagrams.len(), duration);
+            eprintln!("(found {} instances (pruned {} above max_edit_distance {}, ignored {}) over {} anagrams in {} μs)", found_instances.len(), pruned_instances, max_edit_distance, ignored_instances, nearest_anagrams.len(), duration);
         }
         found_instances
     }

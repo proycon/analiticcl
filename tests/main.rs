@@ -562,6 +562,12 @@ fn test0303_damereau_levenshtein() {
 }
 
 #[test]
+fn test0303_damereau_levenshtein2() {
+    let (alphabet, _alphabet_size) = get_test_alphabet();
+    assert_eq!(damerau_levenshtein(&"hipotesis".normalize_to_alphabet(&alphabet), &"hypothesis".normalize_to_alphabet(&alphabet),99), Some(2));
+}
+
+#[test]
 fn test0304_lcslen() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     assert_eq!(longest_common_substring_length(&"test".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 4);
