@@ -598,13 +598,13 @@ fn test0304_suffixlen() {
 #[test]
 fn test0400_model_load() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    let _model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let _model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
 }
 
 #[test]
 fn test0401_model_build() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
     let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
     for text in lexicon.iter() {
         model.add_to_vocabulary(text,None,&VocabParams::default());
@@ -622,7 +622,7 @@ fn test0401_model_build() {
 #[test]
 fn test0402_model_anagrams() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
     let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
     for text in lexicon.iter() {
         model.add_to_vocabulary(text,None,&VocabParams::default());
@@ -637,7 +637,7 @@ fn test0402_model_anagrams() {
 #[test]
 fn test0403_model_anagrams() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
     let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
     for text in lexicon.iter() {
         model.add_to_vocabulary(text,None,&VocabParams::default());
@@ -649,7 +649,7 @@ fn test0403_model_anagrams() {
 #[test]
 fn test0404_score_test() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
     let lexicon: &[&str] = &["huis","huls"];
     for text in lexicon.iter() {
         model.add_to_vocabulary(text,None,&VocabParams::default());
@@ -680,7 +680,7 @@ fn test0501_confusable_found_in() {
 #[test]
 fn test0502_confusable_test() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
     let lexicon: &[&str] = &["huis","huls"];
     for text in lexicon.iter() {
         model.add_to_vocabulary(text,None,&VocabParams::default());
@@ -696,7 +696,7 @@ fn test0502_confusable_test() {
 #[test]
 fn test0503_confusable_test2() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
     let lexicon: &[&str] = &["huis","huls"];
     for text in lexicon.iter() {
         model.add_to_vocabulary(text,None,&VocabParams::default());
@@ -712,7 +712,7 @@ fn test0503_confusable_test2() {
 #[test]
 fn test0504_confusable_nomatch() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), false);
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
     let lexicon: &[&str] = &["huis","huls"];
     for text in lexicon.iter() {
         model.add_to_vocabulary(text,None,&VocabParams::default());
@@ -825,7 +825,7 @@ fn test0608_find_ngrams_bigrams4() {
 #[test]
 fn test0701_find_all_matches_unigram_only() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
     let lexicon: &[&str] = &["I","think","sink","you","are","right"];
     for text in lexicon.iter() {
         model.add_to_vocabulary(text,None,&VocabParams::default());
@@ -845,7 +845,7 @@ fn test0701_find_all_matches_unigram_only() {
 #[test]
 fn test0702_find_all_matches() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
     model.add_to_vocabulary("I",Some(2),&VocabParams::default());
     model.add_to_vocabulary("think",Some(2), &VocabParams::default());
     model.add_to_vocabulary("sink",Some(1), &VocabParams::default());
@@ -875,7 +875,7 @@ fn test0702_find_all_matches() {
 #[test]
 fn test0703_find_all_matches_linebreak() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
     model.add_to_vocabulary("I",Some(2),&VocabParams::default());
     model.add_to_vocabulary("think",Some(2),&VocabParams::default());
     model.add_to_vocabulary("sink",Some(1),&VocabParams::default());
@@ -904,7 +904,7 @@ fn test0703_find_all_matches_linebreak() {
 #[test]
 fn test0704_find_all_matches_two_batches() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), true);
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
     model.add_to_vocabulary("I",Some(2),&VocabParams::default());
     model.add_to_vocabulary("think",Some(2),&VocabParams::default());
     model.add_to_vocabulary("sink",Some(1),&VocabParams::default());
