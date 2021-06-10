@@ -724,11 +724,11 @@ impl VariantModel {
         };
 
 
-        let iterator = if let Some(cache) = cache {
+        /*let iterator = if let Some(cache) = cache {
             focus.iter_recursive_external_cache(focus_alphabet_size+1, &searchparams, cache)
-        } else {
-            focus.iter_recursive(focus_alphabet_size+1, &searchparams)
-        };
+        } else {*/
+        let iterator = focus.iter_recursive(focus_alphabet_size+1, &searchparams);
+        /*};*/
 
         // Do a breadth first search for deletions
         for (deletion,distance) in iterator {
