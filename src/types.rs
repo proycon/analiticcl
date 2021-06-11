@@ -55,15 +55,35 @@ impl Weights {
 
 #[derive(Clone,Debug)]
 pub struct SearchParameters {
+    /// Maximum edit distance (levenshtein-damarau). The maximum edit distance according to Levenshtein-Damarau. Insertions, deletions, substitutions and transposition all have the same cost (1). It is recommended to set this value slightly lower than the maximum anagram distance
     pub max_anagram_distance: u8,
+
+    /// Maximum edit distance (levenshtein-damarau). The maximum edit distance according to Levenshtein-Damarau. Insertions, deletions, substitutions and transposition all have the same cost (1). It is recommended to set this value slightly lower than the maximum anagram distance.
     pub max_edit_distance: u8,
+
+    /// Number of matches to return per input (set to 0 for unlimited if you want to exhaustively return every possibility within the specified anagram and edit distance)
     pub max_matches: usize,
+
+    /// Require scores to meet this threshold, they are pruned otherwise
     pub score_threshold: f64,
+
+    /// Determines when to stop searching for matches. Setting this can speed up the process at the
+    /// cost of lower accuracy
     pub stop_criterion: StopCriterion,
+
+    /// Maximum ngram order (1 for unigrams, 2 for bigrams, etc..). This also requires you to load actual ngram frequency lists to have any effect.
     pub max_ngram: u8,
+
+    /// Maximum number of candidate sequences to take along to the language modelling stage
     pub max_seq: usize,
+
+    /// Use only a single-thread instead of leveraging multiple cores (lowers resource use and
+    /// performance)
     pub single_thread: bool,
+
+    /// Weight attributed to the language model
     pub lm_weight: f32,
+    /// Weight attributed to the variant model
     pub variantmodel_weight: f32
 }
 

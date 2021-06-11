@@ -382,19 +382,19 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
     args.push(Arg::with_name("max-anagram-distance")
         .long("max-anagram-distance")
         .short("k")
-        .help("Maximum anagram distance. This impacts the size of the search space")
+        .help("Maximum anagram distance. This impacts the size of the search space. Each insertion or deletion has cost 1, substitutions can not be seperately tracked so they counts as 2 (deletion+insertion). It is therefore recommended to set this value slightly higher than the max edit distance.")
         .takes_value(true)
         .default_value("3"));
     args.push(Arg::with_name("max-edit-distance")
         .long("max-edit-distance")
         .short("d")
-        .help("Maximum edit distance (levenshtein)")
+        .help("Maximum edit distance (levenshtein-damarau). The maximum edit distance according to Levenshtein-Damarau. Insertions, deletions, substitutions and transposition all have the same cost (1). It is recommended to set this value slightly lower than the maximum anagram distance.")
         .takes_value(true)
-        .default_value("3"));
+        .default_value("2"));
     args.push(Arg::with_name("max-matches")
         .long("max-matches")
         .short("n")
-        .help("Number of matches the return per input (set to 0 for unlimited if you want to exhaustively return every possibility within the specified edit distance)")
+        .help("Number of matches to return per input (set to 0 for unlimited if you want to exhaustively return every possibility within the specified anagram and edit distance)")
         .takes_value(true)
         .default_value("10"));
     args.push(Arg::with_name("files")
