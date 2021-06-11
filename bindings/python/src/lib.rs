@@ -289,6 +289,12 @@ impl PyVariantModel {
         Ok(())
     }
 
+    /// Add an item to the vocabulary. This is a lower-level interface.
+    pub fn add_to_vocabulary(&mut self, text: &str, frequency: Option<u32>, params: PyRef<PyVocabParams>) -> PyResult<()> {
+        self.model.add_to_vocabulary(text, frequency, &params.data);
+        Ok(())
+    }
+
 
     /// Load vocabulary (a lexicon or corpus-derived lexicon) from a TSV file
     /// May contain frequency information. This is a lower-level interface.
