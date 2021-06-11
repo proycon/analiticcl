@@ -375,6 +375,31 @@ impl VariantModel {
         Ok(())
     }
 
+    /// Add a cluster of equally weighted variants. Items will be added
+    /// to the lexicon automatically when necessary. Set VocabType::Intermediate
+    /// if you want variants to only be used as an intermediate towards items that
+    /// have already been added previously through a more authoritative lexicon.
+    pub fn add_variants(&mut self, variants: &Vec<&str>, params: &VocabParams) {
+        let mut ids: Vec<VocabId> = Vec::new();
+        let clusterid = self.variantclusters.len() as VariantClusterId;
+        for variant in variants.iter() {
+            //all variants by definition are added to the combined lexicon
+            let variantid = self.add_to_vocabulary(variant, None, params);
+            ids.push(variantid);
+            if let Some(vocabvalue) = self.decoder.get_mut(variantid as usize) {
+                let variantref = VariantReference::VariantCluster(clusterid);
+                if vocabvalue.variants.is_none() {
+                    vocabvalue.variants = Some(vec!(variantref));
+                } else if let Some(variantrefs) = vocabvalue.variants.as_mut() {
+                    if !variantrefs.contains(&variantref) {
+                        variantrefs.push(variantref);
+                    }
+                }
+            }
+        }
+        self.variantclusters.insert(clusterid, ids);
+    }
+
     ///Read vocabulary (a lexicon or corpus-derived lexicon) from a TSV file
     ///May contain frequency information
     ///The parameters define what value can be read from what column
@@ -432,24 +457,7 @@ impl VariantModel {
             if let Ok(line) = line {
                 if !line.is_empty() {
                     let variants: Vec<&str> = line.split("\t").collect();
-                    let mut ids: Vec<VocabId> = Vec::new();
-                    let clusterid = self.variantclusters.len() as VariantClusterId;
-                    for variant in variants.iter() {
-                        //all variants by definition are added to the combined lexicon
-                        let variantid = self.add_to_vocabulary(variant, None, &params);
-                        ids.push(variantid);
-                        if let Some(vocabvalue) = self.decoder.get_mut(variantid as usize) {
-                            let variantref = VariantReference::VariantCluster(clusterid);
-                            if vocabvalue.variants.is_none() {
-                                vocabvalue.variants = Some(vec!(variantref));
-                            } else if let Some(variantrefs) = vocabvalue.variants.as_mut() {
-                                if !variantrefs.contains(&variantref) {
-                                    variantrefs.push(variantref);
-                                }
-                            }
-                        }
-                    }
-                    self.variantclusters.insert(clusterid, ids);
+                    self.add_variants(&variants, &params);
                 }
             }
         }

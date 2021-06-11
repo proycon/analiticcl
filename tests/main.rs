@@ -941,3 +941,20 @@ fn test0704_find_all_matches_two_batches() {
     assert_eq!( model.match_to_str(matches.get(6).unwrap()) , "sure" );
 }
 
+#[test]
+fn test0801_model_variants() {
+    let (alphabet, _alphabet_size) = get_test_alphabet();
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 2);
+    let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
+    for text in lexicon.iter() {
+        model.add_to_vocabulary(text,None,&VocabParams::default());
+    }
+    model.add_variants(&vec!("tries", "attempts"), &VocabParams::default().with_vocab_type(VocabType::Intermediate));
+    model.build();
+    assert!(model.has(&"tries"));
+    assert!(model.has(&"attempts"));
+    //we look for "attemts", which matches "attempts", but this is just an intermediate towards
+    //"tries", which is what is eventually returned.
+    let results = model.find_variants("attemts", &get_test_searchparams(), None);
+    assert_eq!( model.decoder.get(results.get(0).unwrap().0 as usize).unwrap().text, "tries");
+}
