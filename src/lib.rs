@@ -723,7 +723,7 @@ impl VariantModel {
                 nearest.insert(matched_anahash);
             }
 
-            let (_deletion_upper_bound, deletion_charcount) = deletion.alphabet_upper_bound(self.alphabet_size());
+            let deletion_charcount = focus_charcount - distance as u16;
             if self.debug >= 1 {
                 eprintln!("  (scheduling search for insertions from deletion result anavalue {})",  deletion.value);
             }

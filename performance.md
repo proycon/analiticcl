@@ -48,7 +48,7 @@ multi-threaded (8 threads), no search cache (can't be shared efficiently over th
 @ 5000 - processing speed was 1664 items per second
 ```
 
-### Analiticcl v0.3
+### Analiticcl v0.3.0
 
 Fixes an [important issue](https://github.com/proycon/analiticcl/issues/6):
 
@@ -83,7 +83,7 @@ single-threaded, no search cache, separate lookup loop:
 @ 5001 - processing speed was 512 items per second
 ```
 
-mult-threaded, no search cache, separate lookup loop:
+multi-threaded, no search cache, separate lookup loop:
 
 ```
 @ 1000 - processing speed was 3195 items per second
@@ -91,6 +91,26 @@ mult-threaded, no search cache, separate lookup loop:
 @ 3000 - processing speed was 2392 items per second
 @ 4000 - processing speed was 2558 items per second
 @ 5000 - processing speed was 2494 items per second
+```
+
+**single-threaded, no search cache, final optimisations:**
+
+```
+@ 1001 - processing speed was 687 items per second
+@ 2001 - processing speed was 538 items per second
+@ 3001 - processing speed was 546 items per second
+@ 4001 - processing speed was 557 items per second
+@ 5001 - processing speed was 543 items per second
+```
+
+**multi-threaded, no search cache, final optimisations:**
+
+```
+@ 1000 - processing speed was 3226 items per second
+@ 2000 - processing speed was 2525 items per second
+@ 3000 - processing speed was 2500 items per second
+@ 4000 - processing speed was 2632 items per second
+@ 5000 - processing speed was 2532 items per second
 ```
 
 ## Finite State Transducer Map with Levensthein Automatons
