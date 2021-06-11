@@ -180,23 +180,16 @@ pub struct Distance {
 #[derive(Debug,Clone,Copy,PartialEq)]
 pub enum StopCriterion {
     Exhaustive,
-    StopAtExactMatch,
-    Iterative(usize),
-    IterativeStopAtExactMatch(usize),
+
+    /// Stop when we find an exact match with a lexical weight higher or equal than the specified value here
+    StopAtExactMatch(f32),
 }
 
 impl StopCriterion {
     pub fn stop_at_exact_match(&self) -> bool {
         match self {
-            Self::StopAtExactMatch | Self::IterativeStopAtExactMatch(_) => true,
+            Self::StopAtExactMatch(_)  => true,
             _ => false
-        }
-    }
-
-    pub fn iterative(&self) -> usize {
-        match self {
-            Self::Iterative(matches) | Self::IterativeStopAtExactMatch(matches) => *matches,
-            _ => 0
         }
     }
 }

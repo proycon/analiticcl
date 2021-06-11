@@ -313,14 +313,9 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
     args.push(Arg::with_name("stop-exact")
         .short("s")
         .long("stop-exact")
-        .help("Do not continue looking for variants once an exact match has been found. This significantly speeds up the process")
-        .required(false));
-    /*args.push(Arg::with_name("stop-iterative")
-        .short("S")
-        .long("stop-iterative")
-        .help("Seek iteratively and stop after gathering enough matches, the number of which is represented by this threshold")
+        .help("Do not continue looking for variants once an exact match has been found. This significantly speeds up the process. This takes a floating point parameter that specifies the minimum lexicon weight that must be adhered to for the process to actually stop (set to 0.0 to apply equally to all lexicons, 1.0 to only apply to verified lexicons)")
         .takes_value(true)
-        .required(false));*/
+        .required(false));
     args.push(Arg::with_name("score-threshold")
         .long("score-threshold")
         .short("t")
@@ -583,11 +578,11 @@ fn main() {
         max_edit_distance: args.value_of("max-edit-distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255"),
         max_matches: args.value_of("max-matches").unwrap().parse::<usize>().expect("Maximum matches should should be an integer (0 for unlimited)"),
         score_threshold: args.value_of("score-threshold").unwrap().parse::<f64>().expect("Score threshold should be a floating point number"),
-        stop_criterion: match (args.is_present("stop-exact"), args.is_present("stop-iterative")) {
-            (true, true) => StopCriterion::IterativeStopAtExactMatch(args.value_of("stop-iterative").unwrap().parse::<usize>().expect("Cut-off value should be an integer")), //deprecated
-            (false, true) => StopCriterion::Iterative(args.value_of("stop-iterative").unwrap().parse::<usize>().expect("Stop-iterative threshold should be an integer")), //deprecated
-            (true, false) => StopCriterion::StopAtExactMatch,
-            (false, false) => StopCriterion::Exhaustive
+        stop_criterion: if args.is_present("stop-exact") {
+            let minlexweight = args.value_of("stop-exact").unwrap().parse::<f32>().expect("Value for --stop-exact must be a floating point value");
+            StopCriterion::StopAtExactMatch(minlexweight)
+        } else {
+            StopCriterion::Exhaustive
         },
         single_thread: args.is_present("single-thread") || args.is_present("debug") || args.is_present("interactive"),
         max_ngram: if let Some(value) = args.value_of("max-ngram-order") {

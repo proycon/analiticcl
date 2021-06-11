@@ -651,10 +651,10 @@ impl VariantModel {
                 eprintln!(" (found exact match)");
             }
             nearest.insert(matched_anahash);
-            if stop_criterion.stop_at_exact_match() {
+            if let StopCriterion::StopAtExactMatch(minlexweight) = stop_criterion {
                 for vocab_id in node.instances.iter() {
                     if let Some(value) = self.decoder.get(*vocab_id as usize) {
-                        if &value.norm == normstring {
+                        if value.lexweight >= minlexweight && &value.norm == normstring {
                             if self.debug >= 1 {
                                 eprintln!(" (stopping early)");
                             }
