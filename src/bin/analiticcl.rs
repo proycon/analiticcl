@@ -315,12 +315,12 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .long("stop-exact")
         .help("Do not continue looking for variants once an exact match has been found. This significantly speeds up the process")
         .required(false));
-    args.push(Arg::with_name("stop-iterative")
+    /*args.push(Arg::with_name("stop-iterative")
         .short("S")
         .long("stop-iterative")
         .help("Seek iteratively and stop after gathering enough matches, the number of which is represented by this threshold")
         .takes_value(true)
-        .required(false));
+        .required(false));*/
     args.push(Arg::with_name("score-threshold")
         .long("score-threshold")
         .short("t")
@@ -328,12 +328,12 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .takes_value(true)
         .default_value("0.25")
         .required(false));
-    args.push(Arg::with_name("search-cache")
+    /*args.push(Arg::with_name("search-cache")
         .long("search-cache")
         .help("Cache visited nodes between searches to speed up the search at the cost of increased memory. Only works for single core currently where it is enabled by default. The value corresponds to the maximum number of anagram values to cache, this should be set to a fairly high number, depending on memory availability, such as 100000. Set to 0 to disable the cache.")
         .takes_value(true)
         .default_value("100000")
-        .required(false));
+        .required(false));*/
     args.push(Arg::with_name("single-thread")
         .long("single-thread")
         .short("1")
@@ -498,6 +498,7 @@ fn main() {
     };
 
     let mut cache = if let Some(visited_max_size) = args.value_of("search-cache") {
+        //deprecated
         let visited_max_size = visited_max_size.parse::<usize>().expect("Cache size should be a large integer");
         if visited_max_size > 0 {
             Some(Cache::new(visited_max_size))
@@ -583,8 +584,8 @@ fn main() {
         max_matches: args.value_of("max-matches").unwrap().parse::<usize>().expect("Maximum matches should should be an integer (0 for unlimited)"),
         score_threshold: args.value_of("score-threshold").unwrap().parse::<f64>().expect("Score threshold should be a floating point number"),
         stop_criterion: match (args.is_present("stop-exact"), args.is_present("stop-iterative")) {
-            (true, true) => StopCriterion::IterativeStopAtExactMatch(args.value_of("stop-iterative").unwrap().parse::<usize>().expect("Cut-off value should be an integer")),
-            (false, true) => StopCriterion::Iterative(args.value_of("stop-iterative").unwrap().parse::<usize>().expect("Stop-iterative threshold should be an integer")),
+            (true, true) => StopCriterion::IterativeStopAtExactMatch(args.value_of("stop-iterative").unwrap().parse::<usize>().expect("Cut-off value should be an integer")), //deprecated
+            (false, true) => StopCriterion::Iterative(args.value_of("stop-iterative").unwrap().parse::<usize>().expect("Stop-iterative threshold should be an integer")), //deprecated
             (true, false) => StopCriterion::StopAtExactMatch,
             (false, false) => StopCriterion::Exhaustive
         },
