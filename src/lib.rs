@@ -293,6 +293,16 @@ impl VariantModel {
         self.decoder.get(vocab_id as usize)
     }
 
+    /// Decomposes and decodes and anagram value into the characters that make it up.
+    /// Mostly intended for debugging purposes.
+    pub fn decompose_anavalue(&self, av: &AnaValue) -> Vec<&str> {
+        let mut result = Vec::new();
+        for c in av.iter(self.alphabet_size()) {
+            result.push(self.alphabet.get(c.0.charindex as usize).expect("alphabet item must exist").get(0).unwrap().as_str());
+        }
+        result
+    }
+
 
     ///Read the alphabet from a TSV file
     ///The file contains one alphabet entry per line, but may
@@ -700,10 +710,15 @@ impl VariantModel {
         let iterator = focus.iter_recursive(focus_alphabet_size+1, &searchparams);
         /*};*/
 
+
         // Do a breadth first search for deletions
         for (deletion,distance) in iterator {
             if self.debug >= 1 {
                 eprintln!(" (testing deletion at distance {}, charcount {}: anavalue {})", distance, focus_charcount as u32 - distance, deletion.value);
+                if self.debug >= 2 {
+                    let decomposed: String = self.decompose_anavalue(&deletion.value).join("");
+                    eprintln!("  (anavalue decomposition: {})", decomposed);
+                }
             }
 
             if let Some((matched_anahash, _node)) = self.index.get_key_value(&deletion) {
@@ -725,42 +740,39 @@ impl VariantModel {
             }
 
 
-            if stop_criterion.iterative() > 0 || distance == max_distance as u32 { //no need to check for distances that are not the max
-                let mut count = 0;
-                let (_deletion_upper_bound, deletion_charcount) = deletion.alphabet_upper_bound(self.alphabet_size());
-                let search_charcount = deletion_charcount + distance as u16;
-                let beginlength = nearest.len();
-                if self.debug >= 1 {
-                    eprintln!("  (testing insertions for distance {} from deletion result anavalue {})", search_charcount, deletion.value);
+            let mut count = 0;
+            let (_deletion_upper_bound, deletion_charcount) = deletion.alphabet_upper_bound(self.alphabet_size());
+            let beginlength = nearest.len();
+            if self.debug >= 1 {
+                eprintln!("  (testing insertions from deletion result anavalue {})",  deletion.value);
+            }
+            //Find possible insertions starting from this deletion
+            for search_distance in 1..=(max_distance as u16 - distance as u16) {
+                let search_charcount = deletion_charcount + search_distance;
+                if self.debug >= 2 {
+                    eprintln!("   (search_distance={}, search_charcount={})", search_distance, search_charcount);
                 }
-                //Find possible insertions starting from this deletion
-                for search_charcount in deletion_charcount..focus_charcount+max_distance as u16 {
-                    if self.debug >= 2 {
-                        let search_distance = ((deletion_charcount + search_charcount) as i16 - focus_charcount as i16).abs();
-                        eprintln!("   (search_distance={}, search_charcount={})", search_distance, search_charcount);
-                    }
-                    if let Some(sortedindex) = self.sortedindex.get(&search_charcount) {
-                        for candidate in sortedindex.iter() {
-                            if candidate.contains(&deletion.value) {//this is where the magic happens
-                                count += 1;
-                                nearest.insert(candidate);
-                            }
+                if let Some(sortedindex) = self.sortedindex.get(&search_charcount) {
+                    for candidate in sortedindex.iter() {
+                        if candidate.contains(&deletion.value) {//this is where the magic happens
+                            count += 1;
+                            nearest.insert(candidate);
                         }
-
-                        /*
-                        nearest.extend( sortedindex.iter().filter(|candidate| {
-                            if candidate.contains(&deletion.value) {//this is where the magic happens
-                                count += 1;
-                                true
-                            } else {
-                                false
-                            }
-                        }));*/
                     }
+
+                    /*
+                    nearest.extend( sortedindex.iter().filter(|candidate| {
+                        if candidate.contains(&deletion.value) {//this is where the magic happens
+                            count += 1;
+                            true
+                        } else {
+                            false
+                        }
+                    }));*/
                 }
-                if self.debug >= 1 {
-                    eprintln!("   (added {} out of {} candidates, preventing duplicates)", nearest.len() - beginlength , count);
-                }
+            }
+            if self.debug >= 1 {
+                eprintln!("   (added {} out of {} candidates, preventing duplicates)", nearest.len() - beginlength , count);
             }
             lastdistance = distance;
         }

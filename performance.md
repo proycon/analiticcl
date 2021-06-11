@@ -11,7 +11,7 @@ Computed on a octa-core Intel(R) Core(TM) i7-4770K CPU @ 3.50GHz
 
 ## Anagram hashing
 
-with old big-int library (analiticcl <= v0.1.1), single-threaded, no search cache:
+with old big-int library (analiticcl ``<= v0.1.1``), single-threaded, no search cache:
 
 ```
 @ 1001 - processing speed was 238 items per second
@@ -48,10 +48,34 @@ multi-threaded (8 threads), no search cache (can't be shared efficiently over th
 @ 5000 - processing speed was 1664 items per second
 ```
 
+### Analiticcl v0.3
+
+Fixes an [important issue](https://github.com/proycon/analiticcl/issues/6):
+
+single-threaded, no search cache:
+
+```
+@ 1001 - processing speed was 654 items per second
+@ 2001 - processing speed was 515 items per second
+@ 3001 - processing speed was 512 items per second
+@ 4001 - processing speed was 515 items per second
+@ 5001 - processing speed was 493 items per second
+```
+
+multi-threaded (8 threads):
+
+```
+@ 1000 - processing speed was 3040 items per second
+@ 2000 - processing speed was 2381 items per second
+@ 3000 - processing speed was 2410 items per second
+@ 4000 - processing speed was 2451 items per second
+@ 5000 - processing speed was 2358 items per second
+```
+
 ## Finite State Transducer Map with Levensthein Automatons
 
-Using the [fst](https://github.com/BurntSushi/fst) library, not using any anagram hashing whatsoever (see experimental
-fst branch of analiticcl).
+Comparison with analiticcl ``<= 0.3``. Using the [fst](https://github.com/BurntSushi/fst) library, not using any anagram
+hashing whatsoever (see experimental fst branch of analiticcl).
 
 Note: has significantly higher memory usage (in the order of 250-400MB)
 
@@ -79,15 +103,18 @@ multi-threaded (8 threads, no caching):
 
 without:
 
+```
 found 19877 anagram matches in total (in 97266 μs)
 found 19877 anagram matches in total (in 93189 μs)
 found 19877 anagram matches in total (in 93682 μs)
+```
 
 with:
 
+```
 found 19877 anagram matches in total (in 111490 μs)
 found 19877 anagram matches in total (in 112529 μs)
 found 19877 anagram matches in total (in 110981 μs)
-
+```
 
 
