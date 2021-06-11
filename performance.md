@@ -72,6 +72,27 @@ multi-threaded (8 threads):
 @ 5000 - processing speed was 2358 items per second
 ```
 
+
+single-threaded, no search cache, separate lookup loop:
+
+```
+@ 1001 - processing speed was 665 items per second
+@ 2001 - processing speed was 521 items per second
+@ 3001 - processing speed was 517 items per second
+@ 4001 - processing speed was 529 items per second
+@ 5001 - processing speed was 512 items per second
+```
+
+mult-threaded, no search cache, separate lookup loop:
+
+```
+@ 1000 - processing speed was 3195 items per second
+@ 2000 - processing speed was 2564 items per second
+@ 3000 - processing speed was 2392 items per second
+@ 4000 - processing speed was 2558 items per second
+@ 5000 - processing speed was 2494 items per second
+```
+
 ## Finite State Transducer Map with Levensthein Automatons
 
 Comparison with analiticcl ``<= 0.3``. Using the [fst](https://github.com/BurntSushi/fst) library, not using any anagram

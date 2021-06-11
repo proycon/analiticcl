@@ -667,34 +667,28 @@ impl VariantModel {
 
         let (focus_upper_bound, focus_charcount) = focus.alphabet_upper_bound(self.alphabet_size());
         let focus_alphabet_size = focus_upper_bound + 1;
-        let highest_alphabet_char = AnaValue::character(self.alphabet_size()+1);
 
+        // Gather lookups to match against the secondary index
+        // keys correspond to the number of characters
+        // We first gather all lookups rather than doing them immediately,
+        // so we need to iterate over the secondary index only once, which
+        // has a slight performance benefit
+        let mut lookups: HashMap<u8,Vec<AnaValue>> = HashMap::new();
 
         //Find anagrams reachable through insertions within the the maximum distance
         for distance in 1..=max_distance {
-            let mut count = 0;
             let search_charcount = focus_charcount + distance as u16;
-            if self.debug >= 1 {
-                eprintln!(" (testing insertion at distance {}, charcount {})", distance, search_charcount);
-            }
-            if let Some(sortedindex) = self.sortedindex.get(&search_charcount) {
-                nearest.extend( sortedindex.iter().filter(|candidate| {
-                    if candidate.contains(focus) {//this is where the magic happens
-                        count += 1;
-                        true
-                    } else {
-                        false
-                    }
-                }));
+            if let Some(lookups) = lookups.get_mut(&(search_charcount as u8)) {
+                lookups.push(focus.clone());
+            } else {
+                lookups.insert(search_charcount as u8, vec!(focus.clone()));
             }
             if self.debug >= 1 {
-                eprintln!("  (found {} candidates)", count);
+                eprintln!(" (scheduling finding insertion at distance {}, charcount {})", distance, search_charcount);
             }
         }
 
 
-
-        let mut lastdistance = 0;
         let searchparams = SearchParams {
             max_distance: Some(max_distance as u32),
             breadthfirst: true,
@@ -729,22 +723,9 @@ impl VariantModel {
                 nearest.insert(matched_anahash);
             }
 
-            if stop_criterion.iterative() > 0 && lastdistance < distance {
-                //have we gathered enough candidates already?
-                if nearest.len() >= stop_criterion.iterative() {
-                    if self.debug >= 1 {
-                        eprintln!("  (stopping early after distance {}, we have enough matches)", lastdistance);
-                    }
-                    break;
-                }
-            }
-
-
-            let mut count = 0;
             let (_deletion_upper_bound, deletion_charcount) = deletion.alphabet_upper_bound(self.alphabet_size());
-            let beginlength = nearest.len();
             if self.debug >= 1 {
-                eprintln!("  (testing insertions from deletion result anavalue {})",  deletion.value);
+                eprintln!("  (scheduling search for insertions from deletion result anavalue {})",  deletion.value);
             }
             //Find possible insertions starting from this deletion
             for search_distance in 1..=(max_distance as u16 - distance as u16) {
@@ -752,30 +733,37 @@ impl VariantModel {
                 if self.debug >= 2 {
                     eprintln!("   (search_distance={}, search_charcount={})", search_distance, search_charcount);
                 }
-                if let Some(sortedindex) = self.sortedindex.get(&search_charcount) {
-                    for candidate in sortedindex.iter() {
-                        if candidate.contains(&deletion.value) {//this is where the magic happens
-                            count += 1;
-                            nearest.insert(candidate);
-                        }
-                    }
-
-                    /*
-                    nearest.extend( sortedindex.iter().filter(|candidate| {
-                        if candidate.contains(&deletion.value) {//this is where the magic happens
-                            count += 1;
-                            true
-                        } else {
-                            false
-                        }
-                    }));*/
+                if let Some(lookups) = lookups.get_mut(&(search_charcount as u8)) {
+                    lookups.push(deletion.value.clone());
+                } else {
+                    lookups.insert(search_charcount as u8, vec!(deletion.value.clone()));
                 }
             }
-            if self.debug >= 1 {
-                eprintln!("   (added {} out of {} candidates, preventing duplicates)", nearest.len() - beginlength , count);
-            }
-            lastdistance = distance;
         }
+
+
+        if self.debug >= 1 {
+            eprintln!("(finding all insertions)");
+        }
+        let mut count = 0;
+        let beginlength = nearest.len();
+        for (search_charcount, anavalues) in lookups.iter() {
+            if let Some(sortedindex) = self.sortedindex.get(&(*search_charcount as u16)) {
+                for candidate in sortedindex.iter() {
+                    for av in anavalues {
+                        if candidate.contains(&av) {//this is where the magic happens
+                            count += 1;
+                            nearest.insert(candidate);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if self.debug >= 1 {
+            eprintln!(" (added {} out of {} candidates, preventing duplicates)", nearest.len() - beginlength , count);
+        }
+
 
         if self.debug >= 1 {
             let endtime = SystemTime::now();
