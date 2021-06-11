@@ -85,27 +85,61 @@ fn output_matches_as_json(model: &VariantModel, input: &str, variants: Option<&V
     }
 }
 
-fn output_reverse_index(model: &VariantModel, reverseindex: &ReverseIndex) {
-    for (vocab_id, variants) in reverseindex.iter() {
-        print!("{}",model.get_vocab(*vocab_id).expect("getting vocab by id").text);
-        let mut variants: Vec<&(Variant,f64)> = variants.iter().collect();
-        variants.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); //sort by score, descending order
-        for (variant, score) in variants {
-            let variant_text = match variant {
-                Variant::Known(variant_vocab_id) => {
-                    model.get_vocab(*variant_vocab_id).expect("getting variant vocab by id").text.as_str()
-                },
-                Variant::Unknown(variant_text) => {
-                    variant_text.as_str()
+/// Outputs weighted variants stored in the model as tsv
+fn output_weighted_variants_as_tsv(model: &VariantModel) {
+    for vocabitem in model.decoder.iter() {
+        if let Some(variants) = &vocabitem.variants {
+            print!("{}", vocabitem.text);
+            for variant in variants {
+                match variant {
+                    VariantReference::WeightedVariant((vocab_id, score)) => {
+                        let variantitem = model.decoder.get(*vocab_id as usize).expect("vocab id must exist");
+                        print!("\t{}\t{}", variantitem.text, score);
+                    },
+                    VariantReference::VariantCluster(cluster_id) => {
+
+                        let cluster = model.variantclusters.get(&cluster_id).expect("cluster id must exist");
+                        for vocab_id in cluster.iter() {
+                            let variantitem = model.decoder.get(*vocab_id as usize).expect("vocab id must exist");
+                            print!("\t{}\t{}", variantitem.text, 1.0);
+                        }
+                    }
                 }
-            };
-            print!("\t{}\t{}\t",variant_text, score);
+            }
+            println!();
         }
-        println!();
     }
 }
 
-fn process(model: &VariantModel, inputstream: impl Read, reverseindex: &mut Option<ReverseIndex>, searchparams: &SearchParameters, output_lexmatch: bool, json: bool, cache: &mut Option<Cache>, progress: bool) {
+/// Outputs weighted variants stored in the model as tsv
+fn output_weighted_variants_as_json(model: &VariantModel) {
+    println!("{{");
+    for vocabitem in model.decoder.iter() {
+        println!("    \"{}\": [ ", vocabitem.text.replace("\"","\\\"").as_str());
+        if let Some(variants) = &vocabitem.variants {
+            for variant in variants {
+                match variant {
+                    VariantReference::WeightedVariant((vocab_id, score)) => {
+                        let variantitem = model.decoder.get(*vocab_id as usize).expect("vocab id must exist");
+                        println!("        {{ \"text\": \"{}\", \"score\": {} }}, ", variantitem.text.replace("\"","\\\""), score);
+                    },
+                    VariantReference::VariantCluster(cluster_id) => {
+
+                        let cluster = model.variantclusters.get(&cluster_id).expect("cluster id must exist");
+                        for vocab_id in cluster.iter() {
+                            let variantitem = model.decoder.get(*vocab_id as usize).expect("vocab id must exist");
+                            println!("        {{ \"text\": \"{}\", \"score\": 1.0 }}, ", variantitem.text.replace("\"","\\\""));
+                        }
+                    }
+                }
+            }
+        }
+        println!("    ]");
+    }
+    println!("}}")
+}
+
+fn process(model: &VariantModel, inputstream: impl Read, searchparams: &SearchParameters, output_lexmatch: bool, json: bool, cache: &mut Option<Cache>, progress: bool) {
     let mut seqnr = 0;
     let f_buffer = BufReader::new(inputstream);
     let mut progresstime = SystemTime::now();
@@ -116,12 +150,7 @@ fn process(model: &VariantModel, inputstream: impl Read, reverseindex: &mut Opti
                 progresstime = show_progress(seqnr, progresstime, 1000);
             }
             let variants = model.find_variants(&input, searchparams, cache.as_mut());
-            if let Some(reverseindex) = reverseindex.as_mut() {
-                //we are asked to build a reverse index
-                for (vocab_id,score) in variants.iter() {
-                    model.add_to_reverse_index(reverseindex, &input, *vocab_id, *score);
-                }
-            } else if json {
+            if json {
                 output_matches_as_json(model, &input, Some(&variants), Some(0), None, output_lexmatch, seqnr);
             } else {
                 //Normal output mode
@@ -172,6 +201,30 @@ fn process_par(model: &VariantModel, inputstream: impl Read, searchparams: &Sear
         }
         if progress {
             progresstime = show_progress(seqnr, progresstime, batchsize);
+        }
+    }
+    Ok(())
+}
+
+fn process_learn(model: &mut VariantModel, inputstream: impl Read, searchparams: &SearchParameters, iterations: u8, json: bool) -> io::Result<()> {
+    let f_buffer = BufReader::new(inputstream);
+    let mut line_iter = f_buffer.lines();
+    let mut batch = vec![]; //batch for learning contains all input data at once
+    while let Some(Ok(input)) = line_iter.next() {
+        batch.push((input,None));
+    }
+    let batch_size = batch.len();
+    for i in 0..iterations {
+        let (count, unknown) = model.learn_variants(&batch, searchparams, None, true);
+        if json {
+            output_weighted_variants_as_json(model);
+        } else {
+            output_weighted_variants_as_tsv(model);
+        }
+        eprintln!("(Iteration #{}: learned {} variants, unable to match {} input strings out of a total of {})", i+1, count, unknown, batch_size);
+        if count == 0 && i+1 < iterations {
+            eprintln!("(Halting further iterations)");
+            break;
         }
     }
     Ok(())
@@ -455,11 +508,17 @@ fn main() {
                                 .takes_value(true)
                                 .default_value("1.0"))
                     )
-                    /*.subcommand(
-                        SubCommand::with_name("collect")
-                            .about("Collect variants from the input data, grouping them for items in the lexicon. Note that this forces single-core mode for now.")
+                    .subcommand(
+                        SubCommand::with_name("learn")
+                            .about("Learn variants from the input data. Outputs a weighted variant list.")
                             .args(&common_arguments())
-                    )*/
+                            .arg(Arg::with_name("iterations")
+                                .short("I")
+                                .long("iterations")
+                                .help("The number of iterations to use for learning, more iterations means more edit distance can be covered and more words will be tied to something, but the accuracy may suffer as the iterations go up.")
+                                .takes_value(true)
+                                .default_value("1"))
+                    )
                     .arg(Arg::with_name("debug")
                         .long("debug")
                         .short("D")
@@ -472,7 +531,7 @@ fn main() {
 
     let args = if let Some(args) = rootargs.subcommand_matches("query") {
         args
-    } else if let Some(args) = rootargs.subcommand_matches("collect") {
+    } else if let Some(args) = rootargs.subcommand_matches("learn") {
         args
     } else if let Some(args) = rootargs.subcommand_matches("index") {
         args
@@ -636,13 +695,8 @@ fn main() {
         } else {
             eprintln!("Collecting variants...");
         }
-        let mut reverseindex = if rootargs.subcommand_matches("collect").is_some() {
-            Some(HashMap::new())
-        } else {
-            None
-        };
 
-        if json && reverseindex.is_none() {
+        if json {
             println!("[");
         }
 
@@ -655,12 +709,15 @@ fn main() {
             match filename {
                 "-" | "STDIN" | "stdin"  => {
                     let stdin = io::stdin();
-                    if rootargs.subcommand_matches("search").is_some() {
+                    if rootargs.subcommand_matches("learn").is_some() {
+                        let iterations = args.value_of("iterations").unwrap().parse::<u8>().expect("Iterations should be an integer between 0 and 255");
+                        process_learn(&mut model, stdin, &searchparams,  iterations, json).expect("I/O Error");
+                    } else if rootargs.subcommand_matches("search").is_some() {
                         eprintln!("(accepting standard input; enter text to search for variants, output may be delayed until end of input, enter an empty line to force output earlier)");
                         process_search(&model, stdin, &searchparams, output_lexmatch, json, progress, !retain_linebreaks, perline);
-                    } else if searchparams.single_thread || reverseindex.is_some()  {
+                    } else if searchparams.single_thread {
                         eprintln!("(accepting standard input; enter input to match, one per line)");
-                        process(&model, stdin, &mut reverseindex, &searchparams, output_lexmatch, json, &mut cache, progress);
+                        process(&model, stdin,  &searchparams, output_lexmatch, json, &mut cache, progress);
                     } else {
                         eprintln!("(accepting standard input; enter input to match, one per line, output may be delayed until end of input due to parallellisation)");
                         //normal parallel behaviour
@@ -669,10 +726,13 @@ fn main() {
                 },
                 _ =>  {
                     let f = File::open(filename).expect(format!("ERROR: Unable to open file {}", filename).as_str());
-                    if rootargs.subcommand_matches("search").is_some() {
+                    if rootargs.subcommand_matches("learn").is_some() {
+                        let iterations = args.value_of("iterations").unwrap().parse::<u8>().expect("Iterations should be an integer between 0 and 255");
+                        process_learn(&mut model, f, &searchparams, iterations, json).expect("I/O Error");
+                    } else if rootargs.subcommand_matches("search").is_some() {
                         process_search(&model, f, &searchparams, output_lexmatch, json, progress, !retain_linebreaks, perline);
-                    } else if searchparams.single_thread || reverseindex.is_some() {
-                        process(&model, f, &mut reverseindex, &searchparams, output_lexmatch, json, &mut cache, progress);
+                    } else if searchparams.single_thread {
+                        process(&model, f, &searchparams, output_lexmatch, json, &mut cache, progress);
                     } else {
                         //normal parallel behaviour
                         process_par(&model, f, &searchparams, output_lexmatch, json, progress).expect("I/O Error");
@@ -681,13 +741,9 @@ fn main() {
             }
         }
 
-        if json && reverseindex.is_none() {
+        if json  {
             println!("]");
         }
 
-        if let Some(reverseindex) = reverseindex {
-            eprintln!("Outputting collected variants...");
-            output_reverse_index(&model, &reverseindex);
-        }
     }
 }

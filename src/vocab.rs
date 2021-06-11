@@ -120,6 +120,10 @@ impl VocabParams {
         self.vocab_type = vocab_type;
         self
     }
+    pub fn with_freq_handling(mut self, freq_handling: FrequencyHandling) -> Self {
+        self.freq_handling = freq_handling;
+        self
+    }
 }
 
 pub const BOS: VocabId = 0;

@@ -42,11 +42,10 @@ lightweight implementation written in [Rust](https://www.rust-lang.org).
 * Also supports ingesting explicit variant lists or explicit error lists. These can be either weighted or not.
 * Multi-threading support
 
-* **to be implemented still:**
+* **implementation still in progress:**
     * variant matching on full text documents (rather than delivering the input line by line), simple tokenisation
     * better handling of unknown values
     * proper handling of n-grams (splits/merges)
-    * A Python binding
 
 ## Installation
 
@@ -74,8 +73,9 @@ Analiticcl is typically used through its command line interface, full syntax hel
 Analiticcl can be run in several **modes**, each is invoked through a subcommand:
 
 * **Query mode** - ``analiticcl query`` - Queries the model for variants for the provided input item (one per line)
+* **Search mode** - ``analiticcl search`` - Searches for variants in running text. This encompasses detection and correction whereas the above query mode only handles correction.
 * **Index mode** - ``analiticcl index`` - Computes and outputs the anagram index, takes no further input
-* **Collect mode** - ``analiticcl collect`` - Collects variants from the input for each item in the lexicon and outputs this reverse index
+* **Learn mode** - ``analiticcl learn`` - Learns variants from the input for each item in the lexicon and outputs a weighted variant list.
 
 ### Query Mode
 

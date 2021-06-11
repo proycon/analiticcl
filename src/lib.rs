@@ -192,6 +192,7 @@ impl VariantModel {
 
 
         eprintln!("Adding all instances to the index...");
+        self.index.clear();
         for (anahash, id) in tmp_hashes {
             //add it to the index
             let node = self.get_or_create_index(&anahash);
@@ -200,6 +201,7 @@ impl VariantModel {
         eprintln!(" - Found {} anagrams", self.index.len() );
 
         eprintln!("Creating sorted secondary index...");
+        self.sortedindex.clear();
         for (anahash, node) in self.index.iter() {
             if !self.sortedindex.contains_key(&node.charcount) {
                 self.sortedindex.insert(node.charcount, Vec::new());
@@ -400,6 +402,34 @@ impl VariantModel {
         self.variantclusters.insert(clusterid, ids);
     }
 
+    /// Add a weighted variant to the model, referring to a reference that already exists in
+    /// the model.
+    /// Variants will be added
+    /// to the lexicon automatically when necessary. Set VocabType::Intermediate
+    /// if you want variants to only be used as an intermediate towards items that
+    /// have already been added previously through a more authoritative lexicon.
+    pub fn add_weighted_variant(&mut self, ref_id: VocabId, variant: &str, score: f64, params: &VocabParams) -> bool {
+        //all variants by definition are added to the lexicon
+        let variantid = self.add_to_vocabulary(variant, None, &params);
+        if variantid != ref_id {
+            if let Some(vocabvalue) = self.decoder.get_mut(ref_id as usize) {
+                let variantref = VariantReference::WeightedVariant((variantid,score) );
+                vocabvalue.vocabtype = params.vocab_type;
+                if vocabvalue.variants.is_none() {
+                    vocabvalue.variants = Some(vec!(variantref));
+                    return true;
+                } else if let Some(variantrefs) = vocabvalue.variants.as_mut() {
+                    if !variantrefs.contains(&variantref) {
+                        variantrefs.push(variantref);
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+
     ///Read vocabulary (a lexicon or corpus-derived lexicon) from a TSV file
     ///May contain frequency information
     ///The parameters define what value can be read from what column
@@ -507,27 +537,8 @@ impl VariantModel {
 
                     while let (Some(variant), Some(score)) = (iter.next(), iter.next()) {
                         let score = score.parse::<f64>().expect("Scores must be a floating point value");
-                        //all variants by definition are added to the lexicon
-                        let variantid = self.add_to_vocabulary(variant, None,  match intermediate {
-                                true => &intermediate_params,
-                                false => &params
-                        });
-                        if variantid != ref_id {
-                            if let Some(vocabvalue) = self.decoder.get_mut(ref_id as usize) {
-                                let variantref = VariantReference::WeightedVariant((variantid,score) );
-                                if intermediate {
-                                    vocabvalue.vocabtype = VocabType::Intermediate;
-                                }
-                                if vocabvalue.variants.is_none() {
-                                    vocabvalue.variants = Some(vec!(variantref));
-                                    count += 1;
-                                } else if let Some(variantrefs) = vocabvalue.variants.as_mut() {
-                                    if !variantrefs.contains(&variantref) {
-                                        variantrefs.push(variantref);
-                                        count += 1;
-                                    }
-                                }
-                            }
+                        if self.add_weighted_variant(ref_id, variant, score, if intermediate { &intermediate_params } else { &params } ) {
+                            count += 1;
                         }
                     }
                 }
@@ -638,6 +649,62 @@ impl VariantModel {
         let variants = self.gather_instances(&anahashes, &normstring, input, min(params.max_edit_distance, max_dynamic_distance));
 
         self.score_and_rank(variants, input, params.max_matches, params.score_threshold)
+    }
+
+    /// Processes input and finds variants (like [`find_variants()`]), but all variants that are found (which meet
+    /// the set thresholds) will be stored in the model rather than returned. Unlike `find_variants()`, this is
+    /// invoked with an iterator over multiple inputs and returns no output by itself. It
+    /// will automatically apply parallellisation.
+    pub fn learn_variants<'a, I>(&mut self, input: I, params: &SearchParameters, lexweight: Option<f32>, auto_build: bool) -> (usize, usize)
+    where
+        I: IntoParallelIterator<Item = &'a (String, Option<u32>)> + IntoIterator<Item = &'a (String, Option<u32>)>,
+    {
+        let lexweight = lexweight.unwrap_or(0.75);
+        let vocabparams = VocabParams::default().with_vocab_type(VocabType::Intermediate).with_weight(lexweight).with_freq_handling(FrequencyHandling::MaxIfMoreWeight);
+
+        let mut all_variants: Vec<(&'a str, Option<u32>, Vec<(VocabId,f64)>)> = Vec::new();
+        if params.single_thread {
+            all_variants.extend( input.into_iter().map(|(inputstr, freq)| {
+                (inputstr.as_str(), *freq, self.find_variants(inputstr, params, None))
+            }));
+        } else {
+            all_variants.par_extend( input.into_par_iter().map(|(inputstr, freq)| {
+                (inputstr.as_str(), *freq, self.find_variants(inputstr, params, None))
+            }));
+        }
+
+        if self.debug >= 1 {
+            eprintln!("(adding variants for {} input items to the model)", all_variants.len());
+        }
+
+        let mut count = 0;
+        let mut unknown = 0;
+        for (inputstr, freq, variants) in all_variants {
+            //we add it to the vocabulary manually once (because add_weighted_variant doesn't handle freq)
+            let vocab_id = self.add_to_vocabulary(inputstr, freq, &vocabparams);
+            if variants.is_empty() {
+                unknown += 1;
+            }
+            for (variant, score) in variants {
+                if variant != vocab_id { //ensure we don't add exact matches
+                    if self.add_weighted_variant(variant, inputstr, score, &vocabparams) {
+                        count += 1;
+                    }
+                }
+            }
+        }
+
+        if self.debug >= 1 {
+            eprintln!("(added {} weighted variants, unable to match {} input strings)", count, unknown);
+        }
+
+        if auto_build {
+            if self.debug >= 1 {
+                eprintln!("((re)building the model)");
+            }
+            self.build();
+        }
+        (count, unknown)
     }
 
 
