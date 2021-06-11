@@ -123,6 +123,9 @@ impl PySearchParameters {
                         "max_seq" => if let Ok(Some(value)) = value.extract() {
                             instance.data.max_seq = value
                          },
+                        "stop_at_exact_match" => if let Ok(Some(value)) = value.extract() {
+                            instance.data.stop_criterion = libanaliticcl::StopCriterion::StopAtExactMatch(value)
+                         },
                         "single_thread" => if let Ok(Some(value)) = value.extract() {
                             instance.data.single_thread = value
                          },
@@ -176,6 +179,9 @@ impl PySearchParameters {
     #[setter]
     fn set_variantmodel_weight(&mut self, value: f32) -> PyResult<()> { self.data.variantmodel_weight = value; Ok(()) }
 
+    #[setter]
+    fn set_stop_at_exact_match(&mut self, value: f32) -> PyResult<()> { self.data.stop_criterion = libanaliticcl::StopCriterion::StopAtExactMatch(value); Ok(()) }
+
 }
 
 #[pyclass(dict,name="VocabParams")]
@@ -208,7 +214,28 @@ impl PyVocabParams {
                         "index" => if let Ok(Some(value)) = value.extract() {
                             instance.data.index = value
                          },
-                        _ => eprintln!("Ignored unknown kwargs option {}", key),
+                         "freqhandling" => if let Ok(Some(value)) = value.extract() {
+                             match value {
+                                 "sum" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::Sum,
+                                 "max" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::Max,
+                                 "min" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::Min,
+                                 "replace" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::Replace,
+                                 "sumifmoreweight" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::SumIfMoreWeight,
+                                 "maxifmoreweight" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::MaxIfMoreWeight,
+                                 "minifmoreweight" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::MinIfMoreWeight,
+                                 "replaceifmoreweight" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::ReplaceIfMoreWeight,
+                                 _ =>  eprintln!("WARNING: Ignored unknown value for VocabParams.freqhandling ({})", value),
+                             }
+                         },
+                         "vocabtype" => if let Ok(Some(value)) = value.extract() {
+                             match value {
+                                 "normal" => instance.data.vocab_type = libanaliticcl::VocabType::Normal,
+                                 "intermediate" => instance.data.vocab_type = libanaliticcl::VocabType::Intermediate,
+                                 "noindex" => instance.data.vocab_type = libanaliticcl::VocabType::NoIndex,
+                                 _ =>  eprintln!("WARNING: Ignored unknown value for VocabParams.vocabtype ({})", value),
+                            }
+                        },
+                        _ => eprintln!("WARNING: Ignored unknown VocabParams kwargs option {}", key),
                     }
                 }
             }
@@ -233,19 +260,6 @@ impl PyVocabParams {
     fn set_weight(&mut self, value: f32) -> PyResult<()> { self.data.weight = value; Ok(()) }
     #[setter]
     fn set_index(&mut self, value: u8) -> PyResult<()> { self.data.index = value; Ok(()) }
-
-    fn with_freqhandling_sum(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::Sum; }
-    fn with_freqhandling_max(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::Max; }
-    fn with_freqhandling_min(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::Min; }
-    fn with_freqhandling_replace(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::Replace; }
-    fn with_freqhandling_sumifmoreweight(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::SumIfMoreWeight; }
-    fn with_freqhandling_maxifmoreweight(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::MaxIfMoreWeight; }
-    fn with_freqhandling_minifmoreweight(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::MinIfMoreWeight; }
-    fn with_freqhandling_replaceifmoreweight(&mut self) { self.data.freq_handling = libanaliticcl::FrequencyHandling::ReplaceIfMoreWeight; }
-
-    fn with_vocabtype_normal(&mut self) { self.data.vocab_type = libanaliticcl::VocabType::Normal}
-    fn with_vocabtype_intermediate(&mut self) { self.data.vocab_type = libanaliticcl::VocabType::Intermediate}
-    fn with_vocabtype_noindex(&mut self) { self.data.vocab_type = libanaliticcl::VocabType::NoIndex}
 }
 
 
