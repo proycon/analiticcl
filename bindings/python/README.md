@@ -48,7 +48,7 @@ import json
 model = VariantModel("examples/simple.alphabet.tsv", Weights(), debug=False)
 model.read_lexicon("examples/eng.aspell.lexicon")
 model.build()
-result = model.find_variants("udnerstand", SearchParameters(max_edit_distance=3)))
+result = model.find_variants("udnerstand", SearchParameters(max_edit_distance=3))
 print(json.dumps(result, ensure_ascii=False, indent=4))
 print()
 results = model.find_all_matches("I do not udnerstand the probleem", SearchParameters(max_edit_distance=3,max_ngram=1))
