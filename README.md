@@ -24,7 +24,7 @@ lightweight implementation written in [Rust](https://www.rust-lang.org).
 * Quick retrieval of spelling variants given an input word due to smart anagram hashing lookup. This is the main feature
   that drastically reduces the search spaces.
 * Works against a lexicon, which can either be a validated lexicon (preferred), or a lexicon derived from a corpus.
-* Uses an user-provided alphabet file for anagram hashing, in which multiple characters may be mapped to a single alphabet entry if so
+* Uses a user-provided alphabet file for anagram hashing, in which multiple characters may be mapped to a single alphabet entry if so
   desired (e.g. for casing or for more phonetic-like lookup behaviour like soundex)
 * Can take into account frequency information from the lexicon
 * Matching against final candidates using a variety of possible distance metrics. Scoring and ranking is implemented as

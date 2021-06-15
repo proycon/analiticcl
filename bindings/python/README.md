@@ -48,7 +48,7 @@ import json
 model = VariantModel("examples/simple.alphabet.tsv", Weights(), debug=False)
 model.read_lexicon("examples/eng.aspell.lexicon")
 model.build()
-result = model.find_variants("udnerstand", SearchParameters(max_edit_distance=3)))
+result = model.find_variants("udnerstand", SearchParameters(max_edit_distance=3))
 print(json.dumps(result, ensure_ascii=False, indent=4))
 print()
 results = model.find_all_matches("I do not udnerstand the probleem", SearchParameters(max_edit_distance=3,max_ngram=1))
@@ -433,6 +433,4 @@ Output:
 ## Documentation
 
 The python binding exposes only a minimal interface, you can use Python's ``help()`` function to get information on the
-classes provided. For more detailed information, please consult the [Analiticcl's rust API documentation](https://docs.rs/analiticcl/). The interfaces that are available in the binding are analogous the rust versions.
-
-
+classes provided. For more detailed information, please consult the [Analiticcl's rust API documentation](https://docs.rs/analiticcl/). The interfaces that are available in the binding are analogous to the rust versions.
