@@ -10,7 +10,7 @@ LEXICON_REPTILES = 'tests/reptiles.tsv'
 class AnaliticclPythonBindingTests(unittest.TestCase):
 
     def test_find_all_matches_with_multiple_lexicons(self):
-        model = VariantModel("tests/simple.alphabet.tsv", Weights(), debug=True)
+        model = VariantModel("../../examples/simple.alphabet.tsv", Weights(), debug=False)
         model.read_lexicon(LEXICON_AMPHIBIANS)
         model.read_lexicon(LEXICON_REPTILES)
         model.build()
