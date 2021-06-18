@@ -36,6 +36,8 @@ jobs:
              if [ "$RUNNER_OS" == "Linux" ]; then
                 sudo apt-get install cargo rustc python3 python3-pip
                 cd bindings/python
+                python -m venv .env
+                source .env/bin/activate
                 pip install setuptools_rust
                 python setup.py install
                 pip install -r requirements.txt
@@ -46,7 +48,7 @@ jobs:
         run: cargo test
         continue-on-error: true
 
-      - name: test Python binding
+      - name: Test Python binding
         id: test_python_binding
         run: |
              cd bindings/python && python tests/tests/py
