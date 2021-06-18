@@ -7,6 +7,7 @@ on:
       - 'src/**'
       - 'tests/**'
       - '.github/**'
+      - 'bindings/**'
 
   pull_request:
     branches: [master]
@@ -33,12 +34,22 @@ jobs:
       - name: Install Build Environment
         run: |
              if [ "$RUNNER_OS" == "Linux" ]; then
-                sudo apt-get install cargo rustc
+                sudo apt-get install cargo rustc python3 python3-pip
+                cd bindings/python
+                pip install setuptools_rust
+                python setup.py install
+                pip install -r requirements.txt
              fi
 
       - name: Build and test
         id: test
         run: cargo test
+        continue-on-error: true
+
+      - name: test Python binding
+        id: test_python_binding
+        run: |
+             cd bindings/python && python tests/tests/py
         continue-on-error: true
 
       - name: Notify IRC of failure
