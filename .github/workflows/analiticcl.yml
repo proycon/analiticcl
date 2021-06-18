@@ -51,7 +51,7 @@ jobs:
       - name: Test Python binding
         id: test_python_binding
         run: |
-             cd bindings/python && python tests/tests/py
+             cd bindings/python && python tests/tests.py
         continue-on-error: true
 
       - name: Notify IRC of failure
