@@ -626,6 +626,11 @@ impl VariantModel {
     /// The resulting vocabulary Ids can be resolved through `get_vocab()`
     pub fn find_variants(&self, input: &str, params: &SearchParameters, cache: Option<&mut Cache>) -> Vec<(VocabId, f64)> {
 
+        if self.index.is_empty()  {
+            eprintln!("ERROR: Model has not been built yet! Call build() before find_variants()");
+            return vec!();
+        }
+
         //Compute the anahash
         let normstring = input.normalize_to_alphabet(&self.alphabet);
         let anahash = input.anahash(&self.alphabet);
@@ -1154,6 +1159,11 @@ impl VariantModel {
 
         if self.debug >= 1 {
             eprintln!("(finding all matches in text: {})", text);
+        }
+
+        if self.index.is_empty()  {
+            eprintln!("ERROR: Model has not been built yet! Call build() before find_all_matches()");
+            return matches;
         }
 
         //Find the boundaries and classify their strength
