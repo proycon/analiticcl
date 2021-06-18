@@ -48,10 +48,20 @@ jobs:
         run: cargo test
         continue-on-error: true
 
+      - name: Install Python Test Environment
+        run: |
+             if [ "$RUNNER_OS" == "Linux" ]; then
+                cd bindings/python
+                python -m venv .env
+                source .env/bin/activate
+                pip install setuptools_rust
+                python setup.py install
+                pip install -r requirements.txt
+             fi
+
       - name: Test Python binding
         id: test_python_binding
-        run: |
-             cd bindings/python && python tests/tests.py
+        run: cd bindings/python && python -m venv .env && source .env/bin/activate && python tests/tests.py
         continue-on-error: true
 
       - name: Notify IRC of failure
