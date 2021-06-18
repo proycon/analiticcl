@@ -18,22 +18,21 @@ class AnaliticclPythonBindingTests(unittest.TestCase):
                                          SearchParameters(max_edit_distance=3, max_ngram=1))
         ic(results)
 
-        assert len(results) == 5
-        assert_result(results[0], 'Salamander', LEXICON_AMPHIBIANS, 'salamander')
-        assert_result(results[1], 'lizard', LEXICON_REPTILES)
-        assert_result(results[2], 'frog', LEXICON_AMPHIBIANS)
-        assert_result(results[3], 'snake', LEXICON_REPTILES)
-        assert_result(results[4], 'toad', LEXICON_AMPHIBIANS)
+        self.assertEqual(len(results), 5)
+        self.assert_result(results[0], 'Salamander', LEXICON_AMPHIBIANS, 'salamander')
+        self.assert_result(results[1], 'lizard', LEXICON_REPTILES)
+        self.assert_result(results[2], 'frog', LEXICON_AMPHIBIANS)
+        self.assert_result(results[3], 'snake', LEXICON_REPTILES)
+        self.assert_result(results[4], 'toad', LEXICON_AMPHIBIANS)
 
-
-def assert_result(result, orig_term, lexicon, lex_term=None):
-    if not lex_term:
-        lex_term = orig_term
-    assert result['input'] == orig_term, f"expected {orig_term}, but was: {result['input']}"
-    assert len(result['variants']) > 0
-    best_match = result['variants'][0]
-    assert best_match['text'] == lex_term, f"expected {lex_term}, but was: {best_match['text']}"
-    assert best_match['lexicon'] == lexicon, f"expected {lexicon}, but was: {best_match['lexicon']}"
+    def assert_result(self, result, orig_term, lexicon, lex_term=None):
+        if not lex_term:
+            lex_term = orig_term
+        self.assertEqual(result['input'], orig_term)
+        assert len(result['variants']) > 0
+        best_match = result['variants'][0]
+        self.assertEqual(best_match['text'], lex_term)
+        self.assertEqual(best_match['lexicon'], lexicon)
 
 
 if __name__ == '__main__':
