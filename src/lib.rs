@@ -1616,10 +1616,20 @@ impl VariantModel {
     /// Gives the text representation for this match, always uses the solution (if any) and falls
     /// back to the input text only when no solution was found.
     pub fn match_to_str<'a>(&'a self, m: &Match<'a>) -> &'a str {
-        if let Some((vocab_id,_)) = m.solution() {
-            self.decoder.get(vocab_id as usize).expect("solution should refer to a valid vocab id").text.as_str()
+        if let Some(vocabvalue) = self.match_to_vocabvalue(m) {
+            vocabvalue.text.as_str()
         } else {
             m.text
+        }
+    }
+
+    /// Gives the vocabitem for this match, always uses the solution (if any) and falls
+    /// back to the input text only when no solution was found.
+    pub fn match_to_vocabvalue<'a>(&'a self, m: &Match<'a>) -> Option<&'a VocabValue> {
+        if let Some((vocab_id,_)) = m.solution() {
+            self.decoder.get(vocab_id as usize)
+        } else {
+            None
         }
     }
 
