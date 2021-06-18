@@ -435,11 +435,13 @@ impl VariantModel {
     ///The parameters define what value can be read from what column
     pub fn read_vocabulary(&mut self, filename: &str, params: &VocabParams) -> Result<(), std::io::Error> {
         if self.debug >= 1 {
-            eprintln!("Reading vocabulary from {}...", filename);
+            eprintln!("Reading vocabulary #{} from {}...", self.lexicons.len() + 1, filename);
         }
         let beginlen = self.decoder.len();
         let f = File::open(filename)?;
         let f_buffer = BufReader::new(f);
+        let mut params = params.clone();
+        params.index = self.lexicons.len() as u8;
         for line in f_buffer.lines() {
             if let Ok(line) = line {
                 if !line.is_empty() {
@@ -451,7 +453,7 @@ impl VariantModel {
                     } else {
                         1
                     };
-                    self.add_to_vocabulary(text, Some(frequency), params);
+                    self.add_to_vocabulary(text, Some(frequency), &params);
                 }
             }
         }
@@ -566,13 +568,18 @@ impl VariantModel {
                     item.frequency += frequency;
                 },
                 FrequencyHandling::Max => {
-                    item.frequency = if frequency > item.frequency { frequency } else { item.frequency };
+                    if frequency > item.frequency {
+                        item.frequency  = frequency;
+                    };
                 },
                 FrequencyHandling::Min => {
-                    item.frequency = if frequency < item.frequency { frequency } else { item.frequency };
+                    if frequency < item.frequency {
+                        item.frequency  = frequency;
+                    };
                 },
                 FrequencyHandling::Replace => {
-                    item.frequency = frequency
+                    item.lexindex = params.index;
+                    item.frequency = frequency;
                 },
                 FrequencyHandling::SumIfMoreWeight => {
                     if params.weight > item.lexweight {
@@ -581,17 +588,21 @@ impl VariantModel {
                 },
                 FrequencyHandling::MaxIfMoreWeight => {
                     if params.weight > item.lexweight {
-                        item.frequency = if frequency > item.frequency { frequency } else { item.frequency };
+                        if frequency > item.frequency {
+                            item.frequency  = frequency;
+                        };
                     }
                 },
                 FrequencyHandling::MinIfMoreWeight => {
                     if params.weight > item.lexweight {
-                        item.frequency = if frequency < item.frequency { frequency } else { item.frequency };
+                        if frequency < item.frequency {
+                            item.frequency  = frequency;
+                        };
                     }
                 },
                 FrequencyHandling::ReplaceIfMoreWeight => {
                     if params.weight > item.lexweight {
-                        item.frequency = frequency
+                        item.frequency = frequency;
                     }
                 },
             }
@@ -603,6 +614,9 @@ impl VariantModel {
                 item.vocabtype = VocabType::NoIndex; //by definition
             } else if item.vocabtype == VocabType::Intermediate { //we only override the intermediate type, meaning something can become 'Normal' after having been 'Intermediate', but not vice versa
                 item.vocabtype = params.vocab_type;
+            }
+            if self.debug >= 2 {
+                eprintln!("    (updated) freq={}, lexweight={}, lexindex={}", item.frequency, item.lexweight, item.lexindex);
             }
             *vocab_id
         } else {
@@ -618,6 +632,9 @@ impl VariantModel {
                 variants: None,
                 vocabtype: params.vocab_type
             });
+            if self.debug >= 2 {
+                eprintln!("    (new) lexweight={}, lexindex={}", params.weight, params.index);
+            }
             self.decoder.len() as VocabId - 1
         }
     }
