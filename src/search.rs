@@ -12,18 +12,19 @@ pub struct Offset {
     pub end: usize,
 }
 
+/// Represents a match between the input text and the lexicon.
 #[derive(Clone,Debug)]
 pub struct Match<'a> {
-    ///The text of this match
+    ///The text of this match, corresponding to the input text.
     pub text: &'a str,
 
     /// The byte offset where this match was found in the larger text
     pub offset: Offset,
 
-    /// The variants for this match (sorted)
+    /// The variants for this match (sorted by decreasing score)
     pub variants: Option<Vec<(VocabId, f64)>>,
 
-    ///the variant that was selected after searching and ranking
+    ///the variant that was selected after searching and ranking (if any)
     pub selected: Option<usize>
 }
 
@@ -78,16 +79,30 @@ pub(crate) const OOV_EMISSION_PROB: f32 = -2.3025850929940455; //p = 0.1
 
 
 
+/// Intermediate datastructure tied to the Finite State Transducer used in most_likely_sequence()
+/// Holds the output symbol for each FST state and allows relating output symbols back to the input
+/// structures.
 #[derive(PartialEq,PartialOrd,Clone,Debug)]
 pub struct OutputSymbol {
+    /// The vocabulary Id representing this output symbol, we reserve the special value 0 to
+    /// indicate there is no vocabulary item associated, but the symbol is out-of-vocabulary
+    /// and should be copied from the input as-is
     pub vocab_id: VocabId,
+    /// Refers back to the index in the matches Vector that holds the Match that corresponds with
+    /// input.
     pub match_index: usize,
+    /// The variant in the Match that was selected
     pub variant_index: Option<usize>,
-    pub boundary_index: usize, //index of the next/right boundary
+    /// Index of the next/right buondary in the boundaries vector
+    pub boundary_index: usize,
+    /// ID of this symbol (each symbol is unlike, but multiple symbols can refers to the same vocab_id).
+    /// The 0 symbol is reserved for epsilon in the underlying FST implementation
     pub symbol: usize,
 }
 
 
+///A complete sequence of output symbols with associated emission and language model (log)
+///probabilities.
 #[derive(Clone,Debug)]
 pub struct Sequence {
     pub output_symbols: Vec<OutputSymbol>,
@@ -109,13 +124,19 @@ impl Sequence {
 #[derive(PartialEq,PartialOrd,Copy,Clone,Debug)]
 pub enum BoundaryStrength {
     None,
+    /// A weak token boundary, the system is inclined to ignore it and keep the parts as one token
     Weak,
+    /// A normal token boundary, the system may decide to undo it
     Normal,
+    /// A hard boundary is one that is always respected
     Hard
 }
 
 
 
+/// Given a text string, identify at what points token boundaries
+/// occur, for instance between alphabetic characters and punctuation.
+/// The text string always ends with a boundary (but it may be a dummy one that covers no length).
 pub fn find_boundaries<'a>(text: &'a str) -> Vec<Match<'a>> {
     let mut boundaries = Vec::new();
 
@@ -158,6 +179,9 @@ pub fn find_boundaries<'a>(text: &'a str) -> Vec<Match<'a>> {
     boundaries
 }
 
+/// Classify the token boundaries as detected by `find_boundaries` as
+/// either weak, normal or hard boundaries. This information determines
+/// how eager the system is to split on certain boundaries.
 pub fn classify_boundaries(boundaries: &Vec<Match<'_>>) -> Vec<BoundaryStrength> {
     let mut strengths = Vec::new();
 
@@ -167,7 +191,7 @@ pub fn classify_boundaries(boundaries: &Vec<Match<'_>>) -> Vec<BoundaryStrength>
             //last boundary is always a hard one
             BoundaryStrength::Hard
         } else if boundary.text.len() > 1 {
-            //multistring boundaries are hard ones
+            //multichar boundaries are hard ones
             BoundaryStrength::Hard
         } else {
             match boundary.text {
