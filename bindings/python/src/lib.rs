@@ -117,6 +117,9 @@ impl PySearchParameters {
                         "score_threshold" => if let Ok(Some(value)) = value.extract() {
                             instance.data.score_threshold = value
                          },
+                        "cutoff_threshold" => if let Ok(Some(value)) = value.extract() {
+                            instance.data.cutoff_threshold = value
+                         },
                         "max_ngram" => if let Ok(Some(value)) = value.extract() {
                             instance.data.max_ngram = value
                          },
@@ -151,6 +154,8 @@ impl PySearchParameters {
     fn get_max_matches(&self) -> PyResult<usize> { Ok(self.data.max_matches) }
     #[getter]
     fn get_score_threshold(&self) -> PyResult<f64> { Ok(self.data.score_threshold) }
+    #[getter]
+    fn get_cutoff_threshold(&self) -> PyResult<f64> { Ok(self.data.cutoff_threshold) }
     #[getter]
     fn get_max_ngram(&self) -> PyResult<u8> { Ok(self.data.max_ngram) }
     #[getter]

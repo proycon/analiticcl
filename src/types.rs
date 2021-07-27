@@ -67,6 +67,9 @@ pub struct SearchParameters {
     /// Require scores to meet this threshold, they are pruned otherwise
     pub score_threshold: f64,
 
+    /// Cut-off threshold: if a score in the ranking is a specific factor greater than the best score, the ranking will be cut-off at that point and the score not included. Should be set to a value like 2.
+    pub cutoff_threshold: f64,
+
     /// Determines when to stop searching for matches. Setting this can speed up the process at the
     /// cost of lower accuracy
     pub stop_criterion: StopCriterion,
@@ -94,6 +97,7 @@ impl Default for SearchParameters {
             max_edit_distance: 3,
             max_matches: 20,
             score_threshold: 0.25,
+            cutoff_threshold: 2.0,
             stop_criterion: StopCriterion::Exhaustive,
             max_ngram: 2,
             single_thread: false,
@@ -119,6 +123,10 @@ impl SearchParameters {
     }
     pub fn with_score_threshold(mut self, threshold: f64) -> Self {
         self.score_threshold = threshold;
+        self
+    }
+    pub fn with_cutoff_threshold(mut self, threshold: f64) -> Self {
+        self.cutoff_threshold = threshold;
         self
     }
     pub fn with_stop_criterion(mut self, criterion: StopCriterion) -> Self {

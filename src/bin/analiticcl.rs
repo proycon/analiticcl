@@ -6,6 +6,7 @@ use std::io::{self, BufReader,BufRead,Read};
 use clap::{Arg, App, SubCommand};
 use std::collections::HashMap;
 use std::time::SystemTime;
+use std::process::exit;
 use rayon::prelude::*;
 
 
@@ -372,9 +373,16 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
     args.push(Arg::with_name("score-threshold")
         .long("score-threshold")
         .short("t")
-        .help("Require scores to meet this threshold, they are pruned otherwise")
+        .help("Require variant scores to meet this threshold, they are pruned otherwise. This is an absolute score threshold. It will be applied prior to score reweighing against confusible lists.")
         .takes_value(true)
         .default_value("0.25")
+        .required(false));
+    args.push(Arg::with_name("cutoff-threshold")
+        .long("cutoff-threshold")
+        .short("T")
+        .help("If a score in variant ranking is this factor worse than the best score, the ranking is cut off at this point and this score and all lower ones are pruned. This is a relative score threshold. Value must be greater than one, or 0 to disable. It will be applied after score reweighing against confusible lists.")
+        .takes_value(true)
+        .default_value("2.0")
         .required(false));
     /*args.push(Arg::with_name("search-cache")
         .long("search-cache")
@@ -637,6 +645,7 @@ fn main() {
         max_edit_distance: args.value_of("max-edit-distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255"),
         max_matches: args.value_of("max-matches").unwrap().parse::<usize>().expect("Maximum matches should should be an integer (0 for unlimited)"),
         score_threshold: args.value_of("score-threshold").unwrap().parse::<f64>().expect("Score threshold should be a floating point number"),
+        cutoff_threshold: args.value_of("cutoff-threshold").unwrap().parse::<f64>().expect("Cutoff threshold should be a floating point number"),
         stop_criterion: if args.is_present("stop-exact") {
             let minlexweight = args.value_of("stop-exact").unwrap().parse::<f32>().expect("Value for --stop-exact must be a floating point value");
             StopCriterion::StopAtExactMatch(minlexweight)
@@ -667,6 +676,10 @@ fn main() {
     };
 
 
+    if searchparams.cutoff_threshold < 1.0 && searchparams.cutoff_threshold != 0.0  {
+        eprintln!("ERROR: Cutoff-threshold must be >= 1.0, or 0 to disable");
+        exit(2);
+    }
 
     if args.is_present("early-confusables") {
         model.set_confusables_before_pruning();

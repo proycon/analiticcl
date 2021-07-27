@@ -53,6 +53,7 @@ pub fn get_test_searchparams() -> SearchParameters {
         max_matches: 10,
         stop_criterion: StopCriterion::Exhaustive,
         score_threshold: 0.0,
+        cutoff_threshold: 0.0,
         max_ngram: 2,
         single_thread: false,
         lm_weight: 1.0,

@@ -670,7 +670,7 @@ impl VariantModel {
         //and compute distances
         let variants = self.gather_instances(&anahashes, &normstring, input, min(params.max_edit_distance, max_dynamic_distance));
 
-        self.score_and_rank(variants, input, params.max_matches, params.score_threshold)
+        self.score_and_rank(variants, input, params.max_matches, params.score_threshold, params.cutoff_threshold)
     }
 
     /// Processes input and finds variants (like [`find_variants()`]), but all variants that are found (which meet
@@ -965,7 +965,7 @@ impl VariantModel {
 
 
     /// Rank and score all variants
-    pub(crate) fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, input: &str, max_matches: usize, score_threshold: f64 ) -> Vec<(VocabId,f64)> {
+    pub(crate) fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, input: &str, max_matches: usize, score_threshold: f64, cutoff_threshold: f64 ) -> Vec<(VocabId,f64)> {
         let mut results: Vec<(VocabId,f64)> = Vec::new();
         let mut max_distance = 0;
         let mut max_freq = 0;
@@ -1039,7 +1039,7 @@ impl VariantModel {
                     //should never happen
                     panic!("Invalid score (NaN) computed for variant={}, distance={:?}, score={}", vocabitem.text, distance, score);
                 }
-                if score >= score_threshold {
+                if score >= score_threshold  {
                     results.push( (*vocab_id, score) );
                     if self.debug >= 1 {
                         eprintln!("   (variant={}, distance={:?}, score={})", vocabitem.text, distance, score);
@@ -1062,7 +1062,7 @@ impl VariantModel {
 
 
 
-        //Crop the results at max_matches
+        //Crop the results at max_matches or cut off at the cutoff threshold
         if max_matches > 0 && results.len() > max_matches {
             let last_score = results.get(max_matches - 1).expect("get last score").1;
             let cropped_score = results.get(max_matches).expect("get cropped score").1;
@@ -1073,7 +1073,7 @@ impl VariantModel {
                 //simplest case, crop at the max_matches
                 results.truncate(max_matches);
             } else {
-                //cropping at max_matches comes at arbitrary of equal scoring items,
+                //cropping at max_matches comes at arbitrary point of equal scoring items,
                 //we crop earlier instead:
                 let mut early_cutoff = 0;
                 let mut late_cutoff = 0;
@@ -1100,10 +1100,43 @@ impl VariantModel {
             }
         }
 
+
         //rescore with confusable weights (LATE, default)
         if !self.confusables.is_empty() && !self.confusables_before_pruning {
             self.rescore_confusables(&mut results, input);
         }
+
+        // apply the cutoff threshold
+        let mut cutoff = 0;
+        let mut bestscore = None;
+        if cutoff_threshold >= 1.0 {
+            for (i, result) in results.iter().enumerate() {
+                if let Some(bestscore) = bestscore {
+                    if result.1 <= bestscore / cutoff_threshold {
+                        cutoff = i;
+                        break;
+                    }
+                } else {
+                    bestscore = Some(result.1);
+                }
+            }
+        }
+        if cutoff > 0 {
+            let l = results.len();
+            results.truncate(cutoff);
+            if self.debug >= 1 {
+                eprintln!("   (truncating {} matches to {} due to cutoff value", l, results.len());
+            }
+        }
+
+        if self.debug >= 1 {
+            for (i, (vocab_id, score)) in results.iter().enumerate() {
+                if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
+                    eprintln!("   (ranked #{}, variant={}, score={})", i+1, vocabitem.text, score);
+                }
+            }
+        }
+
 
         if self.debug >= 1 {
             let endtime = SystemTime::now();
