@@ -1369,9 +1369,12 @@ impl VariantModel {
                 }
             }
 
+            let n;
             let prevstate= if let Some(prevboundary) = prevboundary {
+                n = nextboundary.expect("next boundary must exist") - prevboundary;
                 *states.get(prevboundary).expect("prev state must exist")
             } else {
+                n = nextboundary.expect("next boundary must exist") + 1;
                 start
             };
             let nextstate = *states.get(nextboundary.expect("next boundary must exist")).expect("next state must exist");
@@ -1398,7 +1401,7 @@ impl VariantModel {
 
                     fst.add_tr(prevstate, Tr::new(input_symbol, output_symbol, -1.0 * score.ln() as f32, nextstate)).expect("adding transition");
                 }
-            } else {
+            } else if n == 1 { //only for unigrams
                 let output_symbol = output_symbols.len();
                 output_symbols.push( OutputSymbol {
                     vocab_id: 0, //0 vocab_id means we have an Out-of-Vocabulary word to copy from input
