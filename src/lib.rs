@@ -1493,7 +1493,8 @@ impl VariantModel {
     }
 
 
-    /// Computes the logprob and perplexity for a given sequence
+    /// Computes the logprob and perplexity for a given sequence as produced in
+    /// most_likely_sequence()
     pub fn lm_score<'a>(&self, sequence: &Sequence, boundaries: &[Match<'a>]) -> (f32,f64) {
 
         //step 1: collect all tokens in the sequence
@@ -1521,7 +1522,7 @@ impl VariantModel {
             //add boundary as a token too
             if !next_boundary.text.trim().is_empty() {
                 if let Some(vocab_id) = self.encoder.get(next_boundary.text.trim()) {
-                let mut ngram = self.into_ngram(*vocab_id, &mut None);
+                    let mut ngram = self.into_ngram(*vocab_id, &mut None);
                     loop {
                         match ngram.pop_first() {
                             NGram::Empty => break,
@@ -1566,10 +1567,10 @@ impl VariantModel {
 
                 n += 1;
             } else {
-                //if we have an out of vocabulary bigram or prior we fall back to add-on smoothing
+                //if we have an out of vocabulary bigram or prior we fall back to add-one smoothing
                 //simply setting the count of that ngram/prior to 1
                 //for the perplexity computation this means the score doesn't change, but n does
-                //increase (so we end up with a lower perplexity)
+                //increase, so we end up with a lower perplexity
                 n += 1;
                 logprob += TRANSITION_SMOOTHING_LOGPROB
             }
