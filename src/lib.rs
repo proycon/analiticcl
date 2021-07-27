@@ -1174,6 +1174,10 @@ impl VariantModel {
     pub fn find_all_matches<'a>(&self, text: &'a str, params: &SearchParameters) -> Vec<Match<'a>> {
         let mut matches = Vec::new();
 
+        if text.is_empty() {
+            return matches;
+        }
+
         if self.debug >= 1 {
             eprintln!("(finding all matches in text: {})", text);
         }
@@ -1243,7 +1247,7 @@ impl VariantModel {
                 if params.max_ngram > 1 {
                     //(debug will be handled in the called method)
                     matches.extend(
-                        self.most_likely_sequence(all_segments, boundaries, begin, boundary.offset.begin, params).into_iter()
+                        self.most_likely_sequence(all_segments, boundaries, begin, boundary.offset.begin, params, text_current).into_iter()
                     );
                 } else {
                     if self.debug >= 1 {
@@ -1274,7 +1278,7 @@ impl VariantModel {
 
 
     /// Find the solution that maximizes the variant scores, decodes using a Weighted Finite State Transducer
-    fn most_likely_sequence<'a>(&self, matches: Vec<Match<'a>>, boundaries: &[Match<'a>], begin_offset: usize, end_offset: usize, params: &SearchParameters) -> Vec<Match<'a>> {
+    fn most_likely_sequence<'a>(&self, matches: Vec<Match<'a>>, boundaries: &[Match<'a>], begin_offset: usize, end_offset: usize, params: &SearchParameters, input_text: &str) -> Vec<Match<'a>> {
         if self.debug >= 1 {
             eprintln!("(building FST for finding most likely sequence in range {}:{})", begin_offset, end_offset);
         }
@@ -1392,7 +1396,8 @@ impl VariantModel {
             eprintln!(" (finding shortest path)");
             fst.set_input_symbols(Arc::new(symtab_in));
             fst.set_output_symbols(Arc::new(symtab_out));
-            if let Err(e) = fst.draw("/tmp/fst.dot", &DrawingConfig::default() ) {
+            let input_text = input_text.replace(" ","_").replace("\"","").replace("'","").replace(".","").replace("/","").replace("?",""); //strip filename unfriendly chars
+            if let Err(e) = fst.draw(format!("/tmp/analiticcl.{}.fst.dot", input_text.as_str()), &DrawingConfig::default() ) {
                 panic!("FST draw error: {}", e);
             }
         }
