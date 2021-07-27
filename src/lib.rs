@@ -1381,6 +1381,15 @@ impl VariantModel {
 
             if m.variants.is_some() && !m.variants.as_ref().unwrap().is_empty() {
                 for (variant_index, (variant, score)) in m.variants.as_ref().unwrap().iter().enumerate() {
+                    if n > 1 {
+                        let variant_text = self.decoder.get(*variant as usize).expect("variant_text").text.as_str();
+                        if variant_text == m.text {
+                            //input equals output, this n-gram has no added value
+                            //as it should already be covered by unigrams
+                            continue; //do not add a transition
+                        }
+                    }
+
                     let output_symbol = output_symbols.len();
                     output_symbols.push( OutputSymbol {
                         vocab_id: *variant,
