@@ -1441,8 +1441,11 @@ impl VariantModel {
             eprintln!(" (finding shortest path)");
             fst.set_input_symbols(Arc::new(symtab_in));
             fst.set_output_symbols(Arc::new(symtab_out));
-            let input_text = input_text.replace(" ","_").replace("\"","").replace("'","").replace(".","").replace("/","").replace("?",""); //strip filename unfriendly chars
-            if let Err(e) = fst.draw(format!("/tmp/analiticcl.{}.fst.dot", input_text.as_str()), &DrawingConfig::default() ) {
+            let input_text_filename = input_text.replace(" ","_").replace("\"","").replace("'","").replace(".","").replace("/","").replace("?",""); //strip filename unfriendly chars
+            let mut config = DrawingConfig::default();
+            config.portrait = true;
+            config.title = input_text.to_owned();
+            if let Err(e) = fst.draw(format!("/tmp/analiticcl.{}.fst.dot", input_text_filename.as_str()), &config ) {
                 panic!("FST draw error: {}", e);
             }
         }
