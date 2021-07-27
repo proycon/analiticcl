@@ -267,6 +267,9 @@ fn process_search(model: &VariantModel, inputstream: impl Read, searchparams: &S
         }
         //parallellisation will occur inside this method:
         let output = model.find_all_matches(&batch, searchparams);
+        if seqnr > 0 && !output.is_empty() {
+            println!();
+        }
         for result_match in output {
             seqnr += 1;
             if json {

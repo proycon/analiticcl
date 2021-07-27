@@ -1125,7 +1125,7 @@ impl VariantModel {
             let l = results.len();
             results.truncate(cutoff);
             if self.debug >= 1 {
-                eprintln!("   (truncating {} matches to {} due to cutoff value", l, results.len());
+                eprintln!("   (truncating {} matches to {} due to cutoff value)", l, results.len());
             }
         }
 
