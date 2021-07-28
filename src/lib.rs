@@ -1408,7 +1408,11 @@ impl VariantModel {
                         assert!(osym == output_symbol);
                     }
 
-                    fst.add_tr(prevstate, Tr::new(input_symbol, output_symbol, -1.0 * score.ln() as f32, nextstate)).expect("adding transition");
+                    //each transition gets a base cost of n (the number of input tokens it covers)
+                    //on top of that cost in the range 0.0 (best) - 1.0 (worst)  expresses the
+                    //variant score (inversely)
+                    let cost: f32 = n as f32 + (1.0 - *score as f32);
+                    fst.add_tr(prevstate, Tr::new(input_symbol, output_symbol, cost, nextstate)).expect("adding transition");
                 }
             } else if n == 1 { //only for unigrams
                 let output_symbol = output_symbols.len();
@@ -1420,14 +1424,17 @@ impl VariantModel {
                     boundary_index: nextboundary.expect("next boundary must exist")
                 });
 
+                //OOV emission cost
+                let cost: f32 = n as f32 + 1.0;
+
                 if self.debug >= 1 {
-                    eprintln!("   (transition {}->{} with OOV symbol {}->{} and score {})", prevstate, nextstate, input_symbol, output_symbol, -1.0 * OOV_EMISSION_PROB);
+                    eprintln!("   (transition {}->{} with OOV symbol {}->{} and score {})", prevstate, nextstate, input_symbol, output_symbol, cost);
                     let mut variant_text = String::from_str(m.text).expect("from str");
                     variant_text += format!(" ({})", output_symbol).as_str(); //we encode the output symbol in the text otherwise the symbol table returns the old match
                     assert!(symtab_out.add_symbol(m.text) == output_symbol);
                 }
 
-                fst.add_tr(prevstate, Tr::new(input_symbol, output_symbol, -1.0 * OOV_EMISSION_PROB, nextstate)).expect("adding transition");
+                fst.add_tr(prevstate, Tr::new(input_symbol, output_symbol, cost, nextstate)).expect("adding transition");
             }
         }
 
@@ -1451,14 +1458,11 @@ impl VariantModel {
         }
         let fst: VectorFst<TropicalWeight> = shortest_path_with_config(&fst, ShortestPathConfig::default().with_nshortest(params.max_seq) ).expect("computing shortest path fst");
         let mut sequences: Vec<Sequence> = Vec::new();
-        let mut best_lm_logprob: f32 = -99999999.0;
-        let mut worst_lm_logprob: f32 = 0.0;
-        let mut best_variant_logprob: f32 = -99999999.0;
-        let mut worst_variant_logprob: f32 = 0.0;
+        let mut best_lm_perplexity: f64 = 999999.0; //to be minimised
+        let mut best_variant_cost: f32 = (boundaries.len() - 1) as f32 * 2.0; //worst score, to be improved (to be minimised)
         for (i, path)  in fst.paths_iter().enumerate() { //iterates over the n shortest path hypotheses (does not return them in weighted order)
-            let w: f32 = *path.weight.value();
-            let variant_logprob = w * -1.0;
-            let mut sequence = Sequence::new(w * -1.0f32);
+            let variant_cost: f32 = *path.weight.value();
+            let mut sequence = Sequence::new(variant_cost);
             if self.debug >= 1 {
                 eprintln!("  (#{}, path: {:?})", i+1, path);
             }
@@ -1467,19 +1471,14 @@ impl VariantModel {
                 sequence.output_symbols.push(output_symbol.clone());
             }
 
-            let (lm_logprob, _perplexity) = self.lm_score(&sequence, &boundaries);
+            let (lm_logprob, perplexity) = self.lm_score(&sequence, &boundaries);
             sequence.lm_logprob = lm_logprob;
-            if sequence.lm_logprob > best_lm_logprob {
-                best_lm_logprob = sequence.lm_logprob;
+            sequence.perplexity = perplexity;
+            if sequence.perplexity < best_lm_perplexity {
+                best_lm_perplexity = sequence.perplexity;
             }
-            if sequence.lm_logprob < worst_lm_logprob {
-                worst_lm_logprob = sequence.lm_logprob;
-            }
-            if variant_logprob > best_variant_logprob {
-                best_variant_logprob = variant_logprob;
-            }
-            if variant_logprob < worst_variant_logprob {
-                worst_variant_logprob = variant_logprob;
+            if variant_cost < best_variant_cost {
+                best_variant_cost = variant_cost;
             }
             sequences.push(sequence);
         }
@@ -1491,25 +1490,16 @@ impl VariantModel {
         };
 
         //Compute the normalizes scores
-        let mut best_score: f64 = -99999999.0;
+        let mut best_score: f64 = -99999999.0; //to be maximised
         let mut best_sequence: Option<Sequence> = None;
         for sequence in sequences.into_iter() {
-            //we normalize both LM and variant model scores to be in the range 1.0 (best) - 0.0 (worst)
-            //for the language model, we *ignore* the logarithmic nature to get a more evenly spread ranking (otherwise all probality mass would be close to 0)
-            let norm_lm_prob: f64 = if best_lm_logprob == worst_lm_logprob {
-                1.0 //corner case there is only one item
-            } else {
-                1.0 - ((best_lm_logprob as f64 - sequence.lm_logprob as f64) / (best_lm_logprob as f64 - worst_lm_logprob as f64))
-            };
-            let norm_variant_prob: f64 = if best_variant_logprob == worst_variant_logprob {
-                1.0 //corner case in which there is only one item
-            } else {
-                1.0 - ((best_variant_logprob.exp() as f64 - sequence.emission_logprob.exp() as f64) / (best_variant_logprob.exp() as f64 - worst_variant_logprob.exp() as f64))
-            };
+            //we normalize both LM and variant model scores so the best score corresponds with 1.0 (in non-logarithmic terms, 0.0 in logarithmic space). We take the natural logarithm for more numerical stability and easier computation.
+            let norm_lm_score: f64 = (best_lm_perplexity / sequence.perplexity).ln();
+            let norm_variant_score: f64 = (best_variant_cost as f64 / sequence.variant_cost as f64).ln();
 
-            let score = (params.lm_weight as f64 * norm_lm_prob + params.variantmodel_weight as f64 * norm_variant_prob) / (params.lm_weight as f64 + params.variantmodel_weight as f64); //note: the denominator isn't really relevant for finding the best score
+            let score = (params.lm_weight as f64 * norm_lm_score + params.variantmodel_weight as f64 * norm_variant_score) / (params.lm_weight as f64 + params.variantmodel_weight as f64); //note: the denominator isn't really relevant for finding the best score
             if self.debug >= 1 {
-                debug_ranked.as_mut().unwrap().push( (sequence.clone(), norm_lm_prob, norm_variant_prob, score) );
+                debug_ranked.as_mut().unwrap().push( (sequence.clone(), norm_lm_score, norm_variant_score, score) );
             }
             if score > best_score {
                 best_score = score;
@@ -1520,8 +1510,8 @@ impl VariantModel {
         if self.debug >= 1 {
             //debug mode: output all candidate sequences and their scores in order
             debug_ranked.as_mut().unwrap().sort_by(|a,b| b.3.partial_cmp(&a.3).unwrap_or(Ordering::Equal) ); //sort by score
-            for (i, (sequence, norm_lm_logprob, norm_variant_logprob, score)) in debug_ranked.unwrap().into_iter().enumerate() {
-                eprintln!("  (#{}, score={}, lm_logprob={} (norm={}, * {}), variant_logprob={} (norm={}, * {})", i+1, score, sequence.lm_logprob, norm_lm_logprob, params.lm_weight, sequence.emission_logprob, norm_variant_logprob, params.variantmodel_weight);
+            for (i, (sequence, norm_lm_score, norm_variant_score, score)) in debug_ranked.unwrap().into_iter().enumerate() {
+                eprintln!("  (#{}, final_score={}, norm_lm_score={} (perplexity={}, logprob={}, weight={}), norm_variant_score={} (variant_cost={}, weight={})", i+1, score.exp(), norm_lm_score.exp(), sequence.perplexity, sequence.lm_logprob, params.lm_weight,  norm_variant_score.exp(), sequence.variant_cost, params.variantmodel_weight);
                 let mut text: String = String::new();
                 for output_symbol in sequence.output_symbols.iter() {
                     if output_symbol.vocab_id > 0{

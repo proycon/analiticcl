@@ -74,10 +74,6 @@ impl<'a> Match<'a> {
     }
 }
 
-///Indicates an output label is out of vocabulary and should simply be copied from input
-pub(crate) const OOV_EMISSION_PROB: f32 = -2.3025850929940455; //p = 0.1
-
-
 
 /// Intermediate datastructure tied to the Finite State Transducer used in most_likely_sequence()
 /// Holds the output symbol for each FST state and allows relating output symbols back to the input
@@ -106,16 +102,18 @@ pub struct OutputSymbol {
 #[derive(Clone,Debug)]
 pub struct Sequence {
     pub output_symbols: Vec<OutputSymbol>,
-    pub emission_logprob: f32,
+    pub variant_cost: f32,
     pub lm_logprob: f32,
+    pub perplexity: f64,
 }
 
 impl Sequence {
-    pub fn new(emission_logprob: f32) -> Self {
+    pub fn new(variant_cost: f32) -> Self {
         Self {
             output_symbols: Vec::new(),
-            emission_logprob,
+            variant_cost,
             lm_logprob: 0.0,
+            perplexity: 0.0,
         }
     }
 
