@@ -138,6 +138,12 @@ impl PySearchParameters {
                         "variantmodel_weight" => if let Ok(Some(value)) = value.extract() {
                             instance.data.variantmodel_weight = value
                          },
+                        "context_weight" => if let Ok(Some(value)) = value.extract() {
+                            instance.data.context_weight = value
+                         },
+                        "consolidate_matches" => if let Ok(Some(value)) = value.extract() {
+                            instance.data.consolidate_matches = value
+                         },
                         _ => eprintln!("Ignored unknown kwargs option {}", key),
                     }
                 }
@@ -163,9 +169,13 @@ impl PySearchParameters {
     #[getter]
     fn get_single_thread(&self) -> PyResult<bool> { Ok(self.data.single_thread) }
     #[getter]
+    fn get_context_weight(&self) -> PyResult<f32> { Ok(self.data.context_weight) }
+    #[getter]
     fn get_lm_weight(&self) -> PyResult<f32> { Ok(self.data.lm_weight) }
     #[getter]
     fn get_variantmodel_weight(&self) -> PyResult<f32> { Ok(self.data.variantmodel_weight) }
+    #[getter]
+    fn get_consolidate_matches(&self) -> PyResult<bool> { Ok(self.data.consolidate_matches }
 
     #[setter]
     fn set_max_anagram_distance(&mut self, value: u8) -> PyResult<()> { self.data.max_anagram_distance = value; Ok(()) }
@@ -180,9 +190,14 @@ impl PySearchParameters {
     #[setter]
     fn set_single_thread(&mut self, value: bool) -> PyResult<()> { self.data.single_thread = value; Ok(()) }
     #[setter]
+    fn set_context_weight(&mut self, value: f32) -> PyResult<()> { self.data.context_weight = value; Ok(()) }
+    #[setter]
     fn set_lm_weight(&mut self, value: f32) -> PyResult<()> { self.data.lm_weight = value; Ok(()) }
     #[setter]
     fn set_variantmodel_weight(&mut self, value: f32) -> PyResult<()> { self.data.variantmodel_weight = value; Ok(()) }
+
+    #[setter]
+    fn set_consolidate_matches(&mut self, value: bool) -> PyResult<()> { self.data.consolidate_matches = value; Ok(()) }
 
     #[setter]
     fn set_stop_at_exact_match(&mut self, value: f32) -> PyResult<()> { self.data.stop_criterion = libanaliticcl::StopCriterion::StopAtExactMatch(value); Ok(()) }

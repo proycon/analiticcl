@@ -84,10 +84,19 @@ pub struct SearchParameters {
     /// performance)
     pub single_thread: bool,
 
-    /// Weight attributed to the language model
+    /// Weight attributed to the language model in relation to the variant model (e.g. 2.0 = twice
+    /// as much weight) when considering input context and rescoring.
+    pub context_weight: f32,
+
+    /// Weight attributed to the language model in finding the most likely sequence
     pub lm_weight: f32,
-    /// Weight attributed to the variant model
-    pub variantmodel_weight: f32
+
+    /// Weight attributed to the variant model in finding the most likely sequence
+    pub variantmodel_weight: f32,
+
+    /// Consolidate matches and extract a single most likely sequence, if set
+    /// to false, all possibl ematches (including overlapping ones) are returned.
+    pub consolidate_matches: bool
 }
 
 impl Default for SearchParameters {
@@ -102,8 +111,10 @@ impl Default for SearchParameters {
             max_ngram: 2,
             single_thread: false,
             max_seq: 250,
+            context_weight: 0.0,
             lm_weight: 1.0,
             variantmodel_weight: 1.0,
+            consolidate_matches: true,
         }
     }
 }
@@ -145,12 +156,20 @@ impl SearchParameters {
         self.single_thread = true;
         self
     }
+    pub fn with_context_weight(mut self, weight: f32) -> Self {
+        self.context_weight = weight;
+        self
+    }
     pub fn with_lm_weight(mut self, weight: f32) -> Self {
         self.lm_weight = weight;
         self
     }
     pub fn with_variantmodel_weight(mut self, weight: f32) -> Self {
         self.variantmodel_weight = weight;
+        self
+    }
+    pub fn with_consolidate_matches(mut self, value: bool) -> Self {
+        self.consolidate_matches = value;
         self
     }
 }

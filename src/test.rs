@@ -56,8 +56,10 @@ pub fn get_test_searchparams() -> SearchParameters {
         cutoff_threshold: 0.0,
         max_ngram: 2,
         single_thread: false,
+        context_weight: 0.0,
         lm_weight: 1.0,
         variantmodel_weight: 1.0,
         max_seq: 250,
+        consolidate_matches: true,
     }
 }

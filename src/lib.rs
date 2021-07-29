@@ -1022,6 +1022,7 @@ impl VariantModel {
                 } else {
                     1.0
                 };
+                //simple weighted linear combination (arithmetic mean to normalize it again) over all normalized distance factors
                 let mut score = (
                     self.weights.ld * distance_score +
                     self.weights.freq * freq_score +  //weight will be 0 if there are no frequencies
@@ -1246,17 +1247,17 @@ impl VariantModel {
                 }
 
                 //Gather all segments for this batch
-                let mut all_segments: Vec<Match<'a>> = Vec::new(); //second var in tuple corresponds to the ngram order
+                let mut batch_matches: Vec<Match<'a>> = Vec::new(); //second var in tuple corresponds to the ngram order
                 for order in 1..=params.max_ngram {
-                    all_segments.extend(find_match_ngrams(text, boundaries, order, begin, Some(boundary.offset.begin)).into_iter());
+                    batch_matches.extend(find_match_ngrams(text, boundaries, order, begin, Some(boundary.offset.begin)).into_iter());
                 }
                 if self.debug >= 1 {
-                    eprintln!("  (processing {} ngrams: {:?})", all_segments.len(), all_segments);
+                    eprintln!("  (processing {} ngrams: {:?})", batch_matches.len(), batch_matches);
                 }
 
                 //find variants for all segments in this batch (in parallel)
                 if params.single_thread {
-                    all_segments.iter_mut().for_each(|segment| {
+                    batch_matches.iter_mut().for_each(|segment| {
                         if self.debug >= 1 {
                             eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
                         }
@@ -1264,13 +1265,18 @@ impl VariantModel {
                         segment.variants = Some(variants);
                     });
                 } else {
-                    all_segments.par_iter_mut().for_each(|segment| {
+                    batch_matches.par_iter_mut().for_each(|segment| {
                         if self.debug >= 1 {
                             eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
                         }
                         let variants = self.find_variants(&segment.text, params, None);
                         segment.variants = Some(variants);
                     });
+                }
+
+
+                if params.context_weight > 0.0 {
+                    self.rescore_input_context(&mut batch_matches, &boundaries, params);
                 }
 
 
@@ -1280,14 +1286,14 @@ impl VariantModel {
                 if params.max_ngram > 1 {
                     //(debug will be handled in the called method)
                     matches.extend(
-                        self.most_likely_sequence(all_segments, boundaries, begin, boundary.offset.begin, params, text_current).into_iter()
+                        self.most_likely_sequence(batch_matches, boundaries, begin, boundary.offset.begin, params, text_current).into_iter()
                     );
                 } else {
                     if self.debug >= 1 {
                         eprintln!("  (returning matches directly, no need to find most likely sequence for unigrams)");
                     }
                     matches.extend(
-                        all_segments.into_iter().map(|mut m| {
+                        batch_matches.into_iter().map(|mut m| {
                             m.selected = Some(0); //select the first (highest ranking) option
                             m
                         })
@@ -1307,6 +1313,127 @@ impl VariantModel {
             eprintln!("(returning {} matches: {:?})", matches.len(), matches);
         }
         matches
+    }
+
+
+    fn set_match_boundaries<'a>(&self, matches: &mut Vec<Match<'a>>, boundaries: &[Match<'a>]) {
+        for m in matches.iter_mut() {
+
+            for (i, boundary) in boundaries.iter().enumerate() {
+                if m.offset.begin == boundary.offset.end  {
+                    m.prevboundary = Some(i)
+                } else if m.offset.end == boundary.offset.begin  {
+                    m.nextboundary = Some(i)
+                }
+            }
+
+            m.n = if let Some(prevboundary) = m.prevboundary {
+                m.nextboundary.expect("next boundary must exist") - prevboundary
+            } else {
+                m.nextboundary.expect("next boundary must exist") + 1
+            };
+        }
+    }
+
+    /// Find the unigram context from the input for all matches
+    fn find_input_context<'a>(&self, matches: &Vec<Match<'a>>) -> Vec<(usize,Context<'a>)> {
+        let mut results = Vec::with_capacity(matches.len());
+        for (i, m) in matches.iter().enumerate() {
+            let mut left = None;
+            let mut right = None;
+            for mcontext in matches.iter() {
+                if let Some(prevboundary) = m.prevboundary {
+                    if mcontext.nextboundary == Some(prevboundary) && m.n == 1{
+                        left = Some(mcontext.text);
+                    }
+                }
+                if let Some(nextboundary) = m.nextboundary {
+                    if mcontext.prevboundary == Some(nextboundary) && m.n == 1{
+                        right = Some(mcontext.text);
+                    }
+                }
+            }
+            results.push(
+                (i, Context {
+                    left,
+                    right,
+                })
+            );
+        }
+        results
+    }
+
+
+    /// Rescores variants by incorporating a language model component in the variant score.
+    /// For simplicity, however, this components based on the original
+    /// input text rather than corrected output from other parts.
+    fn rescore_input_context<'a>(&self, matches: &mut Vec<Match<'a>>, boundaries: &[Match<'a>], params: &SearchParameters) {
+        if self.debug >= 1 {
+            eprintln!("   (rescoring variants according to input context)");
+        }
+        self.set_match_boundaries(matches, boundaries);
+        let matches_with_context = self.find_input_context(matches);
+        let mut tokens: Vec<Option<VocabId>> = Vec::new();
+        let mut perplexities: Vec<f64> = Vec::new();
+        for (i, context) in matches_with_context.iter() {
+            let m = matches.get(*i).expect("match must exist");
+
+            let left = match context.left {
+                Some(text) => self.encoder.get(text).map(|x| *x),
+                None => Some(BOS)
+            };
+            let right = match context.right {
+                Some(text) => self.encoder.get(text).map(|x| *x),
+                None => Some(BOS)
+            };
+
+            let mut best_perplexity = 99999.0; //to be minimised
+            if let Some(variants) = &m.variants {
+                for (variant, _score) in variants.iter() {
+                    tokens.clear();
+                    tokens.push(left);
+                    let mut ngram = self.into_ngram(*variant, &mut None);
+                    loop {
+                        match ngram.pop_first() {
+                            NGram::Empty => break,
+                            unigram => tokens.push(unigram.first())
+                        }
+                    }
+                    tokens.push(right);
+
+                    let (_lm_logprob, perplexity) = self.lm_score_tokens(&tokens);
+
+                    if perplexity < best_perplexity {
+                        best_perplexity = perplexity;
+                    }
+                    perplexities.push(perplexity);
+                }
+            }
+
+            let m = matches.get_mut(*i).expect("match must exist");
+            for (j, perplexity) in perplexities.iter().enumerate() {
+                if let Some(variants) = &mut m.variants {
+                    if let Some((vocab_id, score)) = variants.get_mut(j) {
+                        //compute a weighted geometric mean between language model score
+                        //and variant model score
+
+                        //first normalize the perplexity where the best one corresponds to 1.0, and values decrease to 0 as perplexity increases
+                        let lmscore = best_perplexity / perplexity;
+
+                        //then the actual computation is done in log-space for more numerical stability,
+                        //and cast back afterwards
+                        let oldscore = *score;
+                        *score = ((score.ln() + params.context_weight as f64 * lmscore.ln()) / (1.0 + params.context_weight) as f64).exp();
+                        if self.debug > 1 {
+                            if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
+                                eprintln!("     (leftcontext={:?}, variant={}, rightcontext={:?}, oldscore={}, score={}, norm_lm_score={}, perplexity={})", context.left, vocabitem.text, context.right, oldscore, score, lmscore, perplexity);
+                            }
+                        }
+                    }
+                }
+            }
+
+        }
     }
 
 
@@ -1497,7 +1624,9 @@ impl VariantModel {
             let norm_lm_score: f64 = (best_lm_perplexity / sequence.perplexity).ln();
             let norm_variant_score: f64 = (best_variant_cost as f64 / sequence.variant_cost as f64).ln();
 
-            let score = (params.lm_weight as f64 * norm_lm_score + params.variantmodel_weight as f64 * norm_variant_score) / (params.lm_weight as f64 + params.variantmodel_weight as f64); //note: the denominator isn't really relevant for finding the best score
+            //then we interpret the score as a kind of pseudo-probability and minimize the joint
+            //probability (the product; addition in log-space)
+            let score = (params.lm_weight as f64 * norm_lm_score + params.variantmodel_weight as f64 * norm_variant_score) / (params.lm_weight as f64 + params.variantmodel_weight as f64); //note: the denominator isn't really relevant for finding the best score but normalizes the output for easier interpretability (=geometric mean)
             if self.debug >= 1 {
                 debug_ranked.as_mut().unwrap().push( (sequence.clone(), norm_lm_score, norm_variant_score, score) );
             }
@@ -1582,7 +1711,14 @@ impl VariantModel {
 
         tokens.push(Some(EOS));
 
+        //Compute the score over the tokens
+        self.lm_score_tokens(&tokens)
+    }
 
+
+    /// Computes the logprob and perplexity for a given sequence of tokens.
+    /// The tokens are either in the vocabulary or are None if out-of-vocabulary.
+    pub fn lm_score_tokens<'a>(&self, tokens: &Vec<Option<VocabId>>) -> (f32,f64) {
         //move a sliding window over the tokens
         let mut logprob = 0.0;
         let mut n = 0;

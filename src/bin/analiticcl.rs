@@ -510,14 +510,23 @@ fn main() {
                                 .multiple(true))
                             .arg(Arg::with_name("weight-lm")
                                 .long("weight-lm")
-                                .help("Weight attributed to the language model")
+                                .help("Weight attributed to the language model in finding the most likely sequence in search mode")
                                 .takes_value(true)
                                 .default_value("1.0"))
                             .arg(Arg::with_name("weight-variant-model")
                                 .long("weight-variant-model")
-                                .help("Weight attributed to the variant model")
+                                .help("Weight attributed to the variant model in finding the most likely sequence in search mode")
                                 .takes_value(true)
                                 .default_value("1.0"))
+                            .arg(Arg::with_name("weight-context")
+                                .long("weight-context")
+                                .help("For rescoring against input context using a language model: weight attributed to the language model in relation to the variant model. (0 = disabled). Setting this forces consideration of (input) context in an earlier stage. Only relevant for search mode.")
+                                .takes_value(true)
+                                .default_value("0.0"))
+                            .arg(Arg::with_name("allow-overlap")
+                                .long("allow-overlap")
+                                .help("Do not consolidate multiple matches by finding a most likely sequence, but simply return all matches as-is, even if they overlap.")
+                                .takes_value(false))
                     )
                     .subcommand(
                         SubCommand::with_name("learn")
@@ -656,6 +665,7 @@ fn main() {
             StopCriterion::Exhaustive
         },
         single_thread: args.is_present("single-thread") || args.is_present("debug") || args.is_present("interactive"),
+        consolidate_matches: !args.is_present("allow-overlap"),
         max_ngram: if let Some(value) = args.value_of("max-ngram-order") {
             value.parse::<u8>().expect("Max n-gram should be a small integer")
         } else {
@@ -668,6 +678,11 @@ fn main() {
         },
         variantmodel_weight: if args.is_present("weight-variant-model") {
             args.value_of("weight-variant-model").unwrap().parse::<f32>().expect("Variant model weight should be a floating point number")
+        } else {
+            1.0
+        },
+        context_weight: if args.is_present("weight-context") {
+            args.value_of("weight-context").unwrap().parse::<f32>().expect("Context weight should be a floating point number")
         } else {
             1.0
         },

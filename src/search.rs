@@ -25,9 +25,17 @@ pub struct Match<'a> {
     pub variants: Option<Vec<(VocabId, f64)>>,
 
     ///the variant that was selected after searching and ranking (if any)
-    pub selected: Option<usize>
-}
+    pub selected: Option<usize>,
 
+    /// the index of the previous boundary, None if at start position
+    pub prevboundary: Option<usize>,
+
+    /// the index of the next boundary
+    pub nextboundary: Option<usize>,
+
+    /// The number of tokens (boundaries spanned)
+    pub n: usize
+}
 
 impl<'a> Match<'a> {
     pub fn new_empty(text: &'a str, offset: Offset) -> Self {
@@ -36,6 +44,9 @@ impl<'a> Match<'a> {
             offset,
             variants: None,
             selected: None,
+            prevboundary: None,
+            nextboundary: None,
+            n: 0
         }
     }
 
@@ -73,6 +84,16 @@ impl<'a> Match<'a> {
         }
     }
 }
+
+
+
+#[derive(Clone,Debug)]
+/// Refers to a match and its unigram context
+pub struct Context<'a> {
+    pub left: Option<&'a str>,
+    pub right: Option<&'a str>
+}
+
 
 
 /// Intermediate datastructure tied to the Finite State Transducer used in most_likely_sequence()
