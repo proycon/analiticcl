@@ -1597,12 +1597,13 @@ impl VariantModel {
                 let output_symbol = output_symbols.get(*output_symbol).expect("expected valid output symbol");
                 sequence.output_symbols.push(output_symbol.clone());
             }
-
-            let (lm_logprob, perplexity) = self.lm_score(&sequence, &boundaries);
-            sequence.lm_logprob = lm_logprob;
-            sequence.perplexity = perplexity;
-            if sequence.perplexity < best_lm_perplexity {
-                best_lm_perplexity = sequence.perplexity;
+            if params.lm_weight > 0.0 {
+                let (lm_logprob, perplexity) = self.lm_score(&sequence, &boundaries);
+                sequence.lm_logprob = lm_logprob;
+                sequence.perplexity = perplexity;
+                if sequence.perplexity < best_lm_perplexity {
+                    best_lm_perplexity = sequence.perplexity;
+                }
             }
             if variant_cost < best_variant_cost {
                 best_variant_cost = variant_cost;
@@ -1621,7 +1622,11 @@ impl VariantModel {
         let mut best_sequence: Option<Sequence> = None;
         for sequence in sequences.into_iter() {
             //we normalize both LM and variant model scores so the best score corresponds with 1.0 (in non-logarithmic terms, 0.0 in logarithmic space). We take the natural logarithm for more numerical stability and easier computation.
-            let norm_lm_score: f64 = (best_lm_perplexity / sequence.perplexity).ln();
+            let norm_lm_score: f64 = if params.lm_weight > 0.0 {
+                (best_lm_perplexity / sequence.perplexity).ln()
+            } else {
+                0.0
+            };
             let norm_variant_score: f64 = (best_variant_cost as f64 / sequence.variant_cost as f64).ln();
 
             //then we interpret the score as a kind of pseudo-probability and minimize the joint
