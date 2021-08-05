@@ -520,7 +520,7 @@ fn main() {
                                 .default_value("1.0"))
                             .arg(Arg::with_name("weight-context")
                                 .long("weight-context")
-                                .help("For rescoring against input context using a language model: weight attributed to the language model in relation to the variant model. (0 = disabled). Setting this forces consideration of (input) context in an earlier stage. Only relevant for search mode.")
+                                .help("For rescoring against input context using a language model: weight attributed to the language model in relation to the variant model. (0=disabled, default, 1.0=equal weight, 0.5=half as strong as the variant model). Setting this forces consideration of input context in an earlier stage. Only relevant for search mode.")
                                 .takes_value(true)
                                 .default_value("0.0"))
                             .arg(Arg::with_name("allow-overlap")
