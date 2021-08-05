@@ -1632,7 +1632,11 @@ impl VariantModel {
 
             //then we interpret the score as a kind of pseudo-probability and minimize the joint
             //probability (the product; addition in log-space)
-            let score = (params.lm_weight as f64 * norm_lm_score + params.variantmodel_weight as f64 * norm_variant_score) / (params.lm_weight as f64 + params.variantmodel_weight as f64); //note: the denominator isn't really relevant for finding the best score but normalizes the output for easier interpretability (=geometric mean)
+            let score = if params.lm_weight > 0.0 {
+                (params.lm_weight as f64 * norm_lm_score + params.variantmodel_weight as f64 * norm_variant_score) / (params.lm_weight as f64 + params.variantmodel_weight as f64) //note: the denominator isn't really relevant for finding the best score but normalizes the output for easier interpretability (=geometric mean)
+            } else {
+                norm_variant_score
+            };
             if self.debug >= 1 {
                 debug_ranked.as_mut().unwrap().push( (sequence.clone(), norm_lm_score, norm_variant_score, score) );
             }
