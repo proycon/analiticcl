@@ -972,10 +972,8 @@ fn test0705_find_all_matches_context_only() {
     assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
     assert_eq!( matches.get(2).unwrap().text , "you" );
     assert_eq!( model.match_to_str(matches.get(2).unwrap()) , "you" );
-    assert_eq!( matches.get(3).unwrap().text , "are" );
-    assert_eq!( model.match_to_str(matches.get(3).unwrap()) , "are" );
-    assert_eq!( matches.get(4).unwrap().text , "rihgt" );
-    assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "right" );
+    assert_eq!( matches.get(3).unwrap().text , "are rihgt" ); //system opts for the bigram here
+    assert_eq!( model.match_to_str(matches.get(3).unwrap()) , "are right" );
 }
 
 
