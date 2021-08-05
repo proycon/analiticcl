@@ -1365,7 +1365,7 @@ impl VariantModel {
 
 
     /// Rescores variants by incorporating a language model component in the variant score.
-    /// For simplicity, however, this components based on the original
+    /// For simplicity, however, this component is based on the original
     /// input text rather than corrected output from other parts.
     fn rescore_input_context<'a>(&self, matches: &mut Vec<Match<'a>>, boundaries: &[Match<'a>], params: &SearchParameters) {
         if self.debug >= 1 {
@@ -1417,13 +1417,14 @@ impl VariantModel {
                         //compute a weighted geometric mean between language model score
                         //and variant model score
 
-                        //first normalize the perplexity where the best one corresponds to 1.0, and values decrease to 0 as perplexity increases
+                        //first normalize the perplexity where the best one corresponds to 1.0, and values decrease towards 0 as perplexity increases, the normalisation is technically not needed for geometric mean but we do need to invert the scale (minimisation of perplexity -> maximisation of score)
                         let lmscore = best_perplexity / perplexity;
 
                         //then the actual computation is done in log-space for more numerical stability,
                         //and cast back afterwards
                         let oldscore = *score;
                         *score = ((score.ln() + params.context_weight as f64 * lmscore.ln()) / (1.0 + params.context_weight) as f64).exp();
+                        //                      fixed weight for variant model ------------------^
                         if self.debug > 1 {
                             if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
                                 eprintln!("     (leftcontext={:?}, variant={}, rightcontext={:?}, oldscore={}, score={}, norm_lm_score={}, perplexity={})", context.left, vocabitem.text, context.right, oldscore, score, lmscore, perplexity);
