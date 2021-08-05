@@ -1373,6 +1373,7 @@ impl VariantModel {
         }
         self.set_match_boundaries(matches, boundaries);
         let matches_with_context = self.find_input_context(matches);
+        assert_eq!(matches_with_context.len(), matches.len());
         let mut tokens: Vec<Option<VocabId>> = Vec::new();
         let mut perplexities: Vec<f64> = Vec::new();
         for (i, context) in matches_with_context.iter() {
@@ -1387,6 +1388,7 @@ impl VariantModel {
                 None => Some(BOS)
             };
 
+            perplexities.clear();
             let mut best_perplexity = 99999.0; //to be minimised
             if let Some(variants) = &m.variants {
                 for (variant, _score) in variants.iter() {
@@ -1409,27 +1411,28 @@ impl VariantModel {
                     perplexities.push(perplexity);
                 }
             }
+            if self.debug >= 1 {
+                eprintln!("    (processing {} variants for match {}, best_perplexity={})", perplexities.len(), i+1, best_perplexity);
+            }
 
             let m = matches.get_mut(*i).expect("match must exist");
             for (j, perplexity) in perplexities.iter().enumerate() {
-                if let Some(variants) = &mut m.variants {
-                    if let Some((vocab_id, score)) = variants.get_mut(j) {
-                        //compute a weighted geometric mean between language model score
-                        //and variant model score
+                let variants = &mut m.variants.as_mut().expect("variants must exist");
+                let (vocab_id, score) = variants.get_mut(j).expect("variant must exist");
+                //compute a weighted geometric mean between language model score
+                //and variant model score
 
-                        //first normalize the perplexity where the best one corresponds to 1.0, and values decrease towards 0 as perplexity increases, the normalisation is technically not needed for geometric mean but we do need to invert the scale (minimisation of perplexity -> maximisation of score)
-                        let lmscore = best_perplexity / perplexity;
+                //first normalize the perplexity where the best one corresponds to 1.0, and values decrease towards 0 as perplexity increases, the normalisation is technically not needed for geometric mean but we do need to invert the scale (minimisation of perplexity -> maximisation of score)
+                let lmscore = best_perplexity / perplexity;
 
-                        //then the actual computation is done in log-space for more numerical stability,
-                        //and cast back afterwards
-                        let oldscore = *score;
-                        *score = ((score.ln() + params.context_weight as f64 * lmscore.ln()) / (1.0 + params.context_weight) as f64).exp();
-                        //                      fixed weight for variant model ------------------^
-                        if self.debug > 1 {
-                            if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
-                                eprintln!("     (leftcontext={:?}, variant={}, rightcontext={:?}, oldscore={}, score={}, norm_lm_score={}, perplexity={})", context.left, vocabitem.text, context.right, oldscore, score, lmscore, perplexity);
-                            }
-                        }
+                //then the actual computation is done in log-space for more numerical stability,
+                //and cast back afterwards
+                let oldscore = *score;
+                *score = ((score.ln() + params.context_weight as f64 * lmscore.ln()) / (1.0 + params.context_weight) as f64).exp();
+                //                      fixed weight for variant model ------------------^
+                if self.debug >= 1 {
+                    if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
+                        eprintln!("      (leftcontext={:?}, variant={}, rightcontext={:?}, oldscore={}, score={}, norm_lm_score={}, perplexity={})", context.left, vocabitem.text, context.right, oldscore, score, lmscore, perplexity);
                     }
                 }
             }
