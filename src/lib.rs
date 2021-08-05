@@ -1343,12 +1343,12 @@ impl VariantModel {
             let mut right = None;
             for mcontext in matches.iter() {
                 if let Some(prevboundary) = m.prevboundary {
-                    if mcontext.nextboundary == Some(prevboundary) && m.n == 1{
+                    if mcontext.nextboundary == Some(prevboundary) && mcontext.n == 1{
                         left = Some(mcontext.text);
                     }
                 }
                 if let Some(nextboundary) = m.nextboundary {
-                    if mcontext.prevboundary == Some(nextboundary) && m.n == 1{
+                    if mcontext.prevboundary == Some(nextboundary) && mcontext.n == 1{
                         right = Some(mcontext.text);
                     }
                 }
