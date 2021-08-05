@@ -850,7 +850,7 @@ fn test0702_find_all_matches() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
     model.add_to_vocabulary("I",Some(2),&VocabParams::default());
     model.add_to_vocabulary("think",Some(2), &VocabParams::default());
-    model.add_to_vocabulary("sink",Some(1), &VocabParams::default());
+    model.add_to_vocabulary("sink",Some(2), &VocabParams::default());
     model.add_to_vocabulary("you",Some(2), &VocabParams::default());
 
     model.add_to_vocabulary("are",Some(2),&VocabParams::default());
@@ -880,7 +880,7 @@ fn test0703_find_all_matches_linebreak() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
     model.add_to_vocabulary("I",Some(2),&VocabParams::default());
     model.add_to_vocabulary("think",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("sink",Some(1),&VocabParams::default());
+    model.add_to_vocabulary("sink",Some(2),&VocabParams::default());
     model.add_to_vocabulary("you",Some(2),&VocabParams::default());
     model.add_to_vocabulary("are",Some(2),&VocabParams::default());
     model.add_to_vocabulary("right",Some(2),&VocabParams::default());
@@ -909,7 +909,7 @@ fn test0704_find_all_matches_two_batches() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
     model.add_to_vocabulary("I",Some(2),&VocabParams::default());
     model.add_to_vocabulary("think",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("sink",Some(1),&VocabParams::default());
+    model.add_to_vocabulary("sink",Some(2),&VocabParams::default());
     model.add_to_vocabulary("you",Some(2),&VocabParams::default());
     model.add_to_vocabulary("are",Some(2),&VocabParams::default());
     model.add_to_vocabulary("right",Some(2),&VocabParams::default());
@@ -949,7 +949,7 @@ fn test0705_find_all_matches_context_only() {
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
     model.add_to_vocabulary("I",Some(2),&VocabParams::default());
     model.add_to_vocabulary("think",Some(2), &VocabParams::default());
-    model.add_to_vocabulary("sink",Some(1), &VocabParams::default());
+    model.add_to_vocabulary("sink",Some(2), &VocabParams::default()); //language model will decide between think/sink
     model.add_to_vocabulary("you",Some(2), &VocabParams::default());
 
     model.add_to_vocabulary("are",Some(2),&VocabParams::default());
