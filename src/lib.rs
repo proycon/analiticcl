@@ -3,6 +3,7 @@ extern crate num_traits;
 extern crate sesdiff;
 extern crate rayon;
 extern crate rustfst;
+extern crate simple_error;
 
 use std::fs::File;
 use std::io::{BufReader,BufRead};
@@ -13,6 +14,7 @@ use std::time::SystemTime;
 use std::sync::Arc;
 use std::cmp::Ordering;
 use std::str::FromStr;
+use std::error::Error;
 use rayon::prelude::*;
 use rustfst::prelude::*;
 
@@ -226,21 +228,22 @@ impl VariantModel {
 
         for id in 0..self.decoder.len() {
             //get the ngram and find any unseen parts
-            let ngram = self.into_ngram(id as VocabId, &mut unseen_parts);
+            if let Ok(ngram) = self.into_ngram(id as VocabId, &mut unseen_parts) {
 
-            let freq = self.decoder.get(id).unwrap().frequency;
+                let freq = self.decoder.get(id).unwrap().frequency;
 
-            if ngram.len() > 1 {
-                //reserve the space for the total counts
-                for _ in self.freq_sum.len()..ngram.len() {
-                    self.freq_sum.push(0);
+                if ngram.len() > 1 {
+                    //reserve the space for the total counts
+                    for _ in self.freq_sum.len()..ngram.len() {
+                        self.freq_sum.push(0);
+                    }
+                    //add to the totals for this order of ngrams
+                    self.freq_sum[ngram.len()-1] += freq as usize;
+                } else {
+                    self.freq_sum[0] += freq as usize;
                 }
-                //add to the totals for this order of ngrams
-                self.freq_sum[ngram.len()-1] += freq as usize;
-            } else {
-                self.freq_sum[0] += freq as usize;
+                self.add_ngram(ngram, freq);
             }
-            self.add_ngram(ngram, freq);
         }
 
         if let Some(unseen_parts) = unseen_parts {
@@ -1392,23 +1395,24 @@ impl VariantModel {
             let mut best_perplexity = 99999.0; //to be minimised
             if let Some(variants) = &m.variants {
                 for (variant, _score) in variants.iter() {
-                    tokens.clear();
-                    tokens.push(left);
-                    let mut ngram = self.into_ngram(*variant, &mut None);
-                    loop {
-                        match ngram.pop_first() {
-                            NGram::Empty => break,
-                            unigram => tokens.push(unigram.first())
+                    if let Ok(mut ngram) = self.into_ngram(*variant, &mut None) {
+                        tokens.clear();
+                        tokens.push(left);
+                        loop {
+                            match ngram.pop_first() {
+                                NGram::Empty => break,
+                                unigram => tokens.push(unigram.first())
+                            }
                         }
-                    }
-                    tokens.push(right);
+                        tokens.push(right);
 
-                    let (_lm_logprob, perplexity) = self.lm_score_tokens(&tokens);
+                        let (_lm_logprob, perplexity) = self.lm_score_tokens(&tokens);
 
-                    if perplexity < best_perplexity {
-                        best_perplexity = perplexity;
+                        if perplexity < best_perplexity {
+                            best_perplexity = perplexity;
+                        }
+                        perplexities.push(perplexity);
                     }
-                    perplexities.push(perplexity);
                 }
             }
             if self.debug >= 1 {
@@ -1695,11 +1699,12 @@ impl VariantModel {
                 //out of vocabulary (copied from input)
                 tokens.push(None);
             } else {
-                let mut ngram = self.into_ngram(output_symbol.vocab_id, &mut None);
-                loop {
-                    match ngram.pop_first() {
-                        NGram::Empty => break,
-                        unigram => tokens.push(unigram.first())
+                if let Ok(mut ngram) = self.into_ngram(output_symbol.vocab_id, &mut None) {
+                    loop {
+                        match ngram.pop_first() {
+                            NGram::Empty => break,
+                            unigram => tokens.push(unigram.first())
+                        }
                     }
                 }
             }
@@ -1707,11 +1712,12 @@ impl VariantModel {
             //add boundary as a token too
             if !next_boundary.text.trim().is_empty() {
                 if let Some(vocab_id) = self.encoder.get(next_boundary.text.trim()) {
-                    let mut ngram = self.into_ngram(*vocab_id, &mut None);
-                    loop {
-                        match ngram.pop_first() {
-                            NGram::Empty => break,
-                            unigram => tokens.push(unigram.first())
+                    if let Ok(mut ngram) = self.into_ngram(*vocab_id, &mut None) {
+                        loop {
+                            match ngram.pop_first() {
+                                NGram::Empty => break,
+                                unigram => tokens.push(unigram.first())
+                            }
                         }
                     }
                 } else {
@@ -1791,24 +1797,24 @@ impl VariantModel {
     }
 
     /// Decompose a known vocabulary Id into an Ngram
-    fn into_ngram(&self, word: VocabId, unseen_parts: &mut Option<VocabEncoder>) -> NGram {
+    fn into_ngram(&self, word: VocabId, unseen_parts: &mut Option<VocabEncoder>) -> Result<NGram,Box<Error>> {
         let word_dec = self.decoder.get(word as usize).expect("word does not exist in decoder");
         let mut iter = word_dec.text.split(" ");
         match word_dec.tokencount {
-            0 => NGram::Empty,
-            1 => NGram::UniGram(
+            0 => Ok(NGram::Empty),
+            1 => Ok(NGram::UniGram(
                 self.encode_token(iter.next().expect("ngram part"), false, unseen_parts)
-            ),
-            2 => NGram::BiGram(
+            )),
+            2 => Ok(NGram::BiGram(
                 self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
                 self.encode_token(iter.next().expect("ngram part"), false, unseen_parts)
-            ),
-            3 => NGram::TriGram(
+            )),
+            3 => Ok(NGram::TriGram(
                 self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
                 self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
                 self.encode_token(iter.next().expect("ngram part"), false, unseen_parts)
-            ),
-            _ => panic!("Can only deal with n-grams up to order 3")
+            )),
+            _ => simple_error::bail!("Can only deal with n-grams up to order 3")
         }
     }
 
