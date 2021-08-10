@@ -2,7 +2,7 @@ extern crate clap;
 extern crate rayon;
 
 use std::fs::File;
-use std::io::{self, BufReader,BufRead,Read};
+use std::io::{self, BufReader,BufRead,Read,Write};
 use clap::{Arg, App, SubCommand};
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -86,8 +86,31 @@ fn output_matches_as_json(model: &VariantModel, input: &str, variants: Option<&V
     }
 }
 
+
+///auxiliary function outputting a single variant
+fn output_weighted_variant_as_tsv(text: &str, score: f64, lexindex: u8, multioutput: bool, outfiles: &mut HashMap<u8,File>, model: &VariantModel) {
+    if multioutput {
+        let f = if let Some(f) = outfiles.get_mut(&lexindex) {
+            f
+        } else {
+            let filename: String = format!("{}.variants.tsv", model.lexicons.get(lexindex as usize).expect("lexindex must exist"));
+            if let Ok(f) = File::create(filename.as_str()) {
+                outfiles.insert(lexindex, f);
+                outfiles.get_mut(&lexindex).expect("outfile must be prepared")
+            } else {
+                panic!("unable to write to {}", filename.as_str());
+            }
+        };
+        f.write(format!("\t{}\t{}\n", text, score).as_bytes()).expect("error writing to file");
+    } else {
+        print!("\t{}\t{}", text, score);
+    }
+}
+
+
 /// Outputs weighted variants stored in the model as tsv
-fn output_weighted_variants_as_tsv(model: &VariantModel) {
+fn output_weighted_variants_as_tsv(model: &VariantModel, multioutput: bool) {
+    let mut outfiles: HashMap<u8,File> = HashMap::new();
     for vocabitem in model.decoder.iter() {
         if let Some(variants) = &vocabitem.variants {
             print!("{}", vocabitem.text);
@@ -95,14 +118,14 @@ fn output_weighted_variants_as_tsv(model: &VariantModel) {
                 match variant {
                     VariantReference::WeightedVariant((vocab_id, score)) => {
                         let variantitem = model.decoder.get(*vocab_id as usize).expect("vocab id must exist");
-                        print!("\t{}\t{}", variantitem.text, score);
+                        output_weighted_variant_as_tsv(&variantitem.text, *score, variantitem.lexindex, multioutput, &mut outfiles, model);
                     },
                     VariantReference::VariantCluster(cluster_id) => {
 
                         let cluster = model.variantclusters.get(&cluster_id).expect("cluster id must exist");
                         for vocab_id in cluster.iter() {
                             let variantitem = model.decoder.get(*vocab_id as usize).expect("vocab id must exist");
-                            print!("\t{}\t{}", variantitem.text, 1.0);
+                            output_weighted_variant_as_tsv(&variantitem.text, 1.0, variantitem.lexindex, multioutput, &mut outfiles, model);
                         }
                     }
                 }
@@ -112,8 +135,29 @@ fn output_weighted_variants_as_tsv(model: &VariantModel) {
     }
 }
 
+///auxiliary function outputting a single variant
+fn output_weighted_variant_as_json(text: &str, score: f64, lexindex: u8, multioutput: bool, outfiles: &mut HashMap<u8,File>, model: &VariantModel) {
+    if multioutput {
+        let f = if let Some(f) = outfiles.get_mut(&lexindex) {
+            f
+        } else {
+            let filename: String = format!("{}.variants.json", model.lexicons.get(lexindex as usize).expect("lexindex must exist"));
+            if let Ok(f) = File::create(filename.as_str()) {
+                outfiles.insert(lexindex, f);
+                outfiles.get_mut(&lexindex).expect("outfile must be prepared")
+            } else {
+                panic!("unable to write to {}", filename.as_str());
+            }
+        };
+        f.write(format!("        {{ \"text\": \"{}\", \"score\": {} }}, ", text.replace("\"","\\\""), score).as_bytes()).expect("error writing to file");
+    } else {
+        println!("        {{ \"text\": \"{}\", \"score\": {} }}, ", text.replace("\"","\\\""), score);
+    }
+}
+
 /// Outputs weighted variants stored in the model as tsv
-fn output_weighted_variants_as_json(model: &VariantModel) {
+fn output_weighted_variants_as_json(model: &VariantModel, multioutput: bool) {
+    let mut outfiles: HashMap<u8,File> = HashMap::new();
     println!("{{");
     for vocabitem in model.decoder.iter() {
         println!("    \"{}\": [ ", vocabitem.text.replace("\"","\\\"").as_str());
@@ -122,14 +166,14 @@ fn output_weighted_variants_as_json(model: &VariantModel) {
                 match variant {
                     VariantReference::WeightedVariant((vocab_id, score)) => {
                         let variantitem = model.decoder.get(*vocab_id as usize).expect("vocab id must exist");
-                        println!("        {{ \"text\": \"{}\", \"score\": {} }}, ", variantitem.text.replace("\"","\\\""), score);
+                        output_weighted_variant_as_json(&variantitem.text, *score, variantitem.lexindex, multioutput, &mut outfiles, model);
                     },
                     VariantReference::VariantCluster(cluster_id) => {
 
                         let cluster = model.variantclusters.get(&cluster_id).expect("cluster id must exist");
                         for vocab_id in cluster.iter() {
                             let variantitem = model.decoder.get(*vocab_id as usize).expect("vocab id must exist");
-                            println!("        {{ \"text\": \"{}\", \"score\": 1.0 }}, ", variantitem.text.replace("\"","\\\""));
+                            output_weighted_variant_as_json(&variantitem.text, 1.0, variantitem.lexindex, multioutput, &mut outfiles, model);
                         }
                     }
                 }
@@ -207,7 +251,7 @@ fn process_par(model: &VariantModel, inputstream: impl Read, searchparams: &Sear
     Ok(())
 }
 
-fn process_learn(model: &mut VariantModel, inputstream: impl Read, searchparams: &SearchParameters, iterations: u8, json: bool) -> io::Result<()> {
+fn process_learn(model: &mut VariantModel, inputstream: impl Read, searchparams: &SearchParameters, iterations: u8, json: bool, multioutput: bool ) -> io::Result<()> {
     let f_buffer = BufReader::new(inputstream);
     let mut line_iter = f_buffer.lines();
     let mut batch = vec![]; //batch for learning contains all input data at once
@@ -217,16 +261,16 @@ fn process_learn(model: &mut VariantModel, inputstream: impl Read, searchparams:
     let batch_size = batch.len();
     for i in 0..iterations {
         let (count, unknown) = model.learn_variants(&batch, searchparams, None, true);
-        if json {
-            output_weighted_variants_as_json(model);
-        } else {
-            output_weighted_variants_as_tsv(model);
-        }
         eprintln!("(Iteration #{}: learned {} variants, unable to match {} input strings out of a total of {})", i+1, count, unknown, batch_size);
         if count == 0 && i+1 < iterations {
             eprintln!("(Halting further iterations)");
             break;
         }
+    }
+    if json {
+        output_weighted_variants_as_json(model, multioutput);
+    } else {
+        output_weighted_variants_as_tsv(model, multioutput);
     }
     Ok(())
 }
@@ -538,6 +582,10 @@ fn main() {
                                 .help("The number of iterations to use for learning, more iterations means more edit distance can be covered and more words will be tied to something, but the accuracy may suffer as the iterations go up.")
                                 .takes_value(true)
                                 .default_value("1"))
+                            .arg(Arg::with_name("multi-output")
+                                .short("O")
+                                .long("multi-output")
+                                .help("Output to multiple weighted variant lists rather than to standard output, each variant lists corresponds to an input lexicon. This allows keeping the link with the original lexicon."))
                     )
                     .arg(Arg::with_name("debug")
                         .long("debug")
@@ -742,7 +790,7 @@ fn main() {
                     let stdin = io::stdin();
                     if rootargs.subcommand_matches("learn").is_some() {
                         let iterations = args.value_of("iterations").unwrap().parse::<u8>().expect("Iterations should be an integer between 0 and 255");
-                        process_learn(&mut model, stdin, &searchparams,  iterations, json).expect("I/O Error");
+                        process_learn(&mut model, stdin, &searchparams,  iterations, json, args.is_present("multi-output")).expect("I/O Error");
                     } else if rootargs.subcommand_matches("search").is_some() {
                         eprintln!("(accepting standard input; enter text to search for variants, output may be delayed until end of input, enter an empty line to force output earlier)");
                         process_search(&model, stdin, &searchparams, output_lexmatch, json, progress, !retain_linebreaks, perline);
@@ -759,7 +807,7 @@ fn main() {
                     let f = File::open(filename).expect(format!("ERROR: Unable to open file {}", filename).as_str());
                     if rootargs.subcommand_matches("learn").is_some() {
                         let iterations = args.value_of("iterations").unwrap().parse::<u8>().expect("Iterations should be an integer between 0 and 255");
-                        process_learn(&mut model, f, &searchparams, iterations, json).expect("I/O Error");
+                        process_learn(&mut model, f, &searchparams, iterations, json, args.is_present("multi-output")).expect("I/O Error");
                     } else if rootargs.subcommand_matches("search").is_some() {
                         process_search(&model, f, &searchparams, output_lexmatch, json, progress, !retain_linebreaks, perline);
                     } else if searchparams.single_thread {
