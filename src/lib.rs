@@ -1238,7 +1238,7 @@ impl VariantModel {
 
         //Compose the text into batches, each batch ends where a hard boundary is found
         for (i, (strength, boundary)) in strengths.iter().zip(boundaries.iter()).enumerate() {
-            if *strength == BoundaryStrength::Hard {
+            if *strength == BoundaryStrength::Hard && boundary.offset.begin != begin {
                 let text_current = &text[begin..boundary.offset.begin];
 
                 let boundaries = &boundaries[begin_index..i+1];
