@@ -181,7 +181,8 @@ towards matches on ``separate``. This mechanism allows the system to bridge larg
 contrained to smaller ones. For example: ``seperete`` will match against ``seperate`` but not ``separate`` when the
 edit/anagram distance is constrained to 1.
 
-Learn mode may do multiple iterations over the same data (set ``--iterations``). As iterations grow, larger edit distances can be covered, but this is also a source for extra noise so accuracy will go down too.
+Learn mode may do multiple iterations over the same data (set ``--iterations``). As iterations grow, larger edit
+distances can be covered, but this is also a source for extra noise so accuracy will go down too.
 
 When using learn mode, make sure to choose tight constraints (e.g. ``--max-matches 1`` and a high
 ``--score-threshold``).
@@ -291,7 +292,9 @@ Analiticcl can also *output* weighted variant lists, given input lexicons and a 
 
 ### Confusable List
 
-The confusable list is a TSV file (tab separated fields) containing known confusable patterns and weights to assign to these patterns when they are found. The file contains one confusable pattern per line. The patterns are expressed in the edit script language of [sesdiff](https://github.com/proycon/sesdiff). Consider the following example:
+The confusable list is a TSV file (tab separated fields) containing known confusable patterns and weights to assign to
+these patterns when they are found. The file contains one confusable pattern per line. The patterns are expressed in the
+edit script language of [sesdiff](https://github.com/proycon/sesdiff). Consider the following example:
 
 ```
 -[y]+[i]	1.1
@@ -330,8 +333,13 @@ internally.
 
 ## Theoretical Background
 
-A naive approach to find variants would be to compute the edit distance between the input string and all ``n`` items in the
-lexicon. This, however, is prohibitively expensive (``O(mn)``) when ``m`` input items need to be compared. Anagram hashing (Reynaert 2010; Reynaert 2004) aims to drastically reduce the variant search space. For all items in the lexicon, an order-independent **anagram value** is computed over all characters that make up the item. All words with the same set of characters (allowing for duplicates) obtain an identical anagram value. This value is subsequently used as a hash in a hash table that maps each anagram value to all variant instances. This is effectively what is outputted when running ``analiticcl index``.
+A naive approach to find variants would be to compute the edit distance between the input string and all ``n`` items in
+the lexicon. This, however, is prohibitively expensive (``O(mn)``) when ``m`` input items need to be compared. Anagram
+hashing (Reynaert 2010; Reynaert 2004) aims to drastically reduce the variant search space. For all items in the
+lexicon, an order-independent **anagram value** is computed over all characters that make up the item. All words with
+the same set of characters (allowing for duplicates) obtain an identical anagram value. This value is subsequently used
+as a hash in a hash table that maps each anagram value to all variant instances. This is effectively what is outputted
+when running ``analiticcl index``.
 
 Unlike earlier work, Analiticcl uses prime factors for computation of anagram values. Each character in the alphabet
 gets assigned a prime number (e.g. a=2, b=3, c=5, d=7, e=11) and the product of these forms the anagram value. This
