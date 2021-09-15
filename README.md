@@ -314,6 +314,20 @@ which only matches the substituion when it comes after a ``c`` or a ``k``:
 To force matches on the beginning or end, start or end the pattern with respectively a  ``^`` or a ``$``. A further description of the edit script language
 can be found in the [sesdiff](https://github.com/proycon/sesdiff) documentation.
 
+### Language Model
+
+In order to consider context information, analiticcl can construct a simple language model. The input for this language
+model is an n-gram frequency list, provided through the ``--lm`` parameter. It is used in analiticcl's *search mode*.
+
+This should be a corpus-derived list of unigrams and bigrams, optionally also trigrams (and even all up to quintgrams if
+needed, higher-order ngrams are not supported though).  This is a TSV file containing the the ngram in the first column
+(space character acts as token separator), and the absolute frequency count in the second column. It is also recommended
+it contains the special tokens ``<bos>`` (begin of sentence) and ``<eos>`` end of sentence. The items in this list are
+**NOT** used for variant matching, use ``--corpus`` or even ``--lexicon`` instead if you want to also match against
+these items. It is fine to have an entry in both the language model and lexicon, analiticcl will store it only once
+internally.
+
+
 ## Theoretical Background
 
 A naive approach to find variants would be to compute the edit distance between the input string and all ``n`` items in the
