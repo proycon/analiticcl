@@ -168,9 +168,18 @@ The large number is the [anagram value](#theoretical-background) of the anagram.
 
 ### Learn Mode
 
-In learn mode, analiticcl takes input similar like in query mode, but rather than output the results directly, it associates the variants found with the items in the lexicon and updates the model with this information. The output this mode provides is effectively the inverse of what query does; for each item in the lexicon, all variants that were found (and their scores are listed). This output constitutes a weighted variant list which can be loaded in again using ``--weighted-variants``.
+In learn mode, analiticcl takes input similar like in query mode, but rather than output the results directly, it
+associates the variants found with the items in the lexicon and updates the model with this information. The output this
+mode provides is effectively the inverse of what query does; for each item in the lexicon, all variants that were found
+(and their scores are listed). This output constitutes a weighted variant list which can be loaded in again using
+``--weighted-variants``.
 
-The learned variants are used as intermediate words to guide the system towards a desired solution. Assume for instance that our lexicon contains the word ``separate``, and we found the variant ``seperate`` in the data during learning. This variant is now associated with the right reference, and on subsequent runs matches against ``seperate`` will count towards matches on ``separate``. This mechanism allows the system to bridge larger edit distances even when it is contrained to smaller ones. For example: ``seperete`` will match against ``seperate`` but not ``separate`` when the edit/anagram distance is constrained to 1.
+The learned variants are used as intermediate words to guide the system towards a desired solution. Assume for instance
+that our lexicon contains the word ``separate``, and we found the variant ``seperate`` in the data during learning. This
+variant is now associated with the right reference, and on subsequent runs matches against ``seperate`` will count
+towards matches on ``separate``. This mechanism allows the system to bridge larger edit distances even when it is
+contrained to smaller ones. For example: ``seperete`` will match against ``seperate`` but not ``separate`` when the
+edit/anagram distance is constrained to 1.
 
 Learn mode may do multiple iterations over the same data (set ``--iterations``). As iterations grow, larger edit distances can be covered, but this is also a source for extra noise so accuracy will go down too.
 
@@ -179,7 +188,10 @@ When using learn mode, make sure to choose tight constraints (e.g. ``--max-match
 
 ### Search Mode
 
-In query mode you provide an exact input string and ask Analiticcl to correct it as a single unit. Query mode effectively implements the *correction* part of a spelling-correction system, but does not really handle the *detection* aspect. This is where *search mode* comes in. In search mode you can provide running text as input and the system will automatically attempt to detect the parts of your input that can corrected, and give the suggestions for correction.
+In query mode you provide an exact input string and ask Analiticcl to correct it as a single unit. Query mode
+effectively implements the *correction* part of a spelling-correction system, but does not really handle the *detection*
+aspect. This is where *search mode* comes in. In search mode you can provide running text as input and the system will
+automatically attempt to detect the parts of your input that can corrected, and give the suggestions for correction.
 
 In the output, Analiticcl will return UTF-8 byte offsets for fragments in your data that it finds variants for. Your
 input does not have to be tokenised, because tokenisation errors in the input may in itself account for variation which
@@ -240,6 +252,42 @@ items in the lexicon carry the exact same weight.
 
 Multiple lexicons may be passed and analiticcl will remember which lexicon was matched against, so you could use this
 information for some simple tagging.
+
+### Variant List
+
+A variant lists explicitly relate spelling variants, and in doing so go a step further than a simple lexicon which only
+specifies the validated or corpus-derived form. There are two types:
+
+#### Unweighted variant list
+
+An unweighted variant list is *undirected*, all words are considered equally valid variant. They are provided in a
+simple TSV file with variants on a line, seperated by a tab. A variant list can be provided to analiticcl using the
+``--variants`` option.
+
+#### Weighted variant list
+
+A weighted variant list is *directed*, it specifies an normalised/preferred form first, and then specifies variants and
+variant scores. Take the following example (all fields are tab separated):
+
+```
+huis	huys	1.0	huijs	1.0
+```
+This states that the preferred word *huis* has two variants (historical spelling in this case), and both have a score
+(0-1) that expresses how likely the variant maps to the preferred word. When loaded into analiticcl with
+``--weighted-variants``, both the preferred form and the variants will be valid results in normalization (as if you
+loaded a lexicon with all three words in it).
+
+What you might be more interested in, is a special flavour of the weighted variant list called an *error list*, loaded
+into analiticcl using ``--errors``. Consider the following example:
+
+```
+separate	seperate	1.0	seperete 1.0
+```
+This states that the preferred word ``seperate`` has two variants that are considered errors. In this case, analiticcl will still match against the variants but
+but they will not be returned as a solution; the preferred variant will be returned as a solution instead. This
+mechanism helps bridge larger edit distances.
+
+Analiticcl can also *output* weighted variant lists, given input lexicons and a text to train on, this occurs when you run it in *learn mode*.
 
 ### Confusable List
 
