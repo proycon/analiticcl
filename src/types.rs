@@ -238,6 +238,8 @@ pub enum NGram {
     UniGram(VocabId),
     BiGram(VocabId, VocabId),
     TriGram(VocabId, VocabId, VocabId),
+    QuadGram(VocabId, VocabId, VocabId, VocabId),
+    QuintGram(VocabId, VocabId, VocabId, VocabId, VocabId),
 }
 
 impl NGram {
@@ -247,7 +249,9 @@ impl NGram {
             1 => Ok(NGram::UniGram(v[0])),
             2 => Ok(NGram::BiGram(v[0],v[1])),
             3 => Ok(NGram::TriGram(v[0],v[1],v[2])),
-            _ => Err("Only supporting unigrams, bigrams and trigrams")
+            4 => Ok(NGram::QuadGram(v[0],v[1],v[2],v[3])),
+            5 => Ok(NGram::QuintGram(v[0],v[1],v[2],v[3],v[4])),
+            _ => Err("Only supporting at most 5-grams")
         }
     }
 
@@ -257,7 +261,9 @@ impl NGram {
             [Some(a)] => Ok(NGram::UniGram(*a)),
             [Some(a),Some(b)] => Ok(NGram::BiGram(*a,*b)),
             [Some(a),Some(b),Some(c)] => Ok(NGram::TriGram(*a,*b,*c)),
-            _ => Err("Only supporting unigrams, bigrams and trigrams")
+            [Some(a),Some(b),Some(c),Some(d)] => Ok(NGram::QuadGram(*a,*b,*c,*d)),
+            [Some(a),Some(b),Some(c),Some(d),Some(e)] => Ok(NGram::QuintGram(*a,*b,*c,*d,*e)),
+            _ => Err("Only supporting at most 5-grams")
         }
     }
 
@@ -274,6 +280,12 @@ impl NGram {
             },
             NGram::TriGram(x,y,z) => {
                 vec!(x,y,z)
+            },
+            NGram::QuadGram(a,b,c,d) => {
+                vec!(a,b,c,d)
+            },
+            NGram::QuintGram(a,b,c,d,e) => {
+                vec!(a,b,c,d,e)
             }
         }
     }
@@ -288,6 +300,8 @@ impl NGram {
             NGram::UniGram(_) => 1,
             NGram::BiGram(..) => 2,
             NGram::TriGram(..) => 3,
+            NGram::QuadGram(..) => 4,
+            NGram::QuintGram(..) => 5,
         }
     }
 
@@ -304,7 +318,15 @@ impl NGram {
             NGram::BiGram(x,y) => {
                 *self = NGram::TriGram(x,y, item);
                 true
-            }
+            },
+            NGram::TriGram(x,y,z) => {
+                *self = NGram::QuadGram(x,y,z, item);
+                true
+            },
+            NGram::QuadGram(a,b,c,d) => {
+                *self = NGram::QuintGram(a,b,c,d, item);
+                true
+            },
             _ => false
         }
     }
@@ -314,7 +336,7 @@ impl NGram {
             NGram::Empty => {
                 None
             },
-            NGram::UniGram(x) | NGram::BiGram(x,_) | NGram::TriGram(x,_,_) => {
+            NGram::UniGram(x) | NGram::BiGram(x,_) | NGram::TriGram(x,_,_) | NGram::QuadGram(x,_,_,_) | NGram::QuintGram(x,_,_,_,_) => {
                 Some(x)
             }
         }
@@ -332,11 +354,19 @@ impl NGram {
             NGram::BiGram(x,y) => {
                 *self = NGram::UniGram(y);
                 NGram::UniGram(x)
-            }
+            },
             NGram::TriGram(x,y,z) => {
                 *self = NGram::BiGram(y,z);
                 NGram::UniGram(x)
-            }
+            },
+            NGram::QuadGram(a,b,c,d) => {
+                *self = NGram::TriGram(b,c,d);
+                NGram::UniGram(a)
+            },
+            NGram::QuintGram(a,b,c,d,e) => {
+                *self = NGram::QuadGram(b,c,d,e);
+                NGram::UniGram(a)
+            },
         }
     }
 
@@ -352,11 +382,19 @@ impl NGram {
             NGram::BiGram(x,y) => {
                 *self = NGram::UniGram(x);
                 NGram::UniGram(y)
-            }
+            },
             NGram::TriGram(x,y,z) => {
                 *self = NGram::BiGram(x,y);
                 NGram::UniGram(z)
-            }
+            },
+            NGram::QuadGram(a,b,c,d) => {
+                *self = NGram::TriGram(a,b,c);
+                NGram::UniGram(d)
+            },
+            NGram::QuintGram(a,b,c,d,e) => {
+                *self = NGram::QuadGram(a,b,c,d);
+                NGram::UniGram(e)
+            },
         }
     }
 }

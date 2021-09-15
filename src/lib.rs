@@ -1814,7 +1814,20 @@ impl VariantModel {
                 self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
                 self.encode_token(iter.next().expect("ngram part"), false, unseen_parts)
             )),
-            _ => simple_error::bail!("Can only deal with n-grams up to order 3")
+            4 => Ok(NGram::QuadGram(
+                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts)
+            )),
+            5 => Ok(NGram::QuintGram(
+                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts)
+            )),
+            _ => simple_error::bail!("Can only deal with n-grams up to order 5")
         }
     }
 
