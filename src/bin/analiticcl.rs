@@ -427,7 +427,7 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
     args.push(Arg::with_name("cutoff-threshold")
         .long("cutoff-threshold")
         .short("T")
-        .help("If a score in variant ranking is this factor worse than the best score, the ranking is cut off at this point and this score and all lower ones are pruned. This is a relative score threshold. Value must be greater than one, or 0 to disable. It will be applied after score reweighing against confusible lists.")
+        .help("If a score in variant ranking is this factor worse than the best score, the ranking is cut off at this point and this score and all lower ones are pruned. This is a relative score threshold. Value must be equal or greater than one, or 0 to disable. It will be applied after score reweighing against confusible lists.")
         .takes_value(true)
         .default_value("2.0")
         .required(false));
@@ -590,7 +590,7 @@ fn main() {
                     .arg(Arg::with_name("debug")
                         .long("debug")
                         .short("D")
-                        .help("Set debug level, can be set to 1 or 2")
+                        .help("Set debug level, can be set in range 0-4")
                         .takes_value(true)
                         .required(false))
                     .get_matches();
@@ -634,7 +634,7 @@ fn main() {
     let mut model = VariantModel::new(
         args.value_of("alphabet").unwrap(),
         weights,
-        rootargs.value_of("debug").unwrap_or("0").parse::<u8>().expect("Debug level should be a 0, 1 or 2")
+        rootargs.value_of("debug").unwrap_or("0").parse::<u8>().expect("Debug level should be integer in range 0-4")
     );
 
     eprintln!("Loading lexicons...");

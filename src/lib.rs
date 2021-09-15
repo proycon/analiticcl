@@ -684,6 +684,10 @@ impl VariantModel {
     where
         I: IntoParallelIterator<Item = &'a (String, Option<u32>)> + IntoIterator<Item = &'a (String, Option<u32>)>,
     {
+        if self.debug >= 1 {
+            eprintln!("(Learning variants)");
+        }
+
         let lexweight = lexweight.unwrap_or(0.75);
         let vocabparams = VocabParams::default().with_vocab_type(VocabType::Intermediate).with_weight(lexweight).with_freq_handling(FrequencyHandling::MaxIfMoreWeight);
 
@@ -699,7 +703,7 @@ impl VariantModel {
         }
 
         if self.debug >= 1 {
-            eprintln!("(adding variants for {} input items to the model)", all_variants.len());
+            eprintln!("(adding variants over {} input items to the model)", all_variants.len());
         }
 
         let mut count = 0;

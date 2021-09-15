@@ -17,7 +17,7 @@ quick lookups possible even over larger edit distances. The underlying idea is l
 (Reynaert 2010; Reynaert 2004), which was implemented in [ticcltools](https://github.com/languagemachines/ticcltools).
 This *analiticcl* implementation attempts to re-implement the core of these ideas from scratch, but also introduces some
 novelties, such as the introduction of prime factors for improved anagram hashing. We aim at a high-performant
-lightweight implementation written in [Rust](https://www.rust-lang.org).
+implementation written in [Rust](https://www.rust-lang.org).
 
 ## Features
 
