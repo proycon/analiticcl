@@ -95,7 +95,7 @@ pub struct SearchParameters {
     pub variantmodel_weight: f32,
 
     /// Consolidate matches and extract a single most likely sequence, if set
-    /// to false, all possibl ematches (including overlapping ones) are returned.
+    /// to false, all possible matches (including overlapping ones) are returned.
     pub consolidate_matches: bool
 }
 
