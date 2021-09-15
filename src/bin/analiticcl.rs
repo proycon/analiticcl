@@ -717,7 +717,7 @@ fn main() {
         max_ngram: if let Some(value) = args.value_of("max-ngram-order") {
             value.parse::<u8>().expect("Max n-gram should be a small integer")
         } else {
-            0
+            1
         },
         lm_weight: if args.is_present("weight-lm") {
             args.value_of("weight-lm").unwrap().parse::<f32>().expect("Language model weight should be a floating point number")

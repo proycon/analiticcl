@@ -185,7 +185,7 @@ impl VariantModel {
 
             //get the anahash
             let anahash = value.text.anahash(&self.alphabet);
-            if self.debug >= 1 {
+            if self.debug >= 2 {
                 eprintln!("   -- Anavalue={} VocabId={} Text={}", &anahash, id, value.text);
             }
             tmp_hashes.push((anahash, id as VocabId));
@@ -561,7 +561,7 @@ impl VariantModel {
     /// Adds an entry in the vocabulary
     pub fn add_to_vocabulary(&mut self, text: &str, frequency: Option<u32>, params: &VocabParams) -> VocabId {
         let frequency = frequency.unwrap_or(1);
-        if self.debug >= 1 {
+        if self.debug >= 2 {
             eprintln!(" -- Adding to vocabulary: {}  ({})", text, frequency);
         }
         if let Some(vocab_id) = self.encoder.get(text) {
@@ -618,7 +618,7 @@ impl VariantModel {
             } else if item.vocabtype == VocabType::Intermediate { //we only override the intermediate type, meaning something can become 'Normal' after having been 'Intermediate', but not vice versa
                 item.vocabtype = params.vocab_type;
             }
-            if self.debug >= 2 {
+            if self.debug >= 3 {
                 eprintln!("    (updated) freq={}, lexweight={}, lexindex={}", item.frequency, item.lexweight, item.lexindex);
             }
             *vocab_id
@@ -635,7 +635,7 @@ impl VariantModel {
                 variants: None,
                 vocabtype: params.vocab_type
             });
-            if self.debug >= 2 {
+            if self.debug >= 3 {
                 eprintln!("    (new) lexweight={}, lexindex={}", params.weight, params.index);
             }
             self.decoder.len() as VocabId - 1
@@ -738,7 +738,7 @@ impl VariantModel {
     pub(crate) fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, normstring: &Vec<u8>, max_distance: u8,  stop_criterion: StopCriterion, cache: Option<&mut HashSet<AnaValue>>) -> HashSet<&'a AnaValue> {
         let mut nearest: HashSet<&AnaValue> = HashSet::new();
 
-        let begintime = if self.debug >= 1 {
+        let begintime = if self.debug >= 2 {
             eprintln!("(finding nearest anagram matches for focus anavalue {}, max_distance={}, stop_criterion={:?})", focus, max_distance, stop_criterion);
             Some(SystemTime::now())
         } else {
@@ -747,7 +747,7 @@ impl VariantModel {
 
         if let Some((matched_anahash, node)) = self.index.get_key_value(focus) {
             //the easiest case, this anahash exists in the model!
-            if self.debug >= 1 {
+            if self.debug >= 2 {
                 eprintln!(" (found exact match)");
             }
             nearest.insert(matched_anahash);
@@ -755,7 +755,7 @@ impl VariantModel {
                 for vocab_id in node.instances.iter() {
                     if let Some(value) = self.decoder.get(*vocab_id as usize) {
                         if value.lexweight >= minlexweight && &value.norm == normstring {
-                            if self.debug >= 1 {
+                            if self.debug >= 2 {
                                 eprintln!(" (stopping early)");
                             }
                             return nearest;
@@ -783,7 +783,7 @@ impl VariantModel {
             } else {
                 lookups.insert(search_charcount as u8, vec!(focus.clone()));
             }
-            if self.debug >= 1 {
+            if self.debug >= 3 {
                 eprintln!(" (scheduling finding insertion at distance {}, charcount {})", distance, search_charcount);
             }
         }
@@ -807,16 +807,16 @@ impl VariantModel {
 
         // Do a breadth first search for deletions
         for (deletion,distance) in iterator {
-            if self.debug >= 1 {
+            if self.debug >= 3 {
                 eprintln!(" (testing deletion at distance {}, charcount {}: anavalue {})", distance, focus_charcount as u32 - distance, deletion.value);
-                if self.debug >= 2 {
+                if self.debug >= 4 {
                     let decomposed: String = self.decompose_anavalue(&deletion.value).join("");
                     eprintln!("  (anavalue decomposition: {})", decomposed);
                 }
             }
 
             if let Some((matched_anahash, _node)) = self.index.get_key_value(&deletion) {
-                if self.debug >= 1 {
+                if self.debug >= 3 {
                     eprintln!("  (deletion matches; anagram exists in index)");
                 }
                 //This deletion exists in the model
@@ -824,13 +824,13 @@ impl VariantModel {
             }
 
             let deletion_charcount = focus_charcount - distance as u16;
-            if self.debug >= 1 {
+            if self.debug >= 3 {
                 eprintln!("  (scheduling search for insertions from deletion result anavalue {})",  deletion.value);
             }
             //Find possible insertions starting from this deletion
             for search_distance in 1..=(max_distance as u16 - distance as u16) {
                 let search_charcount = deletion_charcount + search_distance;
-                if self.debug >= 2 {
+                if self.debug >= 3 {
                     eprintln!("   (search_distance={}, search_charcount={})", search_distance, search_charcount);
                 }
                 if let Some(lookups) = lookups.get_mut(&(search_charcount as u8)) {
@@ -842,7 +842,7 @@ impl VariantModel {
         }
 
 
-        if self.debug >= 1 {
+        if self.debug >= 2 {
             eprintln!("(finding all insertions)");
         }
         let mut count = 0;
@@ -860,12 +860,12 @@ impl VariantModel {
                 }
             }
         }
-        if self.debug >= 1 {
+        if self.debug >= 2 {
             eprintln!(" (added {} out of {} candidates, preventing duplicates)", nearest.len() - beginlength , count);
         }
 
 
-        if self.debug >= 1 {
+        if self.debug >= 2 {
             let endtime = SystemTime::now();
             let duration = endtime.duration_since(begintime.expect("begintime")).expect("clock can't go backwards").as_micros();
             eprint!("(found {} anagram matches in total (in {} μs) for focus anavalue {}: ", nearest.len(), duration, focus);
@@ -884,7 +884,7 @@ impl VariantModel {
         let mut pruned_instances = 0;
         let mut ignored_instances = 0;
 
-        let begintime = if self.debug >= 1 {
+        let begintime = if self.debug >= 2 {
             Some(SystemTime::now())
         } else {
             None
@@ -894,11 +894,11 @@ impl VariantModel {
             let node = self.index.get(anahash).expect("all anahashes from nearest_anagrams must occur in the index");
             for vocab_id in node.instances.iter() {
                 let vocabitem = self.decoder.get(*vocab_id as usize).expect("vocabulary id must exist in the decoder");
-                if self.debug >= 2 {
+                if self.debug >= 4 {
                     eprintln!("  (comparing query {} with instance {})", query, vocabitem.text)
                 }
                 if let Some(ld) = damerau_levenshtein(querystring, &vocabitem.norm, max_edit_distance) {
-                    if self.debug >= 2 {
+                    if self.debug >= 4 {
                         eprintln!("   (ld={})", ld);
                     }
                     //we only get here if we make the max_edit_distance cut-off
@@ -949,7 +949,7 @@ impl VariantModel {
                         ignored_instances += 1;
                     }
                 } else {
-                    if self.debug >= 2 {
+                    if self.debug >= 4 {
                         eprintln!("   (exceeds max_edit_distance {})", max_edit_distance);
                     }
                     pruned_instances += 1;
@@ -957,7 +957,7 @@ impl VariantModel {
             }
         }
         //found_instances.sort_unstable_by_key(|k| k.1 ); //sort by distance, ascending order
-        if self.debug >= 1 {
+        if self.debug >= 2 {
             let endtime = SystemTime::now();
             let duration = endtime.duration_since(begintime.expect("begintime")).expect("clock can't go backwards").as_micros();
             eprintln!("(found {} instances (pruned {} above max_edit_distance {}, ignored {}) over {} anagrams in {} μs)", found_instances.len(), pruned_instances, max_edit_distance, ignored_instances, nearest_anagrams.len(), duration);
@@ -976,7 +976,7 @@ impl VariantModel {
         let mut max_suffixlen = 0;
         let weights_sum = self.weights.sum();
 
-        let begintime = if self.debug >= 1 {
+        let begintime = if self.debug >= 2 {
             eprintln!("(scoring and ranking {} instances)", instances.len());
             Some(SystemTime::now())
         } else {
@@ -1045,11 +1045,11 @@ impl VariantModel {
                 }
                 if score >= score_threshold  {
                     results.push( (*vocab_id, score) );
-                    if self.debug >= 1 {
+                    if self.debug >= 3 {
                         eprintln!("   (variant={}, distance={:?}, score={})", vocabitem.text, distance, score);
                     }
                 } else {
-                    if self.debug >= 1 {
+                    if self.debug >= 3 {
                         eprintln!("   (PRUNED variant={}, distance={:?}, score={})", vocabitem.text, distance, score);
                     }
                 }
@@ -1071,7 +1071,7 @@ impl VariantModel {
             let last_score = results.get(max_matches - 1).expect("get last score").1;
             let cropped_score = results.get(max_matches).expect("get cropped score").1;
             if cropped_score < last_score {
-                if self.debug >= 1 {
+                if self.debug >= 2 {
                     eprintln!("   (truncating {} matches to {})", results.len(), max_matches);
                 }
                 //simplest case, crop at the max_matches
@@ -1091,12 +1091,12 @@ impl VariantModel {
                     }
                 }
                 if early_cutoff > 0 {
-                    if self.debug >= 1 {
+                    if self.debug >= 2 {
                         eprintln!("   (truncating {} matches (early) to {})", results.len(), early_cutoff+1);
                     }
                     results.truncate(early_cutoff+1);
                 } else if late_cutoff > 0 {
-                    if self.debug >= 1 {
+                    if self.debug >= 2 {
                         eprintln!("   (truncating {} matches (late) to {})", results.len(), late_cutoff+1);
                     }
                     results.truncate(late_cutoff+1);
@@ -1128,12 +1128,12 @@ impl VariantModel {
         if cutoff > 0 {
             let l = results.len();
             results.truncate(cutoff);
-            if self.debug >= 1 {
+            if self.debug >= 2 {
                 eprintln!("   (truncating {} matches to {} due to cutoff value)", l, results.len());
             }
         }
 
-        if self.debug >= 1 {
+        if self.debug >= 2 {
             for (i, (vocab_id, score)) in results.iter().enumerate() {
                 if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
                     eprintln!("   (ranked #{}, variant={}, score={})", i+1, vocabitem.text, score);
@@ -1142,7 +1142,7 @@ impl VariantModel {
         }
 
 
-        if self.debug >= 1 {
+        if self.debug >= 2 {
             let endtime = SystemTime::now();
             let duration = endtime.duration_since(begintime.expect("begintime")).expect("clock can't go backwards").as_micros();
             eprintln!(" (scored and ranked {} results in {} μs)", results.len(), duration);
@@ -1153,7 +1153,7 @@ impl VariantModel {
 
     /// Rescores the scored variants by testing against known confusables
     pub fn rescore_confusables(&self, results: &mut Vec<(VocabId,f64)>, input: &str) {
-        if self.debug >= 1 {
+        if self.debug >= 2 {
             eprintln!("   (rescoring with confusable weights)");
         }
         for (vocab_id, score) in results.iter_mut() {
@@ -1170,12 +1170,12 @@ impl VariantModel {
         let mut weight = 1.0;
         if let Some(candidate) = self.decoder.get(candidate as usize) {
             let editscript = shortest_edit_script(input, &candidate.text, false, false, false);
-            if self.debug >= 1 {
+            if self.debug >= 3 {
                 eprintln!("   (editscript {} -> {}: {:?})", input, candidate.text, editscript);
             }
             for confusable in self.confusables.iter() {
                 if confusable.found_in(&editscript) {
-                    if self.debug >= 1 {
+                    if self.debug >= 3 {
                         eprintln!("   (input {} with candidate {} instantiates {:?})", input, &candidate.text, confusable);
                     }
                     weight *= confusable.weight;
@@ -1197,7 +1197,7 @@ impl VariantModel {
             },
             _ => Variant::Unknown(input.to_string())
         };
-        if self.debug >= 1 {
+        if self.debug >= 2 {
             eprintln!("   (adding variant {:?} to reverse index for match {})", variant, matched_vocab_id);
         }
         if let Some(existing_variants) = reverseindex.get_mut(&matched_vocab_id) {
@@ -1228,7 +1228,7 @@ impl VariantModel {
         let boundaries = find_boundaries(text);
         let strengths = classify_boundaries(&boundaries);
 
-        if self.debug >= 1 {
+        if self.debug >= 2 {
             eprintln!("  (boundaries: {:?})", boundaries);
             eprintln!("  ( strenghts: {:?})", strengths);
         }
@@ -1242,7 +1242,7 @@ impl VariantModel {
                 let text_current = &text[begin..boundary.offset.begin];
 
                 let boundaries = &boundaries[begin_index..i+1];
-                if self.debug >= 1 {
+                if self.debug >= 2 {
                     eprintln!("  (found hard boundary at {}:{}: {})", boundary.offset.begin, boundary.offset.end, text_current);
                     for boundary in boundaries.iter() {
                         eprintln!("    (inner boundary {}:{})", boundary.offset.begin, boundary.offset.end);
@@ -1254,7 +1254,7 @@ impl VariantModel {
                 for order in 1..=params.max_ngram {
                     batch_matches.extend(find_match_ngrams(text, boundaries, order, begin, Some(boundary.offset.begin)).into_iter());
                 }
-                if self.debug >= 1 {
+                if self.debug >= 2 {
                     eprintln!("  (processing {} ngrams: {:?})", batch_matches.len(), batch_matches);
                 }
 
@@ -1265,6 +1265,9 @@ impl VariantModel {
                             eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
                         }
                         let variants = self.find_variants(&segment.text, params, None);
+                        if self.debug >= 1 {
+                            eprintln!("   (found {} variants)", variants.len());
+                        }
                         segment.variants = Some(variants);
                     });
                 } else {
@@ -1273,6 +1276,9 @@ impl VariantModel {
                             eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
                         }
                         let variants = self.find_variants(&segment.text, params, None);
+                        if self.debug >= 1 {
+                            eprintln!("    (found {} variants)", variants.len());
+                        }
                         segment.variants = Some(variants);
                     });
                 }
@@ -1313,7 +1319,10 @@ impl VariantModel {
         }
 
         if self.debug >= 1 {
-            eprintln!("(returning {} matches: {:?})", matches.len(), matches);
+            eprintln!("(returning {} matches)", matches.len());
+            if self.debug >= 2 {
+                eprintln!(" (MATCHES={:?})", matches);
+            }
         }
         matches
     }
@@ -1371,7 +1380,7 @@ impl VariantModel {
     /// For simplicity, however, this component is based on the original
     /// input text rather than corrected output from other parts.
     fn rescore_input_context<'a>(&self, matches: &mut Vec<Match<'a>>, boundaries: &[Match<'a>], params: &SearchParameters) {
-        if self.debug >= 1 {
+        if self.debug >= 2 {
             eprintln!("   (rescoring variants according to input context)");
         }
         self.set_match_boundaries(matches, boundaries);
@@ -1415,7 +1424,7 @@ impl VariantModel {
                     }
                 }
             }
-            if self.debug >= 1 {
+            if self.debug >= 2 {
                 eprintln!("    (processing {} variants for match {}, best_perplexity={})", perplexities.len(), i+1, best_perplexity);
             }
 
@@ -1434,7 +1443,7 @@ impl VariantModel {
                 let oldscore = *score;
                 *score = ((score.ln() + params.context_weight as f64 * lmscore.ln()) / (1.0 + params.context_weight) as f64).exp();
                 //                      fixed weight for variant model ------------------^
-                if self.debug >= 1 {
+                if self.debug >= 3 {
                     if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
                         eprintln!("      (leftcontext={:?}, variant={}, rightcontext={:?}, oldscore={}, score={}, norm_lm_score={}, perplexity={})", context.left, vocabitem.text, context.right, oldscore, score, lmscore, perplexity);
                     }
@@ -1447,7 +1456,7 @@ impl VariantModel {
 
     /// Find the solution that maximizes the variant scores, decodes using a Weighted Finite State Transducer
     fn most_likely_sequence<'a>(&self, matches: Vec<Match<'a>>, boundaries: &[Match<'a>], begin_offset: usize, end_offset: usize, params: &SearchParameters, input_text: &str) -> Vec<Match<'a>> {
-        if self.debug >= 1 {
+        if self.debug >= 2 {
             eprintln!("(building FST for finding most likely sequence in range {}:{})", begin_offset, end_offset);
         }
 
@@ -1476,7 +1485,7 @@ impl VariantModel {
             panic!("no final state found");
         }
 
-        if self.debug >= 1 {
+        if self.debug >= 2 {
             eprintln!(" (added {} states ({} boundaries), not including the start state)", states.len(), boundaries.len());
         }
 
@@ -1487,7 +1496,7 @@ impl VariantModel {
         //add transitions between the boundary states
         for (match_index, m) in matches.iter().enumerate() {
 
-            if self.debug >= 1 {
+            if self.debug >= 2 {
                 symtab_in.add_symbol(m.text); //symbol_index = match_index + 1
             }
 
@@ -1534,7 +1543,7 @@ impl VariantModel {
                         boundary_index: nextboundary.expect("next boundary must exist")
                     });
 
-                    if self.debug >= 1 {
+                    if self.debug >= 3 {
                         let mut variant_text = String::new();
                         variant_text += self.decoder.get(*variant as usize).expect("variant_text").text.as_str();
                         variant_text += format!(" ({})", output_symbol).as_str(); //we encode the output symbol in the text otherwise the symbol table returns the old match
@@ -1562,7 +1571,7 @@ impl VariantModel {
                 //OOV emission cost
                 let cost: f32 = n as f32 + 1.0;
 
-                if self.debug >= 1 {
+                if self.debug >= 3 {
                     eprintln!("   (transition {}->{} with OOV symbol {}->{} and score {})", prevstate, nextstate, input_symbol, output_symbol, cost);
                     let mut variant_text = String::from_str(m.text).expect("from str");
                     variant_text += format!(" ({})", output_symbol).as_str(); //we encode the output symbol in the text otherwise the symbol table returns the old match
@@ -1576,7 +1585,7 @@ impl VariantModel {
         //find the n most likely sequences, note that we only consider the variant scores here,
         //language modelling (considering context) is applied in a separate step later
 
-        if self.debug >= 1 {
+        if self.debug >= 3 {
             eprintln!(" (computed FST: {:?})", fst);
             eprintln!("   (symtab_in={:?})", symtab_in);
             eprintln!("   (symtab_out={:?})", symtab_out);
@@ -1598,7 +1607,7 @@ impl VariantModel {
         for (i, path)  in fst.paths_iter().enumerate() { //iterates over the n shortest path hypotheses (does not return them in weighted order)
             let variant_cost: f32 = *path.weight.value();
             let mut sequence = Sequence::new(variant_cost);
-            if self.debug >= 1 {
+            if self.debug >= 3 {
                 eprintln!("  (#{}, path: {:?})", i+1, path);
             }
             for output_symbol in path.olabels.iter() {
