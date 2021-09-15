@@ -203,7 +203,8 @@ input (using ``--lm``).
 
 ## Data Formats
 
-All input for analiticcl must be UTF-8 encoded and use unix-style line endings.
+All input for analiticcl must be UTF-8 encoded and use unix-style line endings, NFC unicode normalisation is strongly
+recommended.
 
 ### Alphabet File
 
