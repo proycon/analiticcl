@@ -77,6 +77,8 @@ Analiticcl can be run in several **modes**, each is invoked through a subcommand
 * **Index mode** - ``analiticcl index`` - Computes and outputs the anagram index, takes no further input
 * **Learn mode** - ``analiticcl learn`` - Learns variants from the input for each item in the lexicon and outputs a weighted variant list.
 
+In all modes, the performance of the system depends to a large depree on the quality of the lexicons, including the **background lexicon**, the importance of which can not be understated so we dedicate a special section to it later, and the chosen parameters.
+
 ### Query Mode
 
 The query mode takes one input item per line and outputs all variants and their scores found for the given input.
@@ -200,6 +202,14 @@ the system will attempt to resolve. Search mode can look at n-grams to this end,
 context-aware. You can use the ``--max-ngram-order`` parameter to set the maximum n-gram order you want to consider. Any
 setting above 1 enables a language modelling component in Analiticcl, which requires a frequency list of n-grams as
 input (using ``--lm``).
+
+### Background Lexicon
+
+We can not understate the importance of the background lexicon (``--corpus`` parameter) to reduce false positives. Analiticcl will eagerly attempt to match your test input to whatever lexicons you provide. This demands a certain degree of completeness in your lexicons. If your lexicon contains a relatively rare word like "boulder" and not a more common word like "builder", then analiticcl will happily suggest all instantes of "builder" to be "boulder". The risk for this increases as the allowed edit distances increase.
+
+Such background lexicons should also contain morphological variants and not just lemma. Ideally it is derived automatically from a fully spell-checked corpus.
+
+Analiticcl **will not** work for you if you just specify it some small lexicons and no complete enough background lexicons, unless you are sure your test texts have a very constrained limited vocabulary.
 
 ## Data Formats
 
