@@ -248,10 +248,11 @@ pub fn find_match_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8,
 
     //add the last one
     if begin < end {
-        let ngram = Match::new_empty(&text[begin..end], Offset {
+        let mut ngram = Match::new_empty(&text[begin..end], Offset {
                 begin: begin,
                 end: end,
         });
+        ngram.n = order as usize;
         if ngram.internal_boundaries(boundaries).iter().count() == order as usize {
             ngrams.push(ngram);
         }
