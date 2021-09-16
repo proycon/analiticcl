@@ -209,7 +209,7 @@ We can not understate the importance of the background lexicon (``--corpus`` par
 
 Such background lexicons should also contain morphological variants and not just lemma. Ideally it is derived automatically from a fully spell-checked corpus.
 
-Analiticcl **will not** work for you if you just specify it some small lexicons and no complete enough background lexicons, unless you are sure your test texts have a very constrained limited vocabulary.
+Analiticcl **will not** work for you if you just feed it some small lexicons and no complete enough background lexicons, unless you are sure your test texts have a very constrained limited vocabulary.
 
 ## Data Formats
 

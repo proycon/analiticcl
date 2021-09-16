@@ -1254,44 +1254,61 @@ impl VariantModel {
                 }
 
                 //Gather all segments for this batch
-                let mut batch_matches: Vec<Match<'a>> = Vec::new(); //second var in tuple corresponds to the ngram order
+                let mut batch_matches: Vec<Match<'a>> = Vec::new();
                 for order in 1..=params.max_ngram {
-                    batch_matches.extend(find_match_ngrams(text, boundaries, order, begin, Some(boundary.offset.begin)).into_iter());
-                }
-                if self.debug >= 2 {
-                    eprintln!("  (processing {} ngrams: {:?})", batch_matches.len(), batch_matches);
-                }
+                    //Find all n-gram in this order
+                    let mut currentorder_matches: Vec<Match<'a>> = find_match_ngrams(text, boundaries, order, begin, Some(boundary.offset.begin));
+                    if self.debug >= 2 {
+                        eprintln!("  (processing {} {}-grams: {:?})", currentorder_matches.len(), order, currentorder_matches);
+                    }
 
-                //find variants for all segments in this batch (in parallel)
-                if params.single_thread {
-                    batch_matches.iter_mut().for_each(|segment| {
-                        if self.debug >= 1 {
-                            eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
-                        }
-                        let variants = self.find_variants(&segment.text, params, None);
-                        if self.debug >= 1 {
-                            eprintln!("   (found {} variants)", variants.len());
-                        }
-                        segment.variants = Some(variants);
-                    });
-                } else {
-                    batch_matches.par_iter_mut().for_each(|segment| {
-                        if self.debug >= 1 {
-                            eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
-                        }
-                        let variants = self.find_variants(&segment.text, params, None);
-                        if self.debug >= 1 {
-                            eprintln!("    (found {} variants)", variants.len());
-                        }
-                        segment.variants = Some(variants);
-                    });
+                    //find variants for all segments of the current order in this batch
+                    //for higher order matches, we first check if the match is not redundant
+                    //(if the score of the unigrams isn't perfect already)
+                    //so we don't needlessly look up variants we won't use anyway
+                    if params.single_thread {
+                        currentorder_matches.iter_mut().for_each(|segment| {
+                            if order == 1 || !redundant_match(segment, &batch_matches) {
+                                if self.debug >= 1 {
+                                    eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
+                                }
+                                let variants = self.find_variants(&segment.text, params, None);
+                                if self.debug >= 1 {
+                                    eprintln!("   (found {} variants)", variants.len());
+                                }
+                                segment.variants = Some(variants);
+                            } else if self.debug >= 2 {
+                                    eprintln!("   (skipping redundant match: {})", segment.text);
+                            }
+                        });
+                    } else { //(in parallel)
+                        currentorder_matches.par_iter_mut().for_each(|segment| {
+                            if order == 1 || !redundant_match(segment, &batch_matches) {
+                                if self.debug >= 1 {
+                                    eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
+                                }
+                                let variants = self.find_variants(&segment.text, params, None);
+                                if self.debug >= 1 {
+                                    eprintln!("    (found {} variants)", variants.len());
+                                }
+                                segment.variants = Some(variants);
+                            } else if self.debug >= 2 {
+                                    eprintln!("   (skipping redundant match: {})", segment.text);
+                            }
+                        });
+                    }
+
+                    let exhausted = order > 1 && currentorder_matches.iter().all(|segment| segment.variants.is_none());
+                    batch_matches.extend(currentorder_matches.into_iter());
+                    if exhausted {
+                        break;
+                    }
                 }
 
 
                 if params.context_weight > 0.0 {
                     self.rescore_input_context(&mut batch_matches, &boundaries, params);
                 }
-
 
                 let l = matches.len();
                 //consolidate the matches, finding a single segmentation that has the best (highest

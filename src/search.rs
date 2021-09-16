@@ -236,10 +236,11 @@ pub fn find_match_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8,
         if boundary.offset.begin > end {
             break;
         }
-        let ngram = Match::new_empty(&text[begin..boundary.offset.begin], Offset {
+        let mut ngram = Match::new_empty(&text[begin..boundary.offset.begin], Offset {
                 begin: begin,
                 end: boundary.offset.begin,
         });
+        ngram.n = order as usize;
         begin = boundaries.get(i).expect("boundary").offset.end;
         i += 1;
         ngrams.push(ngram);
@@ -259,5 +260,26 @@ pub fn find_match_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8,
     ngrams
 }
 
+
+/// A redundant match is a higher order match which already scores a perfect score when its unigram
+/// components are considered separately.
+pub fn redundant_match<'a>(candidate: &Match<'a>, matches: &[Match<'a>]) -> bool {
+    for refmatch in matches.iter() {
+        if refmatch.n == 1 {
+            if refmatch.offset.begin >= candidate.offset.begin && refmatch.offset.end <= candidate.offset.end {
+                if let Some(variants) = &refmatch.variants {
+                    if variants.get(0).expect("variant").1 < 1.0 {
+                        return false; //non-perfect score, so not redundant
+                    }
+                } else {
+                    return false; //no variants at all, so not redundant
+                }
+            }
+        } else {
+            break; //based on the assumption that all unigrams are at the beginning of the vector! (which should be valid in this implementation)
+        }
+    }
+    true
+}
 
 
