@@ -269,7 +269,7 @@ pub fn redundant_match<'a>(candidate: &Match<'a>, matches: &[Match<'a>]) -> bool
         if refmatch.n == 1 {
             if refmatch.offset.begin >= candidate.offset.begin && refmatch.offset.end <= candidate.offset.end {
                 if let Some(variants) = &refmatch.variants {
-                    if variants.get(0).expect("variant").1 < 1.0 {
+                    if variants.is_empty() || variants.get(0).expect("variant").1 < 1.0 {
                         return false; //non-perfect score, so not redundant
                     }
                 } else {
