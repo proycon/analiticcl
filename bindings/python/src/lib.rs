@@ -3,7 +3,7 @@ extern crate analiticcl as libanaliticcl;
 use rayon::prelude::*;
 use pyo3::prelude::*;
 use pyo3::types::*;
-use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::{PyRuntimeError,PyValueError};
 //use pyo3::wrap_pymodule;
 
 
@@ -86,6 +86,17 @@ impl PyWeights {
 }
 
 
+//should ideally be implemented using FromPyObject but can't do that because libanaliticcl is not considered not crate-internal anymore here
+fn extract_distance_threshold(value: &PyAny) -> PyResult<libanaliticcl::DistanceThreshold> {
+    if let Ok(Some(v)) = value.extract() {
+        Ok(libanaliticcl::DistanceThreshold::Absolute(v))
+    } else if let Ok(Some(v)) = value.extract() {
+        Ok(libanaliticcl::DistanceThreshold::Ratio(v))
+    } else {
+        Err(PyValueError::new_err("Must be an integer expressing an absolute value, or float in range 0-1 expressing a ratio"))
+    }
+}
+
 
 #[pyclass(dict,name="SearchParameters")]
 #[derive(Default,Clone)]
@@ -105,12 +116,12 @@ impl PySearchParameters {
             for (key, value) in kwargs {
                 if let Some(key) = key.extract().unwrap() {
                     match key {
-                        "max_anagram_distance" => if let Ok(Some(value)) = value.extract() {
-                            instance.data.max_anagram_distance = value
-                         },
-                        "max_edit_distance" => if let Ok(Some(value)) = value.extract() {
-                            instance.data.max_edit_distance = value
-                         },
+                        "max_anagram_distance" => if let Ok(v) = extract_distance_threshold(value) {
+                            instance.data.max_anagram_distance = v
+                        },
+                        "max_edit_distance" => if let Ok(v) = extract_distance_threshold(value) {
+                            instance.data.max_edit_distance = v
+                        },
                         "max_matches" => if let Ok(Some(value)) = value.extract() {
                             instance.data.max_matches = value
                          },
@@ -153,9 +164,27 @@ impl PySearchParameters {
     }
 
     #[getter]
-    fn get_max_anagram_distance(&self) -> PyResult<u8> { Ok(self.data.max_anagram_distance) }
+    fn get_max_anagram_distance<'a>(&self, py: Python<'a>) -> PyResult<&'a PyAny> {
+        match self.data.max_anagram_distance {
+            libanaliticcl::DistanceThreshold::Absolute(value) => {
+                Ok(value.into_py(py).into_ref(py))
+            },
+            libanaliticcl::DistanceThreshold::Ratio(value) => {
+                Ok(value.into_py(py).into_ref(py))
+            }
+        }
+    }
     #[getter]
-    fn get_max_edit_distance(&self) -> PyResult<u8> { Ok(self.data.max_edit_distance) }
+    fn get_max_edit_distance<'a>(&self, py: Python<'a>) -> PyResult<&'a PyAny> {
+        match self.data.max_edit_distance {
+            libanaliticcl::DistanceThreshold::Absolute(value) => {
+                Ok(value.into_py(py).into_ref(py))
+            },
+            libanaliticcl::DistanceThreshold::Ratio(value) => {
+                Ok(value.into_py(py).into_ref(py))
+            }
+        }
+    }
     #[getter]
     fn get_max_matches(&self) -> PyResult<usize> { Ok(self.data.max_matches) }
     #[getter]
@@ -175,12 +204,20 @@ impl PySearchParameters {
     #[getter]
     fn get_variantmodel_weight(&self) -> PyResult<f32> { Ok(self.data.variantmodel_weight) }
     #[getter]
-    fn get_consolidate_matches(&self) -> PyResult<bool> { Ok(self.data.consolidate_matches }
+    fn get_consolidate_matches(&self) -> PyResult<bool> { Ok(self.data.consolidate_matches) }
 
     #[setter]
-    fn set_max_anagram_distance(&mut self, value: u8) -> PyResult<()> { self.data.max_anagram_distance = value; Ok(()) }
+    fn set_max_anagram_distance(&mut self, value: &PyAny) -> PyResult<()> {
+        let v = extract_distance_threshold(value)?;
+        self.data.max_anagram_distance = v;
+        Ok(())
+    }
     #[setter]
-    fn set_max_edit_distance(&mut self, value: u8) -> PyResult<()> { self.data.max_edit_distance = value; Ok(()) }
+    fn set_max_edit_distance(&mut self, value: &PyAny) -> PyResult<()> {
+        let v = extract_distance_threshold(value)?;
+        self.data.max_edit_distance = v;
+        Ok(())
+    }
     #[setter]
     fn set_max_matches(&mut self, value: usize) -> PyResult<()> { self.data.max_matches = value; Ok(()) }
     #[setter]

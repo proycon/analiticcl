@@ -40,6 +40,12 @@ pub use crate::confusables::*;
 pub use crate::cache::*;
 pub use crate::search::*;
 
+/// An absolute maximum on the anagram distance, even for long inputs
+const MAX_ANAGRAM_DISTANCE: u8 = 12;
+
+/// An absolute maximum on the edit distance, even for long inputs
+const MAX_EDIT_DISTANCE: u8 = 12;
+
 
 /// The VariantModel is the most high-level model of analiticcl, it holds
 /// all data required for variant matching.
@@ -655,13 +661,20 @@ impl VariantModel {
         let normstring = input.normalize_to_alphabet(&self.alphabet);
         let anahash = input.anahash(&self.alphabet);
 
-        //dynamically computed maximum distance, this will override max_edit_distance
-        //when the number is smaller (for short input strings)
-        let max_dynamic_distance: u8 = (normstring.len() as f64 / 2.0).floor() as u8;
+        let max_anagram_distance: u8 = match params.max_anagram_distance {
+            DistanceThreshold::Ratio(x) => min(
+                (normstring.len() as f32 * x).floor() as u8,
+                MAX_ANAGRAM_DISTANCE, //absolute maximum as a safeguard
+            ),
+            DistanceThreshold::Absolute(x) => min(
+                    x,
+                    (normstring.len() as f64 / 2.0).floor() as u8 //we still override the absolute threshold when dealing with very small inputs
+            )
+        };
 
         //Compute neighbouring anahashes and find the nearest anahashes in the model
         let anahashes = self.find_nearest_anahashes(&anahash, &normstring,
-                                                    min(params.max_anagram_distance, max_dynamic_distance),
+                                                    max_anagram_distance,
                                                     params.stop_criterion,
                                                     if let Some(cache) = cache {
                                                        Some(&mut cache.visited)
@@ -669,9 +682,21 @@ impl VariantModel {
                                                        None
                                                     });
 
+
+        let max_edit_distance: u8 = match params.max_edit_distance {
+            DistanceThreshold::Ratio(x) => min(
+                (normstring.len() as f32 * x).floor() as u8,
+                MAX_EDIT_DISTANCE, //absolute maximum as a safeguard
+            ),
+            DistanceThreshold::Absolute(x) => min(
+                    x,
+                    (normstring.len() as f64 / 2.0).floor() as u8 //we still override the absolute threshold when dealing with very small inputs
+            )
+        };
+
         //Get the instances pertaining to the collected hashes, within a certain maximum distance
         //and compute distances
-        let variants = self.gather_instances(&anahashes, &normstring, input, min(params.max_edit_distance, max_dynamic_distance));
+        let variants = self.gather_instances(&anahashes, &normstring, input, max_edit_distance);
 
         self.score_and_rank(variants, input, params.max_matches, params.score_threshold, params.cutoff_threshold)
     }
@@ -1298,7 +1323,7 @@ impl VariantModel {
                         });
                     }
 
-                    let exhausted = order > 1 && currentorder_matches.iter().all(|segment| segment.variants.is_none());
+                    let exhausted = order > 1 && currentorder_matches.iter().all(|segment| segment.variants.is_none() || segment.variants.as_ref().unwrap().is_empty());
                     batch_matches.extend(currentorder_matches.into_iter());
                     if exhausted {
                         break;

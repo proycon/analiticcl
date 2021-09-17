@@ -701,8 +701,8 @@ fn main() {
     let retain_linebreaks = args.is_present("retain-linebreaks");
 
     let searchparams = SearchParameters {
-        max_anagram_distance: args.value_of("max-anagram-distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255"),
-        max_edit_distance: args.value_of("max-edit-distance").unwrap().parse::<u8>().expect("Anagram distance should be an integer between 0 and 255"),
+        max_anagram_distance: args.value_of("max-anagram-distance").unwrap().parse::<DistanceThreshold>().expect("Anagram distance should be an integer between 0 and 255 (absolute) or a float between 0 and 1 (ratio)"),
+        max_edit_distance: args.value_of("max-edit-distance").unwrap().parse::<DistanceThreshold>().expect("Anagram distance should be an integer between 0 and 255 (absolute) or a float between 0 and 1 (ratio)"),
         max_matches: args.value_of("max-matches").unwrap().parse::<usize>().expect("Maximum matches should should be an integer (0 for unlimited)"),
         score_threshold: args.value_of("score-threshold").unwrap().parse::<f64>().expect("Score threshold should be a floating point number"),
         cutoff_threshold: args.value_of("cutoff-threshold").unwrap().parse::<f64>().expect("Cutoff threshold should be a floating point number"),

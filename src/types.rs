@@ -1,5 +1,8 @@
 use ibig::UBig;
 use std::collections::HashMap;
+use std::str::FromStr;
+use std::io::Error;
+use std::io::ErrorKind;
 
 ///Each type gets assigned an ID integer, carries no further meaning
 pub type VocabId = u64;
@@ -53,13 +56,37 @@ impl Weights {
     }
 }
 
+#[derive(Clone,Copy,Debug)]
+pub enum DistanceThreshold {
+    ///The distance threshold is expressed as a ratio of the total length of the text fragment under consideration, should be in range 0-1
+    Ratio(f32),
+    ///Absolute distance threshold
+    Absolute(u8)
+}
+
+impl FromStr for DistanceThreshold {
+    type Err = std::io::Error;
+
+    fn from_str(s: &str) -> Result<Self, std::io::Error> {
+        if let Ok(num) = s.parse::<u8>() {
+            return Ok(Self::Absolute(num));
+        } else if let Ok(num) = s.parse::<f32>() {
+            if num >= 0.0 && num <= 1.0 {
+                return Ok(Self::Ratio(num))
+            }
+        }
+        Err(Error::new(ErrorKind::InvalidInput, "Input must be integer (absolute threshold) or float between 0.0 and 1.0 (ratio)"))
+    }
+}
+
+
 #[derive(Clone,Debug)]
 pub struct SearchParameters {
-    /// Maximum edit distance (levenshtein-damarau). The maximum edit distance according to Levenshtein-Damarau. Insertions, deletions, substitutions and transposition all have the same cost (1). It is recommended to set this value slightly lower than the maximum anagram distance
-    pub max_anagram_distance: u8,
+    /// Maximum anagram distance. The difference in characters (regardless of order)
+    pub max_anagram_distance: DistanceThreshold,
 
     /// Maximum edit distance (levenshtein-damarau). The maximum edit distance according to Levenshtein-Damarau. Insertions, deletions, substitutions and transposition all have the same cost (1). It is recommended to set this value slightly lower than the maximum anagram distance.
-    pub max_edit_distance: u8,
+    pub max_edit_distance: DistanceThreshold,
 
     /// Number of matches to return per input (set to 0 for unlimited if you want to exhaustively return every possibility within the specified anagram and edit distance)
     pub max_matches: usize,
@@ -102,8 +129,8 @@ pub struct SearchParameters {
 impl Default for SearchParameters {
     fn default() -> Self {
         Self {
-            max_anagram_distance: 3,
-            max_edit_distance: 3,
+            max_anagram_distance: DistanceThreshold::Absolute(3),
+            max_edit_distance: DistanceThreshold::Absolute(3),
             max_matches: 20,
             score_threshold: 0.25,
             cutoff_threshold: 2.0,
@@ -120,11 +147,11 @@ impl Default for SearchParameters {
 }
 
 impl SearchParameters {
-    pub fn with_edit_distance(mut self, distance: u8) -> Self {
+    pub fn with_edit_distance(mut self, distance: DistanceThreshold) -> Self {
         self.max_edit_distance = distance;
         self
     }
-    pub fn with_anagram_distance(mut self, distance: u8) -> Self {
+    pub fn with_anagram_distance(mut self, distance: DistanceThreshold) -> Self {
         self.max_anagram_distance = distance;
         self
     }

@@ -48,8 +48,8 @@ pub fn get_test_alphabet() -> (Alphabet,CharIndexType) {
 
 pub fn get_test_searchparams() -> SearchParameters {
     SearchParameters {
-        max_edit_distance: 2,
-        max_anagram_distance: 2,
+        max_edit_distance: DistanceThreshold::Absolute(2),
+        max_anagram_distance: DistanceThreshold::Absolute(2),
         max_matches: 10,
         stop_criterion: StopCriterion::Exhaustive,
         score_threshold: 0.0,
