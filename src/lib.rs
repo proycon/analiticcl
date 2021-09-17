@@ -1323,11 +1323,7 @@ impl VariantModel {
                         });
                     }
 
-                    let exhausted = order > 1 && currentorder_matches.iter().all(|segment| segment.variants.is_none() || segment.variants.as_ref().unwrap().is_empty());
                     batch_matches.extend(currentorder_matches.into_iter());
-                    if exhausted {
-                        break;
-                    }
                 }
 
 
