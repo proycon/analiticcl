@@ -1618,6 +1618,19 @@ impl VariantModel {
             }
         }
 
+        // add high-cost epsilon transitions between boundaries to ensure the graph always has a complete path
+        for i in 0..boundaries.len() {
+            let nextboundary = i;
+            let prevstate = if i == 0 {
+                start
+            } else {
+                *states.get(i-1).expect("prev state must exist")
+            };
+            let nextstate = *states.get(nextboundary).expect("next state must exist");
+            fst.add_tr(prevstate, Tr::new(0, 0, 100.0, nextstate)).expect("adding transition");
+        }
+
+
         if output_symbols.len() == 1 {
             if self.debug >= 2 {
                 eprintln!("   (no output symbols found, FST not needed, aborting)");
