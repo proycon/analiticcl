@@ -1,3 +1,5 @@
-/target
+target
+bindings/python/target
+bindings/python/build
 *~
 BRAINSTORM*
