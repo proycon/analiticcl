@@ -236,25 +236,31 @@ pub fn find_match_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8,
         if boundary.offset.begin > end {
             break;
         }
-        let mut ngram = Match::new_empty(&text[begin..boundary.offset.begin], Offset {
-                begin: begin,
-                end: boundary.offset.begin,
-        });
-        ngram.n = order as usize;
+        let matchtext = &text[begin..boundary.offset.begin];
+        if !matchtext.is_empty() && matchtext != " " {
+            let mut ngram = Match::new_empty(matchtext, Offset {
+                    begin: begin,
+                    end: boundary.offset.begin,
+            });
+            ngram.n = order as usize;
+            ngrams.push(ngram);
+        }
         begin = boundaries.get(i).expect("boundary").offset.end;
         i += 1;
-        ngrams.push(ngram);
     }
 
     //add the last one
     if begin < end {
-        let mut ngram = Match::new_empty(&text[begin..end], Offset {
-                begin: begin,
-                end: end,
-        });
-        ngram.n = order as usize;
-        if ngram.internal_boundaries(boundaries).iter().count() == order as usize {
-            ngrams.push(ngram);
+        let matchtext = &text[begin..end];
+        if !matchtext.is_empty() && matchtext != " " {
+            let mut ngram = Match::new_empty(matchtext, Offset {
+                    begin: begin,
+                    end: end,
+            });
+            ngram.n = order as usize;
+            if ngram.internal_boundaries(boundaries).iter().count() == order as usize {
+                ngrams.push(ngram);
+            }
         }
     }
 

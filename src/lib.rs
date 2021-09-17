@@ -1567,15 +1567,6 @@ impl VariantModel {
 
             if m.variants.is_some() && !m.variants.as_ref().unwrap().is_empty() {
                 for (variant_index, (variant, score)) in m.variants.as_ref().unwrap().iter().enumerate() {
-                    if n > 1 {
-                        let variant_text = self.decoder.get(*variant as usize).expect("variant_text").text.as_str();
-                        if variant_text == m.text {
-                            //input equals output, this n-gram has no added value
-                            //as it should already be covered by unigrams
-                            continue; //do not add a transition
-                        }
-                    }
-
                     let output_symbol = output_symbols.len();
                     output_symbols.push( OutputSymbol {
                         vocab_id: *variant,
@@ -1589,7 +1580,7 @@ impl VariantModel {
                         let mut variant_text = String::new();
                         variant_text += self.decoder.get(*variant as usize).expect("variant_text").text.as_str();
                         variant_text += format!(" ({})", output_symbol).as_str(); //we encode the output symbol in the text otherwise the symbol table returns the old match
-                        eprintln!("   (transition {}->{} with symbol {}->{} and score {})", prevstate, nextstate, input_symbol, output_symbol, -1.0 * score.ln() as f32);
+                        eprintln!("   (transition state {}->{}: {} ({}) -> {} and score {})", prevstate, nextstate, m.text, input_symbol, variant_text, -1.0 * score.ln() as f32);
                         let osym = symtab_out.add_symbol(variant_text);
                         assert!(osym == output_symbol);
                     }
@@ -1614,14 +1605,25 @@ impl VariantModel {
                 let cost: f32 = n as f32 + 1.0;
 
                 if self.debug >= 3 {
-                    eprintln!("   (transition {}->{} with OOV symbol {}->{} and score {})", prevstate, nextstate, input_symbol, output_symbol, cost);
+                    eprintln!("   (transition state {}->{}: {} ({}) -> OOV ({}) and score {})", prevstate, nextstate, m.text, input_symbol, output_symbol, cost);
                     let mut variant_text = String::from_str(m.text).expect("from str");
                     variant_text += format!(" ({})", output_symbol).as_str(); //we encode the output symbol in the text otherwise the symbol table returns the old match
-                    assert!(symtab_out.add_symbol(m.text) == output_symbol);
+                    let osym = symtab_out.add_symbol(&variant_text);
+                    if osym != output_symbol {
+                        panic!("Output symbol out of sync: {} vs {}, variant_text={}", osym, output_symbol, variant_text);
+                    }
                 }
 
                 fst.add_tr(prevstate, Tr::new(input_symbol, output_symbol, cost, nextstate)).expect("adding transition");
             }
+        }
+
+        if output_symbols.len() == 1 {
+            if self.debug >= 2 {
+                eprintln!("   (no output symbols found, FST not needed, aborting)");
+            }
+            //we have no output symbols, building an FST is not needed, just return the input
+            return matches;
         }
 
         //find the n most likely sequences, note that we only consider the variant scores here,
@@ -1698,7 +1700,7 @@ impl VariantModel {
             if self.debug >= 1 {
                 debug_ranked.as_mut().unwrap().push( (sequence.clone(), norm_lm_score, norm_variant_score, score) );
             }
-            if score > best_score {
+            if score > best_score || best_sequence.is_none() {
                 best_score = score;
                 best_sequence = Some(sequence);
             }
