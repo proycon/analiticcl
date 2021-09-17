@@ -1281,7 +1281,7 @@ impl VariantModel {
                 //Gather all segments for this batch
                 let mut batch_matches: Vec<Match<'a>> = Vec::new();
                 for order in 1..=params.max_ngram {
-                    //Find all n-gram in this order
+                    //Find all n-grams of this order
                     let mut currentorder_matches: Vec<Match<'a>> = find_match_ngrams(text, boundaries, order, begin, Some(boundary.offset.begin));
                     if self.debug >= 2 {
                         eprintln!("  (processing {} {}-grams: {:?})", currentorder_matches.len(), order, currentorder_matches);
@@ -1848,7 +1848,7 @@ impl VariantModel {
     }
 
     /// Decompose a known vocabulary Id into an Ngram
-    fn into_ngram(&self, word: VocabId, unseen_parts: &mut Option<VocabEncoder>) -> Result<NGram,Box<Error>> {
+    fn into_ngram(&self, word: VocabId, unseen_parts: &mut Option<VocabEncoder>) -> Result<NGram,Box<dyn Error>> {
         let word_dec = self.decoder.get(word as usize).expect("word does not exist in decoder");
         let mut iter = word_dec.text.split(" ");
         match word_dec.tokencount {
