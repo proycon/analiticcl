@@ -299,6 +299,15 @@ This states that the preferred word ``seperate`` has two variants that are consi
 but they will not be returned as a solution; the preferred variant will be returned as a solution instead. This
 mechanism helps bridge larger edit distances.
 
+A weighted variant list may also contain an extra column of absolute frequencies, provided that it's consistently
+provided for *all* references and variants:
+
+```
+separate	531	seperate	1.0	4	seperete 1.0	1
+```
+
+Here the reference occurs 531 times, the first misspelling 4 times, and the last variant only 1 time.
+
 Analiticcl can also *output* weighted variant lists, given input lexicons and a text to train on, this occurs when you run it in *learn mode*.
 
 ### Confusable List

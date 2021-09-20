@@ -417,9 +417,9 @@ impl VariantModel {
     /// to the lexicon automatically when necessary. Set VocabType::Intermediate
     /// if you want variants to only be used as an intermediate towards items that
     /// have already been added previously through a more authoritative lexicon.
-    pub fn add_weighted_variant(&mut self, ref_id: VocabId, variant: &str, score: f64, params: &VocabParams) -> bool {
+    pub fn add_weighted_variant(&mut self, ref_id: VocabId, variant: &str, score: f64, freq: Option<u32>, params: &VocabParams) -> bool {
         //all variants by definition are added to the lexicon
-        let variantid = self.add_to_vocabulary(variant, None, &params);
+        let variantid = self.add_to_vocabulary(variant, freq, &params);
         if variantid != ref_id {
             if let Some(vocabvalue) = self.decoder.get_mut(ref_id as usize) {
                 let variantref = VariantReference::WeightedVariant((variantid,score) );
@@ -475,7 +475,7 @@ impl VariantModel {
 
     ///Read a variants list of equally weighted variants from a TSV file
     ///Each line simply contains tab-separated variants and all entries on a single line are
-    ///considered variants. Consumed much less memory than weighted variants.
+    ///considered variants. Consumes much less memory than weighted variants.
     pub fn read_variants(&mut self, filename: &str, params: Option<&VocabParams>) -> Result<(), std::io::Error> {
         let params = if let Some(params) = params {
             let mut p = params.clone();
@@ -510,8 +510,11 @@ impl VariantModel {
     }
 
     ///Read a weighted variant list from a TSV file. Contains a canonical/reference form in the
-    ///first column, and variants with score (two columns) in the following columns. Consumes much more
-    ///memory than equally weighted variants.
+    ///first column, and variants with score (two columns) in the following columns. May also
+    ///contain frequency information (auto detected), in which case the first column has the
+    ///canonical/reference form, the second column the frequency, and all further columns hold
+    ///variants, their score and their frequency (three columns).
+    ///Consumes much more memory than equally weighted variants.
     pub fn read_weighted_variants(&mut self, filename: &str, params: Option<&VocabParams>, intermediate: bool) -> Result<(), std::io::Error> {
         let params = if let Some(params) = params {
             let mut p = params.clone();
@@ -535,21 +538,52 @@ impl VariantModel {
             eprintln!("Reading variants from {}...", filename);
         }
         let mut count = 0;
+        let mut has_freq = None;
         let f = File::open(filename)?;
         let f_buffer = BufReader::new(f);
-        for line in f_buffer.lines() {
+        for (linenr, line) in f_buffer.lines().enumerate() {
+            let linenr = linenr + 1;
             if let Ok(line) = line {
                 if !line.is_empty() {
                     let fields: Vec<&str> = line.split("\t").collect();
-
-                    let reference = fields.get(0).expect("first item");
-                    let ref_id = self.add_to_vocabulary(reference, None, &params);
+                    let reference = fields.get(0).expect(format!("reference item (line {}, column 1, of {})", linenr, filename).as_str());
+                    let freq = if has_freq.is_none() {
+                        //autodetect whether we have frequency information or not
+                        if (fields.len() - 2) % 3 == 0 {
+                            let freq = fields.get(1).expect("second field");
+                            has_freq = Some(true);
+                            match freq.parse::<u32>() {
+                                Ok(freq) => Some(freq),
+                                _ => None
+                            }
+                        } else {
+                            //number of columns not consistent with holding frequency information
+                            has_freq = Some(false);
+                            None
+                        }
+                    } else if has_freq == Some(true) {
+                        let freq = fields.get(1).expect("score of reference item");
+                        Some(freq.parse::<u32>().expect(format!("Frequency must be an integer (line {}, column 2, of {})", linenr, filename).as_str()))
+                    } else {
+                        None
+                    };
+                    let ref_id = self.add_to_vocabulary(reference, freq, &params);
                     let mut iter = fields.iter();
 
-                    while let (Some(variant), Some(score)) = (iter.next(), iter.next()) {
-                        let score = score.parse::<f64>().expect("Scores must be a floating point value");
-                        if self.add_weighted_variant(ref_id, variant, score, if intermediate { &intermediate_params } else { &params } ) {
-                            count += 1;
+                    if has_freq == Some(true) {
+                        while let (Some(variant), Some(score), Some(freq)) = (iter.next(), iter.next(), iter.next()) {
+                            let score = score.parse::<f64>().expect(format!("Variant scores must be a floating point value (line {} of {})", linenr, filename).as_str());
+                            let freq = freq.parse::<u32>().expect(format!("Variant frequency must be an integer (line {} of {})", linenr, filename).as_str());
+                            if self.add_weighted_variant(ref_id, variant, score, Some(freq), if intermediate { &intermediate_params } else { &params } ) {
+                                count += 1;
+                            }
+                        }
+                    } else {
+                        while let (Some(variant), Some(score)) = (iter.next(), iter.next()) {
+                            let score = score.parse::<f64>().expect(format!("Variant scores must be a floating point value (line {} of {})", linenr, filename).as_str());
+                            if self.add_weighted_variant(ref_id, variant, score, None, if intermediate { &intermediate_params } else { &params } ) {
+                                count += 1;
+                            }
                         }
                     }
                 }
@@ -741,7 +775,7 @@ impl VariantModel {
             }
             for (variant, score) in variants {
                 if variant != vocab_id { //ensure we don't add exact matches
-                    if self.add_weighted_variant(variant, inputstr, score, &vocabparams) {
+                    if self.add_weighted_variant(variant, inputstr, score, None, &vocabparams) {
                         count += 1;
                     }
                 }
