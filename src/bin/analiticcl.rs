@@ -485,7 +485,7 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
     args.push(Arg::with_name("max-anagram-distance")
         .long("max-anagram-distance")
         .short("k")
-        .help("Maximum anagram distance. Can either be an absolute value (integer), or a ratio of the input length (float between 0.0 and 1.0). The anagram distance impacts the size of the search space. Each insertion or deletion has cost 1, substitutions can not be seperately tracked so they counts as 2 (deletion+insertion). It is therefore recommended to set this value slightly higher than the max edit distance.")
+        .help("Maximum anagram distance. Can either be an absolute value (integer), or a ratio of the input length (float between 0.0 and 1.0). The anagram distance impacts the size of the search space. Each insertion or deletion has cost 1, substitutions can not be separately tracked so they counts as 2 (deletion+insertion). It is therefore recommended to set this value slightly higher than the max edit distance.")
         .takes_value(true)
         .default_value("3"));
     args.push(Arg::with_name("max-edit-distance")
