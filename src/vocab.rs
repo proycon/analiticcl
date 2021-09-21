@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use bitflags::bitflags;
 
 use crate::types::*;
 
@@ -30,19 +31,34 @@ pub struct VocabValue {
     pub vocabtype: VocabType,
 }
 
-#[derive(Clone,Copy,Debug,PartialEq,Eq)]
-pub enum VocabType {
-    /// A normal vocabulary entry
-    Normal,
+bitflags! {
+    pub struct VocabType: u8 {
+        /// Indexed for variant matching
+        const NONE = 0b00000000;
 
-    /// Marks this entry as intermediate; intermediate entries will only be used to find further explicitly provided variants
-    /// and will never be returned as a solution by itself. For example, all erroneous variants in
-    /// an errorlist are marked as intermediate.
-    Intermediate,
+        /// Indexed for variant matching
+        const INDEXED = 0b00000001;
 
-    /// Reserved for items that will not be added to the index at all
-    /// for language-model entries and for special tokens like BeginOfSentence, EndOfSentence
-    NoIndex,
+        /// Used for Language Modelling
+        const LM = 0b00000010;
+
+        /// Marks this entry as transparent; transparent entries will only be used to find further explicitly provided variants
+        /// and will never be returned as a solution by itself. For example, all erroneous variants in
+        /// an errorlist are marked as intermediate.
+        const TRANSPARENT = 0b00000100;
+    }
+}
+
+impl VocabType {
+    pub fn check(&self, test: VocabType) -> bool {
+        *self & test == test
+    }
+}
+
+impl From<VocabType> for bool {
+    fn from(v: VocabType) -> bool {
+        v != VocabType::NONE
+    }
 }
 
 impl VocabValue {
@@ -98,13 +114,14 @@ pub struct VocabParams {
     pub index: u8,
 }
 
+
 impl Default for VocabParams {
     fn default() -> Self {
         Self {
             text_column: 0,
             freq_column: Some(1),
             freq_handling: FrequencyHandling::Max,
-            vocab_type: VocabType::Normal,
+            vocab_type: VocabType::INDEXED,
             weight: 1.0,
             index: 0,
         }
@@ -140,7 +157,7 @@ pub(crate) fn init_vocab(decoder: &mut VocabDecoder, encoder: &mut HashMap<Strin
         lexweight: 0.0,
         lexindex: 0,
         variants: None,
-        vocabtype: VocabType::NoIndex,
+        vocabtype: VocabType::NONE,
     });
     decoder.push(VocabValue {
         text: "<eos>".to_string(),
@@ -150,7 +167,7 @@ pub(crate) fn init_vocab(decoder: &mut VocabDecoder, encoder: &mut HashMap<Strin
         lexweight: 0.0,
         lexindex: 0,
         variants: None,
-        vocabtype: VocabType::NoIndex,
+        vocabtype: VocabType::NONE,
     });
     decoder.push(VocabValue {
         text: "<unk>".to_string(),
@@ -160,7 +177,7 @@ pub(crate) fn init_vocab(decoder: &mut VocabDecoder, encoder: &mut HashMap<Strin
         lexweight: 0.0,
         lexindex: 0,
         variants: None,
-        vocabtype: VocabType::NoIndex,
+        vocabtype: VocabType::NONE,
     });
     encoder.insert("<bos>".to_string(),BOS);
     encoder.insert("<eos>".to_string(),EOS);

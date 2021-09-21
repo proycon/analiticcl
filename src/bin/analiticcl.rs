@@ -658,7 +658,7 @@ fn main() {
         for filename in args.values_of("lm").unwrap().collect::<Vec<&str>>() {
             model.read_vocabulary(filename, &VocabParams {
                 weight: 0.0,
-                vocab_type: VocabType::NoIndex,
+                vocab_type: VocabType::LM,
                 ..Default::default()
             }).expect(&format!("Error reading lm {}", filename));
         }

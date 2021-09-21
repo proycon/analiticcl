@@ -856,11 +856,11 @@ fn test0702_find_all_matches() {
     model.add_to_vocabulary("are",Some(2),&VocabParams::default());
     model.add_to_vocabulary("right",Some(2),&VocabParams::default());
     model.add_to_vocabulary("are right",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("<bos> I",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
-    model.add_to_vocabulary("I think",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
-    model.add_to_vocabulary("I sink",Some(1),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
-    model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
-    model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    model.add_to_vocabulary("<bos> I",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("I think",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("I sink",Some(1),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
     model.build();
     let matches = model.find_all_matches("I tink you are rihgt", &get_test_searchparams());
     assert!( !matches.is_empty() );
@@ -885,11 +885,11 @@ fn test0703_find_all_matches_linebreak() {
     model.add_to_vocabulary("are",Some(2),&VocabParams::default());
     model.add_to_vocabulary("right",Some(2),&VocabParams::default());
     model.add_to_vocabulary("are right",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("<bos> I",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
-    model.add_to_vocabulary("I think",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
-    model.add_to_vocabulary("I sink",Some(1),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
-    model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
-    model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    model.add_to_vocabulary("<bos> I",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("I think",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("I sink",Some(1),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
     model.build();
     let matches = model.find_all_matches("I tink you are\nrihgt",&get_test_searchparams());
     assert!( !matches.is_empty() );
@@ -916,14 +916,14 @@ fn test0704_find_all_matches_two_batches() {
     model.add_to_vocabulary("am",Some(2),&VocabParams::default());
     model.add_to_vocabulary("sure",Some(2),&VocabParams::default());
     model.add_to_vocabulary("are right",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("<bos> I",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
-    model.add_to_vocabulary("I think",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
-    model.add_to_vocabulary("I sink",Some(1),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
-    model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
-    model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
-    model.add_to_vocabulary("I am",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    model.add_to_vocabulary("<bos> I",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("I think",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("I sink",Some(1),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("I am",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
     // "am sure" -> model has to figure this one out itself using an unknown transition
-    model.add_to_vocabulary("sure <eos>",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    model.add_to_vocabulary("sure <eos>",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
     model.build();
     let matches = model.find_all_matches("I tink you are rihgt\n\nI am sur", &get_test_searchparams());
     assert!( !matches.is_empty() );
@@ -955,11 +955,11 @@ fn test0705_find_all_matches_context_only() {
     model.add_to_vocabulary("are",Some(2),&VocabParams::default());
     model.add_to_vocabulary("right",Some(2),&VocabParams::default());
     model.add_to_vocabulary("are right",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("<bos> I",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
-    model.add_to_vocabulary("I think",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
-    model.add_to_vocabulary("I sink",Some(1),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
-    model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
-    model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::NoIndex, ..VocabParams::default() });
+    model.add_to_vocabulary("<bos> I",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("I think",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("I sink",Some(1),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
     model.build();
     let mut params = get_test_searchparams();
     params.context_weight = 0.5; //half of the variant model
@@ -986,7 +986,7 @@ fn test0801_model_variants() {
     for text in lexicon.iter() {
         model.add_to_vocabulary(text,None,&VocabParams::default());
     }
-    model.add_variants(&vec!("tries", "attempts"), &VocabParams::default().with_vocab_type(VocabType::Intermediate));
+    model.add_variants(&vec!("tries", "attempts"), &VocabParams::default().with_vocab_type(VocabType::TRANSPARENT | VocabType::INDEXED));
     model.build();
     assert!(model.has(&"tries"));
     assert!(model.has(&"attempts"));

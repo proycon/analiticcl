@@ -285,10 +285,11 @@ impl PyVocabParams {
                              }
                          },
                          "vocabtype" => if let Ok(Some(value)) = value.extract() {
-                             match value {
-                                 "normal" => instance.data.vocab_type = libanaliticcl::VocabType::Normal,
-                                 "intermediate" => instance.data.vocab_type = libanaliticcl::VocabType::Intermediate,
-                                 "noindex" => instance.data.vocab_type = libanaliticcl::VocabType::NoIndex,
+                             match value.upper() {
+                                 "NONE" => instance.data.vocab_type = libanaliticcl::VocabType::NONE,
+                                 "INDEXED" => instance.data.vocab_type = libanaliticcl::VocabType::INDEXED,
+                                 "TRANSPARENT" => instance.data.vocab_type = libanaliticcl::VocabType::TRANSPARENT | libanaliticcl::VocabType::INDEXED,
+                                 "LM" => instance.data.vocab_type = libanaliticcl::VocabType::LM,
                                  _ =>  eprintln!("WARNING: Ignored unknown value for VocabParams.vocabtype ({})", value),
                             }
                         },
@@ -384,7 +385,7 @@ impl PyVariantModel {
     /// Higher order function to load a language model and make it available to the model.
     /// Wraps around read_vocabulary() with default parameters.
     fn read_lm(&mut self, filename: &str) -> PyResult<()> {
-        match self.model.read_vocabulary(filename, &libanaliticcl::VocabParams::default().with_weight(0.0).with_vocab_type(libanaliticcl::VocabType::NoIndex)) {
+        match self.model.read_vocabulary(filename, &libanaliticcl::VocabParams::default().with_weight(0.0).with_vocab_type(libanaliticcl::VocabType::LM)) {
             Ok(_) => Ok(()),
             Err(e) => Err(PyRuntimeError::new_err(format!("{}", e)))
         }

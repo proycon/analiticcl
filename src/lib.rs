@@ -178,23 +178,18 @@ impl VariantModel {
 
         eprintln!("Computing anagram values for all items in the lexicon...");
 
-
-
         // Hash all strings in the lexicon
         // and add them to the index
         let mut tmp_hashes: Vec<(AnaValue,VocabId)> = Vec::with_capacity(self.decoder.len());
         for (id, value)  in self.decoder.iter().enumerate() {
-            if value.vocabtype == VocabType::NoIndex {
-                //don't process special vocabulary types (bos, eos, etc)
-                continue;
+            if value.vocabtype.check(VocabType::INDEXED) {
+                //get the anahash
+                let anahash = value.text.anahash(&self.alphabet);
+                if self.debug >= 2 {
+                    eprintln!("   -- Anavalue={} VocabId={} Text={}", &anahash, id, value.text);
+                }
+                tmp_hashes.push((anahash, id as VocabId));
             }
-
-            //get the anahash
-            let anahash = value.text.anahash(&self.alphabet);
-            if self.debug >= 2 {
-                eprintln!("   -- Anavalue={} VocabId={} Text={}", &anahash, id, value.text);
-            }
-            tmp_hashes.push((anahash, id as VocabId));
         }
         eprintln!(" - Found {} instances",tmp_hashes.len());
 
@@ -257,7 +252,7 @@ impl VariantModel {
             for (part, id) in unseen_parts {
                 self.add_ngram(NGram::UniGram(id), 1);
                 self.encoder.insert(part.clone(), id);
-                self.decoder.push(VocabValue::new(part, VocabType::NoIndex));
+                self.decoder.push(VocabValue::new(part, VocabType::LM));
             }
         }
     }
@@ -387,14 +382,13 @@ impl VariantModel {
     }
 
     /// Add a cluster of equally weighted variants. Items will be added
-    /// to the lexicon automatically when necessary. Set VocabType::Intermediate
+    /// to the lexicon automatically when necessary. Set VocabType::TRANSPARENT
     /// if you want variants to only be used as an intermediate towards items that
     /// have already been added previously through a more authoritative lexicon.
     pub fn add_variants(&mut self, variants: &Vec<&str>, params: &VocabParams) {
         let mut ids: Vec<VocabId> = Vec::new();
         let clusterid = self.variantclusters.len() as VariantClusterId;
         for variant in variants.iter() {
-            //all variants by definition are added to the combined lexicon
             let variantid = self.add_to_vocabulary(variant, None, params);
             ids.push(variantid);
             if let Some(vocabvalue) = self.decoder.get_mut(variantid as usize) {
@@ -414,16 +408,15 @@ impl VariantModel {
     /// Add a weighted variant to the model, referring to a reference that already exists in
     /// the model.
     /// Variants will be added
-    /// to the lexicon automatically when necessary. Set VocabType::Intermediate
+    /// to the lexicon automatically when necessary. Set VocabType::TRANSPARENT
     /// if you want variants to only be used as an intermediate towards items that
     /// have already been added previously through a more authoritative lexicon.
     pub fn add_weighted_variant(&mut self, ref_id: VocabId, variant: &str, score: f64, freq: Option<u32>, params: &VocabParams) -> bool {
-        //all variants by definition are added to the lexicon
         let variantid = self.add_to_vocabulary(variant, freq, &params);
         if variantid != ref_id {
             if let Some(vocabvalue) = self.decoder.get_mut(ref_id as usize) {
                 let variantref = VariantReference::WeightedVariant((variantid,score) );
-                vocabvalue.vocabtype = params.vocab_type;
+                vocabvalue.vocabtype &= params.vocab_type;
                 if vocabvalue.variants.is_none() {
                     vocabvalue.variants = Some(vec!(variantref));
                     return true;
@@ -515,7 +508,7 @@ impl VariantModel {
     ///canonical/reference form, the second column the frequency, and all further columns hold
     ///variants, their score and their frequency (three columns).
     ///Consumes much more memory than equally weighted variants.
-    pub fn read_weighted_variants(&mut self, filename: &str, params: Option<&VocabParams>, intermediate: bool) -> Result<(), std::io::Error> {
+    pub fn read_weighted_variants(&mut self, filename: &str, params: Option<&VocabParams>, transparent: bool) -> Result<(), std::io::Error> {
         let params = if let Some(params) = params {
             let mut p = params.clone();
             p.index = self.lexicons.len() as u8;
@@ -526,9 +519,9 @@ impl VariantModel {
                 ..Default::default()
             }
         };
-        let intermediate_params = if intermediate {
+        let transparent_params = if transparent {
             let mut p = params.clone();
-            p.vocab_type = VocabType::Intermediate;
+            p.vocab_type |= VocabType::TRANSPARENT;
             p
         } else {
             params.clone()
@@ -575,7 +568,7 @@ impl VariantModel {
                         while let (Some(variant), Some(score), Some(freq)) = (iter.next(), iter.next(), iter.next()) {
                             let score = score.parse::<f64>().expect(format!("Variant scores must be a floating point value (line {} of {})", linenr, filename).as_str());
                             let freq = freq.parse::<u32>().expect(format!("Variant frequency must be an integer (line {} of {}), got {} instead", linenr, filename, freq).as_str());
-                            if self.add_weighted_variant(ref_id, variant, score, Some(freq), if intermediate { &intermediate_params } else { &params } ) {
+                            if self.add_weighted_variant(ref_id, variant, score, Some(freq), if transparent { &transparent_params } else { &params } ) {
                                 count += 1;
                             }
                         }
@@ -583,7 +576,7 @@ impl VariantModel {
                         iter.next();
                         while let (Some(variant), Some(score)) = (iter.next(), iter.next()) {
                             let score = score.parse::<f64>().expect(format!("Variant scores must be a floating point value (line {} of {})", linenr, filename).as_str());
-                            if self.add_weighted_variant(ref_id, variant, score, None, if intermediate { &intermediate_params } else { &params } ) {
+                            if self.add_weighted_variant(ref_id, variant, score, None, if transparent { &transparent_params } else { &params } ) {
                                 count += 1;
                             }
                         }
@@ -656,9 +649,10 @@ impl VariantModel {
                 item.lexindex = params.index;
             }
             if vocab_id == &BOS || vocab_id == &EOS || vocab_id == &UNK {
-                item.vocabtype = VocabType::NoIndex; //by definition
-            } else if item.vocabtype == VocabType::Intermediate { //we only override the intermediate type, meaning something can become 'Normal' after having been 'Intermediate', but not vice versa
-                item.vocabtype = params.vocab_type;
+                item.vocabtype = VocabType::LM; //by definition
+            } else if item.vocabtype.check(VocabType::TRANSPARENT) && !params.vocab_type.check(VocabType::TRANSPARENT) {
+                //we can lose the transparency flag if a later lexicon doesn't provide it
+                item.vocabtype ^= VocabType::TRANSPARENT;
             }
             if self.debug >= 3 {
                 eprintln!("    (updated) freq={}, lexweight={}, lexindex={}", item.frequency, item.lexweight, item.lexindex);
@@ -750,7 +744,7 @@ impl VariantModel {
         }
 
         let lexweight = lexweight.unwrap_or(0.75);
-        let vocabparams = VocabParams::default().with_vocab_type(VocabType::Intermediate).with_weight(lexweight).with_freq_handling(FrequencyHandling::MaxIfMoreWeight);
+        let vocabparams = VocabParams::default().with_vocab_type(VocabType::TRANSPARENT).with_weight(lexweight).with_freq_handling(FrequencyHandling::MaxIfMoreWeight);
 
         let mut all_variants: Vec<(&'a str, Option<u32>, Vec<(VocabId,f64)>)> = Vec::new();
         if params.single_thread {
@@ -1008,7 +1002,7 @@ impl VariantModel {
                     }
 
                     //add the original match
-                    if vocabitem.vocabtype == VocabType::Normal {
+                    if vocabitem.vocabtype.check(VocabType::INDEXED) && !vocabitem.vocabtype.check(VocabType::TRANSPARENT) {
                         found_instances.push((*vocab_id,distance));
                     } else {
                         ignored_instances += 1;
