@@ -571,14 +571,16 @@ impl VariantModel {
                     let mut iter = fields.iter();
 
                     if has_freq == Some(true) {
+                        iter.next(); iter.next();
                         while let (Some(variant), Some(score), Some(freq)) = (iter.next(), iter.next(), iter.next()) {
                             let score = score.parse::<f64>().expect(format!("Variant scores must be a floating point value (line {} of {})", linenr, filename).as_str());
-                            let freq = freq.parse::<u32>().expect(format!("Variant frequency must be an integer (line {} of {})", linenr, filename).as_str());
+                            let freq = freq.parse::<u32>().expect(format!("Variant frequency must be an integer (line {} of {}), got {} instead", linenr, filename, freq).as_str());
                             if self.add_weighted_variant(ref_id, variant, score, Some(freq), if intermediate { &intermediate_params } else { &params } ) {
                                 count += 1;
                             }
                         }
                     } else {
+                        iter.next();
                         while let (Some(variant), Some(score)) = (iter.next(), iter.next()) {
                             let score = score.parse::<f64>().expect(format!("Variant scores must be a floating point value (line {} of {})", linenr, filename).as_str());
                             if self.add_weighted_variant(ref_id, variant, score, None, if intermediate { &intermediate_params } else { &params } ) {
