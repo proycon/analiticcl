@@ -21,8 +21,8 @@ pub struct Match<'a> {
     /// The byte offset where this match was found in the larger text
     pub offset: Offset,
 
-    /// The variants for this match (sorted by decreasing score)
-    pub variants: Option<Vec<(VocabId, f64)>>,
+    /// The variants for this match (sorted by decreasing distance score (first score), second score is frequency score)
+    pub variants: Option<Vec<(VocabId, f64, f64)>>,
 
     ///the variant that was selected after searching and ranking (if any)
     pub selected: Option<usize>,
@@ -55,8 +55,9 @@ impl<'a> Match<'a> {
         self.variants.is_none() || self.variants.as_ref().unwrap().is_empty()
     }
 
-    /// Returns the solution if there is one
-    pub fn solution(&self) -> Option<(VocabId,f64)> {
+    /// Returns the solution if there is one. Returns an option containing a VocabId, distance
+    /// score and frequency score.
+    pub fn solution(&self) -> Option<(VocabId,f64,f64)> {
         if let Some(selected) = self.selected {
             self.variants.as_ref().expect("match must have variants when 'selected' is set").get(selected).map(|x| *x)
         } else {

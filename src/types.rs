@@ -29,10 +29,8 @@ pub type Alphabet = Vec<Vec<String>>;
 pub struct Weights {
     pub ld: f64,
     pub lcs: f64,
-    pub freq: f64,
     pub prefix: f64,
     pub suffix: f64,
-    pub lex: f64,
     pub case: f64,
 }
 
@@ -41,10 +39,8 @@ impl Default for Weights {
        Self {
            ld: 1.0,
            lcs: 1.0,
-           freq: 1.0,
            prefix: 1.0,
            suffix: 1.0,
-           lex: 1.0,
            case: 0.2,
         }
    }
@@ -52,7 +48,7 @@ impl Default for Weights {
 
 impl Weights {
     pub fn sum(&self) -> f64 {
-        self.ld + self.lcs + self.freq + self.prefix + self.suffix + self.lex + self.case
+        self.ld + self.lcs + self.prefix + self.suffix + self.case
     }
 }
 
@@ -223,13 +219,6 @@ pub struct Distance {
 
     ///Common suffix length
     pub suffixlen: u16,
-
-    ///Absolute frequency count
-    pub freq: u32,
-
-    ///Lexicon weight (usually simply 1.0 if an item is in a validated lexicon, and 0.0 if in a
-    ///background corpus)
-    pub lex: f32,
 
     ///Is the casing different or not?
     pub samecase: bool,

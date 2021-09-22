@@ -12,7 +12,7 @@ use rayon::prelude::*;
 
 use analiticcl::*;
 
-fn output_matches_as_tsv(model: &VariantModel, input: &str, variants: Option<&Vec<(VocabId, f64)>>, selected: Option<usize>, offset: Option<Offset>, output_lexmatch: bool) {
+fn output_matches_as_tsv(model: &VariantModel, input: &str, variants: Option<&Vec<(VocabId, f64, f64)>>, selected: Option<usize>, offset: Option<Offset>, output_lexmatch: bool) {
     print!("{}",input);
     if let Some(offset) = offset {
         print!("\t{}:{}",offset.begin, offset.end);
@@ -20,7 +20,7 @@ fn output_matches_as_tsv(model: &VariantModel, input: &str, variants: Option<&Ve
     if let Some(variants) = variants {
         if let Some(selected) = selected {
             //output selected value before all others
-            if let Some((vocab_id, score)) = variants.get(selected) {
+            if let Some((vocab_id, score, _freq_score)) = variants.get(selected) {
                 let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
                 print!("\t{}\t{}\t", vocabvalue.text, score);
                 if  output_lexmatch {
@@ -28,7 +28,7 @@ fn output_matches_as_tsv(model: &VariantModel, input: &str, variants: Option<&Ve
                 }
             }
         }
-        for (i, (vocab_id, score)) in variants.iter().enumerate() {
+        for (i, (vocab_id, score, _freq_score)) in variants.iter().enumerate() {
             if selected.is_none() || selected.unwrap() != i { //output all others
                 let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
                 print!("\t{}\t{}\t", vocabvalue.text, score);
@@ -41,7 +41,7 @@ fn output_matches_as_tsv(model: &VariantModel, input: &str, variants: Option<&Ve
     println!();
 }
 
-fn output_matches_as_json(model: &VariantModel, input: &str, variants: Option<&Vec<(VocabId, f64)>>, selected: Option<usize>, offset: Option<Offset>, output_lexmatch: bool, seqnr: usize) {
+fn output_matches_as_json(model: &VariantModel, input: &str, variants: Option<&Vec<(VocabId, f64, f64)>>, selected: Option<usize>, offset: Option<Offset>, output_lexmatch: bool, seqnr: usize) {
     if seqnr > 1 {
         println!(",")
     }
@@ -53,9 +53,10 @@ fn output_matches_as_json(model: &VariantModel, input: &str, variants: Option<&V
         println!(", \"variants\": [ ");
         let l = variants.len();
         if let Some(selected) = selected {
-            if let Some((vocab_id, score)) = variants.get(selected) {
+            if let Some((vocab_id, score, freq_score)) = variants.get(selected) {
                 let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
                 print!("        {{ \"text\": \"{}\", \"score\": {}", vocabvalue.text.replace("\"","\\\""), score);
+                print!(", \"freq_score\": {}", freq_score);
                 if  output_lexmatch {
                     print!(", \"lexicon\": \"{}\"", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
                 }
@@ -66,10 +67,11 @@ fn output_matches_as_json(model: &VariantModel, input: &str, variants: Option<&V
                 }
             }
         }
-        for (i, (vocab_id, score)) in variants.iter().enumerate() {
+        for (i, (vocab_id, score, freq_score)) in variants.iter().enumerate() {
             if selected.is_none() || selected.unwrap() != i { //output all others
                 let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
                 print!("        {{ \"text\": \"{}\", \"score\": {}", vocabvalue.text.replace("\"","\\\""), score);
+                print!(", \"freq_score\": {}", freq_score);
                 if  output_lexmatch {
                     print!(", \"lexicon\": \"{}\"", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
                 }
@@ -467,16 +469,11 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .help("Weight attributed to longest common suffix length in scoring")
         .takes_value(true)
         .default_value("1.0"));
-    args.push(Arg::with_name("weight-freq")
+    /*args.push(Arg::with_name("weight-freq")
         .long("weight-freq")
         .help("Weight attributed to frequency in scoring")
         .takes_value(true)
-        .default_value("1.0"));
-    args.push(Arg::with_name("weight-lex")
-        .long("weight-lex")
-        .help("Weight attributed to items that are in the lexicon, will always be 0 for items only in the corpus")
-        .takes_value(true)
-        .default_value("1.0"));
+        .default_value("1.0"));*/
     args.push(Arg::with_name("weight-case")
         .long("weight-case")
         .help("Weight attributed to a difference in casing")
@@ -620,8 +617,6 @@ fn main() {
         lcs: args.value_of("weight-lcs").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
         prefix: args.value_of("weight-prefix").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
         suffix: args.value_of("weight-suffix").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
-        freq: args.value_of("weight-freq").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
-        lex: args.value_of("weight-lex").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
         case: args.value_of("weight-case").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
     };
 

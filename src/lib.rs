@@ -80,7 +80,7 @@ pub struct VariantModel {
     /// Do we have an LM?
     pub have_lm: bool,
 
-    ///Weights used in scoring
+    ///Weights used in distance scoring
     pub weights: Weights,
 
     /// Stores the names of the loaded lexicons, they will be referenced by index from individual
@@ -178,10 +178,6 @@ impl VariantModel {
     /// Build the anagram index (and secondary index) so the model
     /// is ready for variant matching
     pub fn build(&mut self) {
-        if !self.have_freq {
-            self.weights.freq = 0.0
-        }
-
         eprintln!("Computing anagram values for all items in the lexicon...");
 
         // Hash all strings in the lexicon
@@ -696,8 +692,9 @@ impl VariantModel {
     }
 
     /// Find variants in the vocabulary for a given string (in its totality), returns a vector of vocabulary ID and score pairs
+    /// Returns a vector of three-tuples (VocabId, distance_score, freq_score)
     /// The resulting vocabulary Ids can be resolved through `get_vocab()`
-    pub fn find_variants(&self, input: &str, params: &SearchParameters, cache: Option<&mut Cache>) -> Vec<(VocabId, f64)> {
+    pub fn find_variants(&self, input: &str, params: &SearchParameters, cache: Option<&mut Cache>) -> Vec<(VocabId, f64,f64)> {
 
         if self.index.is_empty()  {
             eprintln!("ERROR: Model has not been built yet! Call build() before find_variants()");
@@ -763,7 +760,7 @@ impl VariantModel {
         let lexweight = lexweight.unwrap_or(0.75);
         let vocabparams = VocabParams::default().with_vocab_type(VocabType::TRANSPARENT).with_weight(lexweight).with_freq_handling(FrequencyHandling::MaxIfMoreWeight);
 
-        let mut all_variants: Vec<(&'a str, Option<u32>, Vec<(VocabId,f64)>)> = Vec::new();
+        let mut all_variants: Vec<(&'a str, Option<u32>, Vec<(VocabId,f64,f64)>)> = Vec::new();
         if params.single_thread {
             all_variants.extend( input.into_iter().map(|(inputstr, freq)| {
                 (inputstr.as_str(), *freq, self.find_variants(inputstr, params, None))
@@ -786,7 +783,7 @@ impl VariantModel {
             if variants.is_empty() {
                 unknown += 1;
             }
-            for (variant, score) in variants {
+            for (variant, score,freq_score) in variants {
                 if variant != vocab_id { //ensure we don't add exact matches
                     if self.add_weighted_variant(variant, inputstr, score, None, &vocabparams) {
                         count += 1;
@@ -954,7 +951,7 @@ impl VariantModel {
     }
 
 
-    /// Gather instances and their edit distances, given a search string (normalised to the alphabet) and anagram hashes
+    /// Gather instances with their edit distances and frequency, given a search string (normalised to the alphabet) and anagram hashes
     pub(crate) fn gather_instances(&self, nearest_anagrams: &HashSet<&AnaValue>, querystring: &[u8], query: &str, max_edit_distance: u8) -> Vec<(VocabId,Distance)> {
         let mut found_instances = Vec::new();
         let mut pruned_instances = 0;
@@ -983,8 +980,6 @@ impl VariantModel {
                         lcs: if self.weights.lcs > 0.0 { longest_common_substring_length(querystring, &vocabitem.norm) } else { 0 },
                         prefixlen: if self.weights.prefix > 0.0 { common_prefix_length(querystring, &vocabitem.norm) } else { 0 },
                         suffixlen: if self.weights.suffix > 0.0 { common_suffix_length(querystring, &vocabitem.norm) } else { 0 },
-                        freq: if self.weights.freq > 0.0 { vocabitem.frequency } else { 0 },
-                        lex: if self.weights.lex > 0.0 { vocabitem.lexweight } else { 0.0 },
                         samecase: if self.weights.case > 0.0 { vocabitem.text.chars().next().expect("first char").is_lowercase() == query.chars().next().expect("first char").is_lowercase() } else { true },
                         prescore: None,
                     };
@@ -1043,9 +1038,9 @@ impl VariantModel {
 
 
 
-    /// Rank and score all variants
-    pub(crate) fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, input: &str, max_matches: usize, score_threshold: f64, cutoff_threshold: f64 ) -> Vec<(VocabId,f64)> {
-        let mut results: Vec<(VocabId,f64)> = Vec::new();
+    /// Rank and score all variants, returns a vector of three-tuples: (VocabId, distance score, frequency score)
+    pub(crate) fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, input: &str, max_matches: usize, score_threshold: f64, cutoff_threshold: f64 ) -> Vec<(VocabId,f64,f64)> {
+        let mut results: Vec<(VocabId,f64,f64)> = Vec::new();
         let mut max_distance = 0;
         let mut max_freq = 0;
         let mut max_prefixlen = 0;
@@ -1096,31 +1091,35 @@ impl VariantModel {
                     0 => 0.0,
                     max_suffixlen => distance.suffixlen as f64 / max_suffixlen as f64
                 };
-                let freq_score: f64 = if self.have_freq && max_freq > 0 {
-                   vocabitem.frequency as f64 / max_freq as f64
-                } else {
-                    1.0
-                };
                 //simple weighted linear combination (arithmetic mean to normalize it again) over all normalized distance factors
                 let mut score = (
                     self.weights.ld * distance_score +
-                    self.weights.freq * freq_score +  //weight will be 0 if there are no frequencies
                     self.weights.lcs * lcs_score +
                     self.weights.prefix * prefix_score +
                     self.weights.suffix * suffix_score +
-                    self.weights.lex * vocabitem.lexweight as f64 +
                     if distance.samecase { self.weights.case } else { 0.0 }
                 ) / weights_sum;
                 if let Some(prescore) = distance.prescore {
                     //variant is already pre-scored (it comes from an explicit weighted variant list), take the prescore into consideration:
                     score = (score + prescore) / 2.0;
                 }
+
+                if self.have_freq && max_freq > 1 {
+                    //take frequency into consideration
+
+                }
+                let freq_score: f64 = if self.have_freq && max_freq > 0 {
+                   vocabitem.frequency as f64 / max_freq as f64
+                } else {
+                    1.0
+                };
+
                 if score.is_nan() {
                     //should never happen
                     panic!("Invalid score (NaN) computed for variant={}, distance={:?}, score={}", vocabitem.text, distance, score);
                 }
                 if score >= score_threshold  {
-                    results.push( (*vocab_id, score) );
+                    results.push( (*vocab_id, score, freq_score) );
                     if self.debug >= 3 {
                         eprintln!("   (variant={}, distance={:?}, score={})", vocabitem.text, distance, score);
                     }
@@ -1137,8 +1136,8 @@ impl VariantModel {
             self.rescore_confusables(&mut results, input);
         }
 
-        //Sort the results
-        results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).expect(format!("partial cmp of {} and {}",a.1,b.1).as_str())); //sort by score, descending order
+        //Sort the results by distance score, descending order
+        self.sort_results(&mut results);
 
 
 
@@ -1184,6 +1183,7 @@ impl VariantModel {
         //rescore with confusable weights (LATE, default)
         if !self.confusables.is_empty() && !self.confusables_before_pruning {
             self.rescore_confusables(&mut results, input);
+            self.sort_results(&mut results);
         }
 
         // apply the cutoff threshold
@@ -1210,9 +1210,9 @@ impl VariantModel {
         }
 
         if self.debug >= 2 {
-            for (i, (vocab_id, score)) in results.iter().enumerate() {
+            for (i, (vocab_id, score, freq_score)) in results.iter().enumerate() {
                 if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
-                    eprintln!("   (ranked #{}, variant={}, score={})", i+1, vocabitem.text, score);
+                    eprintln!("   (ranked #{}, variant={}, distance_score={}, freq_score={})", i+1, vocabitem.text, score, freq_score);
                 }
             }
         }
@@ -1227,15 +1227,36 @@ impl VariantModel {
         results
     }
 
-    /// Rescores the scored variants by testing against known confusables
-    pub fn rescore_confusables(&self, results: &mut Vec<(VocabId,f64)>, input: &str) {
+    /// Rescore results according to confusables
+    pub fn rescore_confusables(&self, results: &mut Vec<(VocabId,f64, f64)>, input: &str) {
         if self.debug >= 2 {
             eprintln!("   (rescoring with confusable weights)");
         }
-        for (vocab_id, score) in results.iter_mut() {
+        for (vocab_id, score, _) in results.iter_mut() {
             *score *= self.compute_confusable_weight(input, *vocab_id);
         }
-        results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).expect(format!("partial cmp of {} and {}",a.1,b.1).as_str())); //sort by score, descending order
+    }
+
+    /// Sorts a result vector of (VocabId, distance_score, freq_score)
+    /// in decreasing order (best result first)
+    pub fn sort_results(&self, results: &mut Vec<(VocabId,f64, f64)>) {
+        results.sort_unstable_by(|a, b| {
+            //compare distance score
+            if a.1 > b.1 {
+                Ordering::Less
+            } else if a.1 < b.1 {
+                Ordering::Greater
+            } else {
+                //when tied, fall back to frequency score
+                if a.2 > b.2 {
+                    Ordering::Less
+                } else if a.2 < b.2 {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            }
+        });
     }
 
     /// compute weight over known confusables
@@ -1374,9 +1395,9 @@ impl VariantModel {
                 }
 
 
-                if params.context_weight > 0.0 {
+                /*if params.context_weight > 0.0 {
                     self.rescore_input_context(&mut batch_matches, &boundaries, params);
-                }
+                }*/
 
                 let l = matches.len();
                 //consolidate the matches, finding a single segmentation that has the best (highest
@@ -1465,6 +1486,7 @@ impl VariantModel {
     }
 
 
+    /*
     /// Rescores variants by incorporating a language model component in the variant score.
     /// For simplicity, however, this component is based on the original
     /// input text rather than corrected output from other parts.
@@ -1492,7 +1514,7 @@ impl VariantModel {
             perplexities.clear();
             let mut best_perplexity = 99999.0; //to be minimised
             if let Some(variants) = &m.variants {
-                for (variant, _score) in variants.iter() {
+                for (variant, _dist_score, _freq_score) in variants.iter() {
                     if let Ok(mut ngram) = self.into_ngram(*variant, &mut None) {
                         tokens.clear();
                         tokens.push(left);
@@ -1520,7 +1542,7 @@ impl VariantModel {
             let m = matches.get_mut(*i).expect("match must exist");
             for (j, perplexity) in perplexities.iter().enumerate() {
                 let variants = &mut m.variants.as_mut().expect("variants must exist");
-                let (vocab_id, score) = variants.get_mut(j).expect("variant must exist");
+                let (vocab_id, score, freq_score) = variants.get_mut(j).expect("variant must exist");
                 //compute a weighted geometric mean between language model score
                 //and variant model score
 
@@ -1541,6 +1563,7 @@ impl VariantModel {
 
         }
     }
+    */
 
 
     /// Find the solution that maximizes the variant scores, decodes using a Weighted Finite State Transducer
@@ -1613,7 +1636,7 @@ impl VariantModel {
             let nextstate = *states.get(nextboundary.expect("next boundary must exist")).expect("next state must exist");
 
             if m.variants.is_some() && !m.variants.as_ref().unwrap().is_empty() {
-                for (variant_index, (variant, score)) in m.variants.as_ref().unwrap().iter().enumerate() {
+                for (variant_index, (variant, dist_score, _freq_score)) in m.variants.as_ref().unwrap().iter().enumerate() {
                     let output_symbol = output_symbols.len();
                     output_symbols.push( OutputSymbol {
                         vocab_id: *variant,
@@ -1627,15 +1650,15 @@ impl VariantModel {
                         let mut variant_text = String::new();
                         variant_text += self.decoder.get(*variant as usize).expect("variant_text").text.as_str();
                         variant_text += format!(" ({})", output_symbol).as_str(); //we encode the output symbol in the text otherwise the symbol table returns the old match
-                        eprintln!("   (transition state {}->{}: {} ({}) -> {} and score {})", prevstate, nextstate, m.text, input_symbol, variant_text, -1.0 * score.ln() as f32);
+                        eprintln!("   (transition state {}->{}: {} ({}) -> {} and distance score {})", prevstate, nextstate, m.text, input_symbol, variant_text, -1.0 * dist_score.ln() as f32);
                         let osym = symtab_out.add_symbol(variant_text);
                         assert!(osym == output_symbol);
                     }
 
                     //each transition gets a base cost of n (the number of input tokens it covers)
                     //on top of that cost in the range 0.0 (best) - 1.0 (worst)  expresses the
-                    //variant score (inversely)
-                    let cost: f32 = n as f32 + (1.0 - *score as f32);
+                    //distance score (inversely)
+                    let cost: f32 = n as f32 + (1.0 - *dist_score as f32);
                     fst.add_tr(prevstate, Tr::new(input_symbol, output_symbol, cost, nextstate)).expect("adding transition");
                 }
             } else if n == 1 { //only for unigrams
@@ -1665,7 +1688,7 @@ impl VariantModel {
             }
         }
 
-        // add high-cost epsilon transitions between boundaries to ensure the graph always has a complete path
+        //failsafe: add high-cost epsilon transitions between boundaries to ensure the graph always has a complete path
         for i in 0..boundaries.len() {
             let nextboundary = i;
             let prevstate = if i == 0 {
@@ -1686,7 +1709,7 @@ impl VariantModel {
             return matches;
         }
 
-        //find the n most likely sequences, note that we only consider the variant scores here,
+        //find the n most likely sequences, note that we only consider the distance scores here,
         //language modelling (considering context) is applied in a separate step later
 
         if self.debug >= 3 {
@@ -1719,6 +1742,7 @@ impl VariantModel {
                 sequence.output_symbols.push(output_symbol.clone());
             }
             if self.have_lm && params.lm_weight > 0.0 {
+                //Apply the language model, considers context
                 let (lm_logprob, perplexity) = self.lm_score(&sequence, &boundaries);
                 sequence.lm_logprob = lm_logprob;
                 sequence.perplexity = perplexity;
@@ -1982,7 +2006,7 @@ impl VariantModel {
     /// Gives the vocabitem for this match, always uses the solution (if any) and falls
     /// back to the input text only when no solution was found.
     pub fn match_to_vocabvalue<'a>(&'a self, m: &Match<'a>) -> Option<&'a VocabValue> {
-        if let Some((vocab_id,_)) = m.solution() {
+        if let Some((vocab_id,_,_)) = m.solution() {
             self.decoder.get(vocab_id as usize)
         } else {
             None
