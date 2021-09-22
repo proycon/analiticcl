@@ -31,17 +31,11 @@ impl PyWeights {
                         "lcs" => if let Ok(Some(value)) = value.extract() {
                             instance.weights.lcs = value
                          },
-                        "freq" => if let Ok(Some(value)) = value.extract() {
-                            instance.weights.freq = value
-                         },
                         "prefix" => if let Ok(Some(value)) = value.extract() {
                             instance.weights.prefix = value
                          },
                         "suffix" => if let Ok(Some(value)) = value.extract() {
                             instance.weights.suffix = value
-                         },
-                        "lex" => if let Ok(Some(value)) = value.extract() {
-                            instance.weights.lex = value
                          },
                         "case" => if let Ok(Some(value)) = value.extract() {
                             instance.weights.case = value
@@ -59,13 +53,9 @@ impl PyWeights {
     #[getter]
     fn get_lcs(&self) -> PyResult<f64> { Ok(self.weights.lcs) }
     #[getter]
-    fn get_freq(&self) -> PyResult<f64> { Ok(self.weights.freq) }
-    #[getter]
     fn get_prefix(&self) -> PyResult<f64> { Ok(self.weights.prefix) }
     #[getter]
     fn get_suffix(&self) -> PyResult<f64> { Ok(self.weights.suffix) }
-    #[getter]
-    fn get_lex(&self) -> PyResult<f64> { Ok(self.weights.lex) }
     #[getter]
     fn get_case(&self) -> PyResult<f64> { Ok(self.weights.case) }
 
@@ -74,13 +64,9 @@ impl PyWeights {
     #[setter]
     fn set_lcs(&mut self, value: f64) -> PyResult<()> { self.weights.lcs = value; Ok(()) }
     #[setter]
-    fn set_freq(&mut self, value: f64) -> PyResult<()> { self.weights.freq = value; Ok(()) }
-    #[setter]
     fn set_prefix(&mut self, value: f64) -> PyResult<()> { self.weights.prefix = value; Ok(()) }
     #[setter]
     fn set_suffix(&mut self, value: f64) -> PyResult<()> { self.weights.suffix = value; Ok(()) }
-    #[setter]
-    fn set_lex(&mut self, value: f64) -> PyResult<()> { self.weights.lex = value; Ok(()) }
     #[setter]
     fn set_case(&mut self, value: f64) -> PyResult<()> { self.weights.case = value; Ok(()) }
 }
@@ -137,8 +123,14 @@ impl PySearchParameters {
                         "max_seq" => if let Ok(Some(value)) = value.extract() {
                             instance.data.max_seq = value
                          },
-                        "stop_at_exact_match" => if let Ok(Some(value)) = value.extract() {
-                            instance.data.stop_criterion = libanaliticcl::StopCriterion::StopAtExactMatch(value)
+                        "stop_at_exact_match" => {
+                            if let Ok(Some(value)) = value.extract() {
+                                if value {
+                                    instance.data.stop_criterion = libanaliticcl::StopCriterion::StopAtExactMatch;
+                                } else {
+                                    instance.data.stop_criterion = libanaliticcl::StopCriterion::Exhaustive;
+                                }
+                            }
                          },
                         "single_thread" => if let Ok(Some(value)) = value.extract() {
                             instance.data.single_thread = value
@@ -237,8 +229,7 @@ impl PySearchParameters {
     fn set_consolidate_matches(&mut self, value: bool) -> PyResult<()> { self.data.consolidate_matches = value; Ok(()) }
 
     #[setter]
-    fn set_stop_at_exact_match(&mut self, value: f32) -> PyResult<()> { self.data.stop_criterion = libanaliticcl::StopCriterion::StopAtExactMatch(value); Ok(()) }
-
+    fn set_stop_at_exact_match(&mut self, value: bool) -> PyResult<()> { if value { self.data.stop_criterion = libanaliticcl::StopCriterion::StopAtExactMatch; } else { self.data.stop_criterion == libanaliticcl::StopCriterion::Exhaustive; }; Ok(()) }
 }
 
 #[pyclass(dict,name="VocabParams")]
@@ -265,9 +256,6 @@ impl PyVocabParams {
                         "freq_column" => if let Ok(Some(value)) = value.extract() {
                             instance.data.freq_column = value
                          },
-                        "weight" => if let Ok(Some(value)) = value.extract() {
-                            instance.data.weight = value
-                         },
                         "index" => if let Ok(Some(value)) = value.extract() {
                             instance.data.index = value
                          },
@@ -277,15 +265,11 @@ impl PyVocabParams {
                                  "max" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::Max,
                                  "min" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::Min,
                                  "replace" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::Replace,
-                                 "sumifmoreweight" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::SumIfMoreWeight,
-                                 "maxifmoreweight" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::MaxIfMoreWeight,
-                                 "minifmoreweight" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::MinIfMoreWeight,
-                                 "replaceifmoreweight" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::ReplaceIfMoreWeight,
                                  _ =>  eprintln!("WARNING: Ignored unknown value for VocabParams.freqhandling ({})", value),
                              }
                          },
                          "vocabtype" => if let Ok(Some(value)) = value.extract() {
-                             match value.upper() {
+                             match value {
                                  "NONE" => instance.data.vocab_type = libanaliticcl::VocabType::NONE,
                                  "INDEXED" => instance.data.vocab_type = libanaliticcl::VocabType::INDEXED,
                                  "TRANSPARENT" => instance.data.vocab_type = libanaliticcl::VocabType::TRANSPARENT | libanaliticcl::VocabType::INDEXED,
@@ -306,16 +290,12 @@ impl PyVocabParams {
     #[getter]
     fn get_freq_column(&self) -> PyResult<Option<u8>> { Ok(self.data.freq_column) }
     #[getter]
-    fn get_weight(&self) -> PyResult<f32> { Ok(self.data.weight) }
-    #[getter]
     fn get_index(&self) -> PyResult<u8> { Ok(self.data.index) }
 
     #[setter]
     fn set_text_column(&mut self, value: u8) -> PyResult<()> { self.data.text_column = value; Ok(()) }
     #[setter]
     fn set_freq_column(&mut self, value: Option<u8>) -> PyResult<()> { self.data.freq_column = value; Ok(()) }
-    #[setter]
-    fn set_weight(&mut self, value: f32) -> PyResult<()> { self.data.weight = value; Ok(()) }
     #[setter]
     fn set_index(&mut self, value: u8) -> PyResult<()> { self.data.index = value; Ok(()) }
 }
@@ -373,19 +353,10 @@ impl PyVariantModel {
         }
     }
 
-    /// Higher order function to load a corpus background lexicon and make it available to the model.
-    /// Wraps around read_vocabulary() with default parameters.
-    fn read_corpus(&mut self, filename: &str) -> PyResult<()> {
-        match self.model.read_vocabulary(filename, &libanaliticcl::VocabParams::default().with_weight(0.0)) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(PyRuntimeError::new_err(format!("{}", e)))
-        }
-    }
-
     /// Higher order function to load a language model and make it available to the model.
     /// Wraps around read_vocabulary() with default parameters.
     fn read_lm(&mut self, filename: &str) -> PyResult<()> {
-        match self.model.read_vocabulary(filename, &libanaliticcl::VocabParams::default().with_weight(0.0).with_vocab_type(libanaliticcl::VocabType::LM)) {
+        match self.model.read_vocabulary(filename, &libanaliticcl::VocabParams::default().with_vocab_type(libanaliticcl::VocabType::LM)) {
             Ok(_) => Ok(()),
             Err(e) => Err(PyRuntimeError::new_err(format!("{}", e)))
         }
@@ -426,12 +397,13 @@ impl PyVariantModel {
     fn find_variants<'py>(&self, input: &str, params: PyRef<PySearchParameters>, py: Python<'py>) -> PyResult<&'py PyList> {
         let result = PyList::empty(py);
         let results = self.model.find_variants(input, &params.data, None);
-        for (vocab_id,score) in results {
+        for (vocab_id,score,freq_score) in results {
             let dict = PyDict::new(py);
             let vocabvalue = self.model.get_vocab(vocab_id).expect("getting vocab by id");
             let lexicon = self.model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index");
             dict.set_item("text", vocabvalue.text.as_str())?;
             dict.set_item("score", score)?;
+            dict.set_item("freq_score", freq_score)?;
             dict.set_item("lexicon", lexicon.as_str())?;
             result.append(dict)?;
         }
@@ -441,7 +413,7 @@ impl PyVariantModel {
     /// Find variants in the vocabulary for all multiple string items at once, provided in in the input list. Returns a list of variants with scores and their source lexicons. Will use parallellisation under the hood.
     fn find_variants_par<'py>(&self, input: Vec<&str>, params: PyRef<PySearchParameters>, py: Python<'py>) -> PyResult<&'py PyList> {
         let params_data = &params.data;
-        let output: Vec<(&str,Vec<(libanaliticcl::VocabId,f64)>)> = input
+        let output: Vec<(&str,Vec<(libanaliticcl::VocabId,f64, f64)>)> = input
             .par_iter()
             .map(|input_str| {
                 (*input_str, self.model.find_variants(input_str, params_data, None))
@@ -451,12 +423,13 @@ impl PyVariantModel {
             let odict = PyDict::new(py);
             let olist = PyList::empty(py);
             odict.set_item("input", input_str)?;
-            for (vocab_id, score) in variants {
+            for (vocab_id, score, freq_score) in variants {
                 let dict = PyDict::new(py);
                 let vocabvalue = self.model.get_vocab(vocab_id).expect("getting vocab by id");
                 let lexicon = self.model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index");
                 dict.set_item("text", vocabvalue.text.as_str())?;
                 dict.set_item("score", score)?;
+                dict.set_item("freq_score", freq_score)?;
                 dict.set_item("lexicon", lexicon.as_str())?;
                 olist.append(dict)?;
             }
@@ -481,23 +454,25 @@ impl PyVariantModel {
             let olist = PyList::empty(py);
             if let Some(variants) = m.variants {
                 if let Some(selected) = m.selected {
-                    if let Some((vocab_id, score)) = variants.get(selected) {
+                    if let Some((vocab_id, score,freq_score)) = variants.get(selected) {
                         let dict = PyDict::new(py);
                         let vocabvalue = self.model.get_vocab(*vocab_id).expect("getting vocab by id");
                         let lexicon = self.model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index");
                         dict.set_item("text", vocabvalue.text.as_str())?;
                         dict.set_item("score", score)?;
+                        dict.set_item("freq_score", freq_score)?;
                         dict.set_item("lexicon", lexicon.as_str())?;
                         olist.append(dict)?;
                     }
                 }
-                for (i, (vocab_id, score)) in variants.iter().enumerate() {
+                for (i, (vocab_id, score, freq_score)) in variants.iter().enumerate() {
                     if m.selected.is_none() || m.selected.unwrap() != i { //output all others
                         let dict = PyDict::new(py);
                         let vocabvalue = self.model.get_vocab(*vocab_id).expect("getting vocab by id");
                         let lexicon = self.model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index");
                         dict.set_item("text", vocabvalue.text.as_str())?;
                         dict.set_item("score", score)?;
+                        dict.set_item("freq_score", freq_score)?;
                         dict.set_item("lexicon", lexicon.as_str())?;
                         olist.append(dict)?;
                     }

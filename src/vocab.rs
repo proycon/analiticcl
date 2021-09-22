@@ -116,6 +116,7 @@ impl Default for VocabParams {
 }
 
 impl VocabParams {
+    /// Set the vocabulary type (removes any previous values)
     pub fn with_vocab_type(mut self, vocab_type: VocabType) -> Self {
         self.vocab_type = vocab_type;
         self
