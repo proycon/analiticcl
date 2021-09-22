@@ -713,7 +713,7 @@ impl VariantModel {
         //and compute distances
         let variants = self.gather_instances(&anahashes, &normstring, input, max_edit_distance);
 
-        self.score_and_rank(variants, input, params.max_matches, params.score_threshold, params.cutoff_threshold)
+        self.score_and_rank(variants, input, normstring.len(), params.max_matches, params.score_threshold, params.cutoff_threshold)
     }
 
     /// Processes input and finds variants (like [`find_variants()`]), but all variants that are found (which meet
@@ -1007,13 +1007,12 @@ impl VariantModel {
 
 
     /// Rank and score all variants, returns a vector of three-tuples: (VocabId, distance score, frequency score)
-    pub(crate) fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, input: &str, max_matches: usize, score_threshold: f64, cutoff_threshold: f64 ) -> Vec<(VocabId,f64,f64)> {
+    pub(crate) fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, input: &str, input_length: usize, max_matches: usize, score_threshold: f64, cutoff_threshold: f64 ) -> Vec<(VocabId,f64,f64)> {
         let mut results: Vec<(VocabId,f64,f64)> = Vec::new();
-        let mut max_distance = 0;
         let mut max_freq = 0;
-        let mut max_prefixlen = 0;
-        let mut max_suffixlen = 0;
         let weights_sum = self.weights.sum();
+
+        assert!(input_length > 0);
 
         let begintime = if self.debug >= 2 {
             eprintln!("(scoring and ranking {} instances)", instances.len());
@@ -1024,15 +1023,6 @@ impl VariantModel {
 
         //Collect maximum values
         for (vocab_id, distance) in instances.iter() {
-            if distance.ld > max_distance {
-                max_distance = distance.ld;
-            }
-            if distance.prefixlen > max_prefixlen {
-                max_prefixlen = distance.prefixlen;
-            }
-            if distance.suffixlen > max_suffixlen {
-                max_suffixlen = distance.suffixlen;
-            }
             if self.have_freq {
                 if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
                     if vocabitem.frequency > max_freq {
@@ -1045,21 +1035,17 @@ impl VariantModel {
         //Compute scores
         for (vocab_id, distance) in instances.iter() {
             if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
-                let distance_score: f64 = if max_distance == 0 {
+                //all scores are expressed in relation to the input length
+                let distance_score: f64 = if distance.ld as usize > input_length {
                     0.0
                 } else {
-                    1.0 - (distance.ld as f64 / max_distance as f64)
+                    1.0 - (distance.ld as f64 / input_length as f64)
                 };
-                let lcs_score: f64 = distance.lcs as f64 / vocabitem.norm.len() as f64;
-                let prefix_score: f64 = match max_prefixlen {
-                    0 => 0.0,
-                    max_prefixlen => distance.prefixlen as f64 / max_prefixlen as f64
-                };
-                let suffix_score: f64 = match max_suffixlen {
-                    0 => 0.0,
-                    max_suffixlen => distance.suffixlen as f64 / max_suffixlen as f64
-                };
+                let lcs_score: f64 = distance.lcs as f64 / input_length as f64;
+                let prefix_score: f64 = distance.prefixlen as f64 / input_length as f64;
+                let suffix_score: f64 = distance.suffixlen as f64 / input_length as f64;
                 //simple weighted linear combination (arithmetic mean to normalize it again) over all normalized distance factors
+                //expresses a similarity score, sensitive to the length of the input string, and where an exact match by default is 1.0
                 let mut score = (
                     self.weights.ld * distance_score +
                     self.weights.lcs * lcs_score +
@@ -1072,10 +1058,6 @@ impl VariantModel {
                     score = (score + prescore) / 2.0;
                 }
 
-                if self.have_freq && max_freq > 1 {
-                    //take frequency into consideration
-
-                }
                 let freq_score: f64 = if self.have_freq && max_freq > 0 {
                    vocabitem.frequency as f64 / max_freq as f64
                 } else {
