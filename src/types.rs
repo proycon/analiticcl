@@ -37,11 +37,11 @@ pub struct Weights {
 impl Default for Weights {
    fn default() -> Self {
        Self {
-           ld: 1.0,
-           lcs: 1.0,
-           prefix: 1.0,
-           suffix: 1.0,
-           case: 0.2,
+           ld: 0.5,
+           lcs: 0.125,
+           prefix: 0.125,
+           suffix: 0.125,
+           case: 0.125,
         }
    }
 }

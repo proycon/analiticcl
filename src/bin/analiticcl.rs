@@ -445,22 +445,22 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .long("weight-ld")
         .help("Weight attributed to Damarau-Levenshtein distance in scoring")
         .takes_value(true)
-        .default_value("1.0"));
+        .default_value("0.5"));
     args.push(Arg::with_name("weight-lcs")
         .long("weight-lcs")
         .help("Weight attributed to Longest common substring length in scoring")
         .takes_value(true)
-        .default_value("1.0"));
+        .default_value("0.125"));
     args.push(Arg::with_name("weight-prefix")
         .long("weight-prefix")
         .help("Weight attributed to longest common prefix length in scoring")
         .takes_value(true)
-        .default_value("1.0"));
+        .default_value("0.125"));
     args.push(Arg::with_name("weight-suffix")
         .long("weight-suffix")
         .help("Weight attributed to longest common suffix length in scoring")
         .takes_value(true)
-        .default_value("1.0"));
+        .default_value("0.125"));
     /*args.push(Arg::with_name("weight-freq")
         .long("weight-freq")
         .help("Weight attributed to frequency in scoring")
@@ -470,7 +470,7 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .long("weight-case")
         .help("Weight attributed to a difference in casing")
         .takes_value(true)
-        .default_value("0.2"));
+        .default_value("0.125"));
     args.push(Arg::with_name("max-anagram-distance")
         .long("max-anagram-distance")
         .short("k")
