@@ -632,34 +632,6 @@ impl VariantModel {
                     item.lexindex = params.index;
                     item.frequency = frequency;
                 },
-                FrequencyHandling::SumIfMoreWeight => {
-                    if params.weight > item.lexweight {
-                        item.frequency += frequency;
-                    }
-                },
-                FrequencyHandling::MaxIfMoreWeight => {
-                    if params.weight > item.lexweight {
-                        if frequency > item.frequency {
-                            item.frequency  = frequency;
-                        };
-                    }
-                },
-                FrequencyHandling::MinIfMoreWeight => {
-                    if params.weight > item.lexweight {
-                        if frequency < item.frequency {
-                            item.frequency  = frequency;
-                        };
-                    }
-                },
-                FrequencyHandling::ReplaceIfMoreWeight => {
-                    if params.weight > item.lexweight {
-                        item.frequency = frequency;
-                    }
-                },
-            }
-            if params.weight > item.lexweight {
-                item.lexweight = params.weight;
-                item.lexindex = params.index;
             }
             if vocab_id == &BOS || vocab_id == &EOS || vocab_id == &UNK {
                 item.vocabtype = VocabType::LM; //by definition
@@ -668,7 +640,7 @@ impl VariantModel {
                 item.vocabtype ^= VocabType::TRANSPARENT;
             }
             if self.debug >= 3 {
-                eprintln!("    (updated) freq={}, lexweight={}, lexindex={}", item.frequency, item.lexweight, item.lexindex);
+                eprintln!("    (updated) freq={}, lexindex={}", item.frequency, item.lexindex);
             }
             *vocab_id
         } else {
@@ -679,13 +651,12 @@ impl VariantModel {
                 norm: text.normalize_to_alphabet(&self.alphabet),
                 frequency: frequency,
                 tokencount: text.chars().filter(|c| *c == ' ').count() as u8 + 1,
-                lexweight: params.weight,
                 lexindex: params.index,
                 variants: None,
                 vocabtype: params.vocab_type
             });
             if self.debug >= 3 {
-                eprintln!("    (new) lexweight={}, lexindex={}", params.weight, params.index);
+                eprintln!("    (new) lexindex={}", params.index);
             }
             self.decoder.len() as VocabId - 1
         }
@@ -749,7 +720,7 @@ impl VariantModel {
     /// the set thresholds) will be stored in the model rather than returned. Unlike `find_variants()`, this is
     /// invoked with an iterator over multiple inputs and returns no output by itself. It
     /// will automatically apply parallellisation.
-    pub fn learn_variants<'a, I>(&mut self, input: I, params: &SearchParameters, lexweight: Option<f32>, auto_build: bool) -> (usize, usize)
+    pub fn learn_variants<'a, I>(&mut self, input: I, params: &SearchParameters, auto_build: bool) -> (usize, usize)
     where
         I: IntoParallelIterator<Item = &'a (String, Option<u32>)> + IntoIterator<Item = &'a (String, Option<u32>)>,
     {
@@ -757,8 +728,7 @@ impl VariantModel {
             eprintln!("(Learning variants)");
         }
 
-        let lexweight = lexweight.unwrap_or(0.75);
-        let vocabparams = VocabParams::default().with_vocab_type(VocabType::TRANSPARENT).with_weight(lexweight).with_freq_handling(FrequencyHandling::MaxIfMoreWeight);
+        let vocabparams = VocabParams::default().with_vocab_type(VocabType::TRANSPARENT).with_freq_handling(FrequencyHandling::Max);
 
         let mut all_variants: Vec<(&'a str, Option<u32>, Vec<(VocabId,f64,f64)>)> = Vec::new();
         if params.single_thread {
@@ -824,15 +794,13 @@ impl VariantModel {
                 eprintln!(" (found exact match)");
             }
             nearest.insert(matched_anahash);
-            if let StopCriterion::StopAtExactMatch(minlexweight) = stop_criterion {
+            if StopCriterion::StopAtExactMatch == stop_criterion {
                 for vocab_id in node.instances.iter() {
                     if let Some(value) = self.decoder.get(*vocab_id as usize) {
-                        if value.lexweight >= minlexweight && &value.norm == normstring {
-                            if self.debug >= 2 {
-                                eprintln!(" (stopping early)");
-                            }
-                            return nearest;
+                        if self.debug >= 2 {
+                            eprintln!(" (stopping early)");
                         }
+                        return nearest;
                     }
                 }
             }

@@ -262,7 +262,7 @@ fn process_learn(model: &mut VariantModel, inputstream: impl Read, searchparams:
     }
     let batch_size = batch.len();
     for i in 0..iterations {
-        let (count, unknown) = model.learn_variants(&batch, searchparams, None, true);
+        let (count, unknown) = model.learn_variants(&batch, searchparams, true);
         eprintln!("(Iteration #{}: learned {} variants, unable to match {} input strings out of a total of {})", i+1, count, unknown, batch_size);
         if count == 0 && i+1 < iterations {
             eprintln!("(Halting further iterations)");
@@ -349,19 +349,11 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
     args.push( Arg::with_name("lexicon")
         .long("lexicon")
         .short("l")
-        .help("Lexicon against which all matches are made (may be used multiple times). The lexicon should only contain validated items, if not, use --corpus instead. The lexicon should be a tab separated file with each entry on one line, columns may be used for frequency information. This option may be used multiple times for multiple lexicons. Entries need not be single words but may also be ngrams (space separated tokens).")
+        .help("Lexicon against which all matches are made (may be used multiple times). The lexicon should be a tab separated file with each entry on one line, columns may be used for frequency information. This option may be used multiple times for multiple lexicons. Entries need not be single words but may also be ngrams (space separated tokens).")
         .takes_value(true)
         .number_of_values(1)
         .multiple(true)
-        .required_unless("corpus"));
-    args.push(Arg::with_name("corpus")
-        .long("corpus")
-        .short("f")
-        .help("Corpus-derived lexicon/frequency list against which matches are made (may be used multiple times). Format is the same as for --lexicon. The only difference between --lexicon and --corpus is that items from corpus a lexicon loaded through --corpus is given less weight. This option may be used multiple times.")
-        .takes_value(true)
-        .number_of_values(1)
-        .multiple(true)
-        .required_unless("lexicon"));
+        .required_unless("weighted-variants"));
     args.push(Arg::with_name("variants")
         .long("variants")
         .short("V")
@@ -416,8 +408,8 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
     args.push(Arg::with_name("stop-exact")
         .short("s")
         .long("stop-exact")
-        .help("Do not continue looking for variants once an exact match has been found. This significantly speeds up the process. This takes a floating point parameter that specifies the minimum lexicon weight that must be adhered to for the process to actually stop (set to 0.0 to apply equally to all lexicons, 1.0 to only apply to verified lexicons)")
-        .takes_value(true)
+        .help("Do not continue looking for variants once an exact match has been found. This significantly speeds up the process.")
+        .takes_value(false)
         .required(false));
     args.push(Arg::with_name("score-threshold")
         .long("score-threshold")
@@ -645,20 +637,9 @@ fn main() {
             model.read_vocabulary(filename, &VocabParams::default()).expect(&format!("Error reading lexicon {}", filename));
         }
     }
-
-    if args.is_present("corpus") {
-        for filename in args.values_of("corpus").unwrap().collect::<Vec<&str>>() {
-            model.read_vocabulary(filename, &VocabParams {
-                weight: 0.0,
-                ..Default::default()
-            }).expect(&format!("Error reading corpus lexicon {}", filename));
-        }
-    }
-
     if args.is_present("lm") {
         for filename in args.values_of("lm").unwrap().collect::<Vec<&str>>() {
             model.read_vocabulary(filename, &VocabParams {
-                weight: 0.0,
                 vocab_type: VocabType::LM,
                 ..Default::default()
             }).expect(&format!("Error reading lm {}", filename));
@@ -708,8 +689,7 @@ fn main() {
         score_threshold: args.value_of("score-threshold").unwrap().parse::<f64>().expect("Score threshold should be a floating point number"),
         cutoff_threshold: args.value_of("cutoff-threshold").unwrap().parse::<f64>().expect("Cutoff threshold should be a floating point number"),
         stop_criterion: if args.is_present("stop-exact") {
-            let minlexweight = args.value_of("stop-exact").unwrap().parse::<f32>().expect("Value for --stop-exact must be a floating point value");
-            StopCriterion::StopAtExactMatch(minlexweight)
+            StopCriterion::StopAtExactMatch
         } else {
             StopCriterion::Exhaustive
         },

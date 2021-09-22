@@ -16,10 +16,6 @@ pub struct VocabValue {
     /// The number of words
     pub tokencount: u8,
 
-    /// The weight assigned by the lexicon as a whole
-    /// (usually 1.0 for validated lexicons and 0.0 for backgrond corpora)
-    pub lexweight: f32,
-
     /// The first lexicon index which matches
     pub lexindex: u8,
 
@@ -69,7 +65,6 @@ impl VocabValue {
             norm: Vec::new(),
             frequency: 1, //smoothing
             tokencount,
-            lexweight: 0.0,
             lexindex: 0,
             variants: None,
             vocabtype,
@@ -85,7 +80,6 @@ pub type VocabDecoder = Vec<VocabValue>;
 pub type VocabEncoder = HashMap<String, VocabId>;
 
 ///Frequency handling in case of duplicate items (may be across multiple lexicons), the
-///``*IfMoreWeight`` variants only apply when the item to be added has a higher lexicon weight
 ///associated with it.
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub enum FrequencyHandling {
@@ -93,10 +87,6 @@ pub enum FrequencyHandling {
     Max,
     Min,
     Replace,
-    SumIfMoreWeight,
-    MaxIfMoreWeight,
-    MinIfMoreWeight,
-    ReplaceIfMoreWeight,
 }
 
 #[derive(Clone,Debug)]
@@ -108,8 +98,6 @@ pub struct VocabParams {
     ///Frequency handling in case of duplicate items (may be across multiple lexicons)
     pub freq_handling: FrequencyHandling,
     pub vocab_type: VocabType,
-    /// Lexicon weight
-    pub weight: f32,
     /// Lexicon index
     pub index: u8,
 }
@@ -122,17 +110,12 @@ impl Default for VocabParams {
             freq_column: Some(1),
             freq_handling: FrequencyHandling::Max,
             vocab_type: VocabType::INDEXED,
-            weight: 1.0,
             index: 0,
         }
     }
 }
 
 impl VocabParams {
-    pub fn with_weight(mut self, weight: f32) -> Self {
-        self.weight = weight;
-        self
-    }
     pub fn with_vocab_type(mut self, vocab_type: VocabType) -> Self {
         self.vocab_type = vocab_type;
         self
@@ -154,7 +137,6 @@ pub(crate) fn init_vocab(decoder: &mut VocabDecoder, encoder: &mut HashMap<Strin
         norm: vec!(),
         frequency: 0,
         tokencount: 1,
-        lexweight: 0.0,
         lexindex: 0,
         variants: None,
         vocabtype: VocabType::NONE,
@@ -164,7 +146,6 @@ pub(crate) fn init_vocab(decoder: &mut VocabDecoder, encoder: &mut HashMap<Strin
         norm: vec!(),
         frequency: 0,
         tokencount: 1,
-        lexweight: 0.0,
         lexindex: 0,
         variants: None,
         vocabtype: VocabType::NONE,
@@ -174,7 +155,6 @@ pub(crate) fn init_vocab(decoder: &mut VocabDecoder, encoder: &mut HashMap<Strin
         norm: vec!(),
         frequency: 0,
         tokencount: 1,
-        lexweight: 0.0,
         lexindex: 0,
         variants: None,
         vocabtype: VocabType::NONE,
