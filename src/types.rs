@@ -154,18 +154,18 @@ impl Default for SearchParameters {
 
 impl fmt::Display for SearchParameters {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f," max_anagram_distance={:?}",self.max_anagram_distance);
-        writeln!(f," max_edit_distance={:?}",self.max_edit_distance);
-        writeln!(f," max_matches={}",self.max_matches);
-        writeln!(f," score_threshold={}",self.score_threshold);
-        writeln!(f," cutoff_threshold={}",self.cutoff_threshold);
-        writeln!(f," max_ngram={}",self.max_ngram);
-        writeln!(f," lm_order={}",self.lm_order);
-        writeln!(f," single_thread={}",self.single_thread);
-        writeln!(f," max_seq={}",self.max_seq);
-        writeln!(f," freq_weight={}",self.freq_weight);
-        writeln!(f," lm_weight={}",self.lm_weight);
-        writeln!(f," variantmodel_weight={}",self.variantmodel_weight);
+        writeln!(f," max_anagram_distance={:?}",self.max_anagram_distance)?;
+        writeln!(f," max_edit_distance={:?}",self.max_edit_distance)?;
+        writeln!(f," max_matches={}",self.max_matches)?;
+        writeln!(f," score_threshold={}",self.score_threshold)?;
+        writeln!(f," cutoff_threshold={}",self.cutoff_threshold)?;
+        writeln!(f," max_ngram={}",self.max_ngram)?;
+        writeln!(f," lm_order={}",self.lm_order)?;
+        writeln!(f," single_thread={}",self.single_thread)?;
+        writeln!(f," max_seq={}",self.max_seq)?;
+        writeln!(f," freq_weight={}",self.freq_weight)?;
+        writeln!(f," lm_weight={}",self.lm_weight)?;
+        writeln!(f," variantmodel_weight={}",self.variantmodel_weight)?;
         writeln!(f," consolidate_matches={}",self.consolidate_matches)
     }
 }
