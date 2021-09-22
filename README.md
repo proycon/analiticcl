@@ -32,9 +32,9 @@ implementation written in [Rust](https://www.rust-lang.org).
     * Damerau-Levenshtein
     * Longest common substring
     * Longest common prefix/suffix
-    * Frequency information
-    * Lexicon weight, usually binary (validated or not)
     * Casing difference (boolean)
+  An exact match always has distance score 1.0.
+* Additionally, frequency information can be used to influence ranking.
 * A confusable list with known confusable patterns and weights can be provided. This is used to favour or penalize certain
   confusables in the ranking stage (this weight is applied to the whole score).
 * Rather than look up words in spelling-correction style, users may also output the entire hashed anagram index, or
@@ -122,11 +122,10 @@ $ analiticcl query --lexicon examples/eng.aspell.lexicon --alphabet examples/sim
 output.tsv
 ```
 
-The ``--lexicon`` argument can be specified multiple times for multiple lexicons. When you want to use a corpus-derived
-lexicon, use ``--corpus`` instead (can be used multiple times too). The difference affects only the scoring where
-items from a validated lexicon will be esteemed higher than those from a background corpus. Both types of lexicons may
-contain frequency information (will be used by default when present). In case you are using multiple lexicons, you can
-get analiticcl to output information on which lexicon a match was found in by setting. ``--output-lexmatch``.
+The ``--lexicon`` argument can be specified multiple times for multiple lexicons. Lexicons may
+contain absolute frequency information, but frequencies between multiple lexicons must be balanced! In case you are using multiple lexicons, you can
+get analiticcl to output information on which lexicon a match was found in by setting. ``--output-lexmatch``. The order
+of the lexicons matters; if multiple lexicons contain the same entry, only the first lexicon is returned as a match.
 
 If you want JSON output rather than TSV, use the ``--json`` flag.
 
@@ -205,7 +204,11 @@ input (using ``--lm``).
 
 ### Background Lexicon
 
-We can not understate the importance of the background lexicon (``--corpus`` parameter) to reduce false positives. Analiticcl will eagerly attempt to match your test input to whatever lexicons you provide. This demands a certain degree of completeness in your lexicons. If your lexicon contains a relatively rare word like "boulder" and not a more common word like "builder", then analiticcl will happily suggest all instantes of "builder" to be "boulder". The risk for this increases as the allowed edit distances increase.
+We can not understate the importance of the background lexicon to reduce false positives. Analiticcl will eagerly
+attempt to match your test input to whatever lexicons you provide. This demands a certain degree of completeness in your
+lexicons. If your lexicon contains a relatively rare word like "boulder" and not a more common word like "builder", then
+analiticcl will happily suggest all instantes of "builder" to be "boulder". The risk for this increases as the allowed
+edit distances increase.
 
 Such background lexicons should also contain morphological variants and not just lemma. Ideally it is derived automatically from a fully spell-checked corpus.
 
@@ -257,13 +260,13 @@ file.
 
 ### Lexicon File
 
-The lexicon is a TSV file (tab separated fields) containing either validated words (``--lexicon``) or corpus-derived
-words (``--corpus``), one lexicon entry per line. The first column typically (this is configurable) contains the word
+The lexicon is a TSV file (tab separated fields) containing either validated or corpus-derived
+words or phrases, one lexicon entry per line. The first column typically (this is configurable) contains the word
 and the optional second column contains the absolute frequency count. If no frequency information is available, all
 items in the lexicon carry the exact same weight.
 
 Multiple lexicons may be passed and analiticcl will remember which lexicon was matched against, so you could use this
-information for some simple tagging.
+information for some simple tagging. Order matter here, only the first match is returned.
 
 ### Variant List
 
@@ -346,7 +349,7 @@ This should be a corpus-derived list of unigrams and bigrams, optionally also tr
 needed, higher-order ngrams are not supported though).  This is a TSV file containing the the ngram in the first column
 (space character acts as token separator), and the absolute frequency count in the second column. It is also recommended
 it contains the special tokens ``<bos>`` (begin of sentence) and ``<eos>`` end of sentence. The items in this list are
-**NOT** used for variant matching, use ``--corpus`` or even ``--lexicon`` instead if you want to also match against
+**NOT** used for variant matching, use ``--lexicon`` instead if you want to also match against
 these items. It is fine to have an entry in both the language model and lexicon, analiticcl will store it only once
 internally.
 
@@ -393,10 +396,9 @@ The properties of the anagram values facilitate a much quicker lookup, when give
         * Damerau-Levenshtein
         * Longest common substring
         * Longest common prefix/suffix
-        * Frequency information
-        * Lexicon weight, usually binary (validated or not)
         * Casing difference (binary, different case or not)
-    * A score is computed that is an expression of a weighted linear combination of the above items (the actual weights are configurable)
+    * A score is computed that is an expression of a weighted linear combination of the above items (the actual weights
+        are configurable). An exact match always has score 1.0.
     * A cut-off value prunes the list of candidates that score too low (the parameter ``-n`` expresses how many variants
         we want)
     * Optionally, if a confusable list was provided, we compute the edit script between the input and each variant, and
