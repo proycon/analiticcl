@@ -135,6 +135,9 @@ impl PySearchParameters {
                         "single_thread" => if let Ok(Some(value)) = value.extract() {
                             instance.data.single_thread = value
                          },
+                        "freq_weight" => if let Ok(Some(value)) = value.extract() {
+                            instance.data.freq_weight = value
+                         },
                         "lm_weight" => if let Ok(Some(value)) = value.extract() {
                             instance.data.lm_weight = value
                          },
@@ -192,6 +195,8 @@ impl PySearchParameters {
     #[getter]
     fn get_context_weight(&self) -> PyResult<f32> { Ok(self.data.context_weight) }
     #[getter]
+    fn get_freq_weight(&self) -> PyResult<f32> { Ok(self.data.freq_weight) }
+    #[getter]
     fn get_lm_weight(&self) -> PyResult<f32> { Ok(self.data.lm_weight) }
     #[getter]
     fn get_variantmodel_weight(&self) -> PyResult<f32> { Ok(self.data.variantmodel_weight) }
@@ -220,6 +225,8 @@ impl PySearchParameters {
     fn set_single_thread(&mut self, value: bool) -> PyResult<()> { self.data.single_thread = value; Ok(()) }
     #[setter]
     fn set_context_weight(&mut self, value: f32) -> PyResult<()> { self.data.context_weight = value; Ok(()) }
+    #[setter]
+    fn set_freq_weight(&mut self, value: f32) -> PyResult<()> { self.data.freq_weight = value; Ok(()) }
     #[setter]
     fn set_lm_weight(&mut self, value: f32) -> PyResult<()> { self.data.lm_weight = value; Ok(()) }
     #[setter]
