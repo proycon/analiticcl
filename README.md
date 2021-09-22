@@ -227,7 +227,8 @@ itself is consists of multiple components, each with a weight:
 * Longest common suffix
 * Casing difference (boolean)
 
-By default, the ranking of variants is based primarily on the distance score, frequency information is only used as a
+A frequency score on a scale of 1.0 (most frequent variant) to 0.0 is returned separately (not shown in TSV output).
+By default, the ranking of variants is based primarily on the distance score, the frequency score is only used as a
 secondary key in case their is a tie (multiple items with the same distance score).
 
 If you do want frequency information to play a larger role in the ranking of variants, you can use the ``--freq-ranking`` parameter, the value of
