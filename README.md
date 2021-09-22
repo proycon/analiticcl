@@ -214,6 +214,33 @@ Such background lexicons should also contain morphological variants and not just
 
 Analiticcl **will not** work for you if you just feed it some small lexicons and no complete enough background lexicons, unless you are sure your test texts have a very constrained limited vocabulary.
 
+### Scores and ranking
+
+In query mode, analiticcl will return a similarity/distance score between your input and any matching variants. This
+score is expressed on a scale of 1.0 (exact match) to 0.0. The score takes the length of the input into account, so a
+levenshtein difference of 2 on a word weighs less than a levenshtein distance of 2 on a shorter word. The distance score
+itself is consists of multiple components, each with a weight:
+
+* Damerau-Levenshtein
+* Longest common substring
+* Longest common prefix
+* Longest common suffix
+* Casing difference (boolean)
+
+By default, the ranking of variants is based primarily on the distance score, frequency information is only used as a
+secondary key in case their is a tie (multiple items with the same distance score).
+
+If you do want frequency information to play a larger role in the ranking of variants, you can use the ``--freq-ranking`` parameter, the value of
+which is a weight to attribute to frequency ranking in relation to the distance component and should be in the range 0.0
+to 1.0, where a smaller value around 0.25 is recommended. This is used to compute a ranking score as follows:
+
+```
+ranking_score = (distance_score + freq_weight * freq_score) / (1 + freq_weight)
+```
+
+This ranking score is subsequently used to rank the results. This may result in a variant with less similarity to the
+input being preferred over a variant with more similarity to the input, if that first variant is far more frequent.
+
 ## Data Formats
 
 All input for analiticcl must be UTF-8 encoded and use unix-style line endings, NFC unicode normalisation is strongly
