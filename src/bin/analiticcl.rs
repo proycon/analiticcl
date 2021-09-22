@@ -425,6 +425,12 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .takes_value(true)
         .default_value("2.0")
         .required(false));
+    args.push(Arg::with_name("freq-ranking")
+        .short("F")
+        .long("freq-ranking")
+        .help("Consider frequency information and not just similarity scores when ranking variant candidates. The actual ranking will be a weighted combination between the similarity score and the frequency score. The value for this parameter is the weight you want to attribute to the frequency component in ranking, in relation to similarity. (a value between 0 and 1.0). Note that even if this parameter is not set, frequency information will always be used to break ties in case of similarity score")
+        .takes_value(true)
+        .default_value("0.25"));
     /*args.push(Arg::with_name("search-cache")
         .long("search-cache")
         .help("Cache visited nodes between searches to speed up the search at the cost of increased memory. Only works for single core currently where it is enabled by default. The value corresponds to the maximum number of anagram values to cache, this should be set to a fairly high number, depending on memory availability, such as 100000. Set to 0 to disable the cache.")
@@ -700,6 +706,11 @@ fn main() {
         } else {
             1
         },
+        freq_weight: if args.is_present("freq-ranking") {
+            args.value_of("freq-ranking").unwrap().parse::<f32>().expect("Frequency weight for frequency ranking should be a floating point number (between 0 and 1)")
+        } else {
+            0.0
+        },
         lm_order: if let Some(value) = args.value_of("lm-order") {
             value.parse::<u8>().expect("LM order should be a small integer")
         } else {
@@ -732,6 +743,9 @@ fn main() {
         eprintln!("ERROR: Cutoff-threshold must be >= 1.0, or 0 to disable");
         exit(2);
     }
+
+    eprintln!("Search parameters:");
+    eprintln!("{}", searchparams);
 
     if args.is_present("early-confusables") {
         model.set_confusables_before_pruning();

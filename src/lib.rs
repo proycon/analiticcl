@@ -713,7 +713,7 @@ impl VariantModel {
         //and compute distances
         let variants = self.gather_instances(&anahashes, &normstring, input, max_edit_distance);
 
-        self.score_and_rank(variants, input, normstring.len(), params.max_matches, params.score_threshold, params.cutoff_threshold)
+        self.score_and_rank(variants, input, normstring.len(), params.max_matches, params.score_threshold, params.cutoff_threshold, params.freq_weight)
     }
 
     /// Processes input and finds variants (like [`find_variants()`]), but all variants that are found (which meet
@@ -1007,7 +1007,7 @@ impl VariantModel {
 
 
     /// Rank and score all variants, returns a vector of three-tuples: (VocabId, distance score, frequency score)
-    pub(crate) fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, input: &str, input_length: usize, max_matches: usize, score_threshold: f64, cutoff_threshold: f64 ) -> Vec<(VocabId,f64,f64)> {
+    pub(crate) fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, input: &str, input_length: usize, max_matches: usize, score_threshold: f64, cutoff_threshold: f64, freq_weight: f32 ) -> Vec<(VocabId,f64,f64)> {
         let mut results: Vec<(VocabId,f64,f64)> = Vec::new();
         let mut max_freq = 0;
         let weights_sum = self.weights.sum();
@@ -1021,8 +1021,8 @@ impl VariantModel {
             None
         };
 
-        //Collect maximum values
-        for (vocab_id, distance) in instances.iter() {
+        //Collect maximum frequency
+        for (vocab_id, _distance) in instances.iter() {
             if self.have_freq {
                 if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
                     if vocabitem.frequency > max_freq {
@@ -1059,7 +1059,7 @@ impl VariantModel {
                 }
 
                 let freq_score: f64 = if self.have_freq && max_freq > 0 {
-                   vocabitem.frequency as f64 / max_freq as f64
+                    vocabitem.frequency as f64 / max_freq as f64
                 } else {
                     1.0
                 };
@@ -1087,7 +1087,7 @@ impl VariantModel {
         }
 
         //Sort the results by distance score, descending order
-        self.sort_results(&mut results);
+        self.sort_results(&mut results, freq_weight);
 
 
 
@@ -1133,7 +1133,7 @@ impl VariantModel {
         //rescore with confusable weights (LATE, default)
         if !self.confusables.is_empty() && !self.confusables_before_pruning {
             self.rescore_confusables(&mut results, input);
-            self.sort_results(&mut results);
+            self.sort_results(&mut results, freq_weight);
         }
 
         // apply the cutoff threshold
@@ -1189,24 +1189,32 @@ impl VariantModel {
 
     /// Sorts a result vector of (VocabId, distance_score, freq_score)
     /// in decreasing order (best result first)
-    pub fn sort_results(&self, results: &mut Vec<(VocabId,f64, f64)>) {
-        results.sort_unstable_by(|a, b| {
-            //compare distance score
-            if a.1 > b.1 {
-                Ordering::Less
-            } else if a.1 < b.1 {
-                Ordering::Greater
-            } else {
-                //when tied, fall back to frequency score
-                if a.2 > b.2 {
+    pub fn sort_results(&self, results: &mut Vec<(VocabId,f64, f64)>, freq_weight: f32) {
+        if freq_weight > 0.0 {
+            results.sort_unstable_by(|a, b| {
+                let score_a = (a.1 + (freq_weight as f64 * a.2)) / (1.0+freq_weight as f64);
+                let score_b = (b.1 + (freq_weight as f64 * b.2)) / (1.0+freq_weight as f64);
+                score_b.partial_cmp(&score_a).expect("ordering") //reverse parameters because we want decreasing order
+            });
+        } else {
+            results.sort_unstable_by(|a, b| {
+                //compare distance score
+                if a.1 > b.1 {
                     Ordering::Less
-                } else if a.2 < b.2 {
+                } else if a.1 < b.1 {
                     Ordering::Greater
                 } else {
-                    Ordering::Equal
+                    //when tied, fall back to frequency score
+                    if a.2 > b.2 {
+                        Ordering::Less
+                    } else if a.2 < b.2 {
+                        Ordering::Greater
+                    } else {
+                        Ordering::Equal
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     /// compute weight over known confusables

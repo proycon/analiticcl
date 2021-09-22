@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::io::Error;
 use std::io::ErrorKind;
+use std::fmt;
 
 ///Each type gets assigned an ID integer, carries no further meaning
 pub type VocabId = u64;
@@ -117,6 +118,10 @@ pub struct SearchParameters {
     /// Weight attributed to the language model in finding the most likely sequence
     pub lm_weight: f32,
 
+    /// Weight attributed to the frequency information in frequency reranking, in relation to
+    /// the similarity component. 0 = disabled)
+    pub freq_weight: f32,
+
     /// Weight attributed to the variant model in finding the most likely sequence
     pub variantmodel_weight: f32,
 
@@ -140,9 +145,28 @@ impl Default for SearchParameters {
             max_seq: 250,
             context_weight: 0.0,
             lm_weight: 1.0,
+            freq_weight: 0.0,
             variantmodel_weight: 1.0,
             consolidate_matches: true,
         }
+    }
+}
+
+impl fmt::Display for SearchParameters {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f," max_anagram_distance={:?}",self.max_anagram_distance);
+        writeln!(f," max_edit_distance={:?}",self.max_edit_distance);
+        writeln!(f," max_matches={}",self.max_matches);
+        writeln!(f," score_threshold={}",self.score_threshold);
+        writeln!(f," cutoff_threshold={}",self.cutoff_threshold);
+        writeln!(f," max_ngram={}",self.max_ngram);
+        writeln!(f," lm_order={}",self.lm_order);
+        writeln!(f," single_thread={}",self.single_thread);
+        writeln!(f," max_seq={}",self.max_seq);
+        writeln!(f," freq_weight={}",self.freq_weight);
+        writeln!(f," lm_weight={}",self.lm_weight);
+        writeln!(f," variantmodel_weight={}",self.variantmodel_weight);
+        writeln!(f," consolidate_matches={}",self.consolidate_matches)
     }
 }
 
