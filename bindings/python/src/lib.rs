@@ -236,7 +236,7 @@ impl PySearchParameters {
     fn set_consolidate_matches(&mut self, value: bool) -> PyResult<()> { self.data.consolidate_matches = value; Ok(()) }
 
     #[setter]
-    fn set_stop_at_exact_match(&mut self, value: bool) -> PyResult<()> { if value { self.data.stop_criterion = libanaliticcl::StopCriterion::StopAtExactMatch; } else { self.data.stop_criterion == libanaliticcl::StopCriterion::Exhaustive; }; Ok(()) }
+    fn set_stop_at_exact_match(&mut self, value: bool) -> PyResult<()> { if value { self.data.stop_criterion = libanaliticcl::StopCriterion::StopAtExactMatch; } else { self.data.stop_criterion = libanaliticcl::StopCriterion::Exhaustive; }; Ok(()) }
 }
 
 #[pyclass(dict,name="VocabParams")]
