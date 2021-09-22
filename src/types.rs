@@ -101,8 +101,11 @@ pub struct SearchParameters {
     /// cost of lower accuracy
     pub stop_criterion: StopCriterion,
 
-    /// Maximum ngram order (1 for unigrams, 2 for bigrams, etc..). This also requires you to load actual ngram frequency lists to have any effect.
+    /// Maximum ngram order (1 for unigrams, 2 for bigrams, etc..).
     pub max_ngram: u8,
+
+    /// Maximum ngram order for Language Models (2 for bigrams, etc..).
+    pub lm_order: u8,
 
     /// Maximum number of candidate sequences to take along to the language modelling stage
     pub max_seq: usize,
@@ -135,7 +138,8 @@ impl Default for SearchParameters {
             score_threshold: 0.25,
             cutoff_threshold: 2.0,
             stop_criterion: StopCriterion::Exhaustive,
-            max_ngram: 2,
+            max_ngram: 3,
+            lm_order: 3,
             single_thread: false,
             max_seq: 250,
             context_weight: 0.0,
@@ -189,6 +193,10 @@ impl SearchParameters {
     }
     pub fn with_lm_weight(mut self, weight: f32) -> Self {
         self.lm_weight = weight;
+        self
+    }
+    pub fn with_lm_order(mut self, order: u8) -> Self {
+        self.lm_order = order;
         self
     }
     pub fn with_variantmodel_weight(mut self, weight: f32) -> Self {

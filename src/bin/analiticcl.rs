@@ -537,7 +537,7 @@ fn main() {
                             .arg(Arg::with_name("max-ngram-order")
                                 .long("max-ngram-order")
                                 .short("N")
-                                .help("Maximum ngram order (1 for unigrams, 2 for bigrams, etc..). This also requires you to load actual ngram frequency lists using --corpus or --lm to have any effect.")
+                                .help("Maximum ngram order for variant lookup (1 for unigrams, 2 for bigrams, etc..)")
                                 .takes_value(true)
                                 .default_value("3"))
                             .arg(Arg::with_name("max-seq")
@@ -548,10 +548,16 @@ fn main() {
                                 .default_value("250"))
                             .arg(Arg::with_name("lm")
                                 .long("lm")
-                                .help("Corpus-derived list of unigrams and bigrams that are used for simple language modelling, i.e. computation the transition probabilities when finding the optimal sequence of variants. This is a TSV file containing the the ngram in the first column (space character acts as token separator), and the absolute frequency count in the second column. It is also recommended it contains the special tokens <bos> (begin of sentence) and <eos> end of sentence. The items in this list are NOT used for variant matching, use --corpus or even --lexicon instead if you want to also match against these items.")
+                                .help("Language model, a corpus-derived list of n-grams with absolute frequency counts. This is a TSV file containing the the ngram in the first column (space character acts as token separator), and the absolute frequency count in the second column. It is also recommended it contains the special tokens <bos> (begin of sentence) and <eos> end of sentence. The items in this list are NOT used for variant matching, use --corpus or even --lexicon instead if you want to also match against these items. Conversely, files provides through --lexicon and --corpus and other options are NOT used for language modelling.")
                                 .takes_value(true)
                                 .number_of_values(1)
                                 .multiple(true))
+                            .arg(Arg::with_name("lm-order")
+                                .long("lm-order")
+                                .short("L")
+                                .help("N-gram order for Language models (2 for bigrams, 3 for trigrams, etc..)")
+                                .takes_value(true)
+                                .default_value("3"))
                             .arg(Arg::with_name("weight-lm")
                                 .long("weight-lm")
                                 .help("Weight attributed to the language model in finding the most likely sequence in search mode")
@@ -716,6 +722,11 @@ fn main() {
         consolidate_matches: !args.is_present("allow-overlap"),
         max_ngram: if let Some(value) = args.value_of("max-ngram-order") {
             value.parse::<u8>().expect("Max n-gram should be a small integer")
+        } else {
+            1
+        },
+        lm_order: if let Some(value) = args.value_of("lm-order") {
+            value.parse::<u8>().expect("LM order should be a small integer")
         } else {
             1
         },

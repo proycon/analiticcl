@@ -74,7 +74,11 @@ pub struct VariantModel {
     ///Total frequency, index corresponds to n-1 size, so this holds the total count for unigrams, bigrams, etc.
     pub freq_sum: Vec<usize>,
 
+    /// Do we have frequency information for variant matching?
     pub have_freq: bool,
+
+    /// Do we have an LM?
+    pub have_lm: bool,
 
     ///Weights used in scoring
     pub weights: Weights,
@@ -108,6 +112,7 @@ impl VariantModel {
             ngrams: HashMap::new(),
             freq_sum: vec!(0),
             have_freq: false,
+            have_lm: false,
             weights,
             lexicons: Vec::new(),
             confusables: Vec::new(),
@@ -132,6 +137,7 @@ impl VariantModel {
             ngrams: HashMap::new(),
             freq_sum: vec!(0),
             have_freq: false,
+            have_lm: false,
             weights,
             lexicons: Vec::new(),
             confusables: Vec::new(),
@@ -222,28 +228,30 @@ impl VariantModel {
             eprintln!(" - Found {} anagrams of length {}", keys.len(), size );
         }
 
-        eprintln!("Adding ngrams for simple language modelling...");
+        eprintln!("Constructing Language Model...");
 
         //extra unigrams extracted from n-grams that need to be added to the vocabulary decoder
         let mut unseen_parts: Option<VocabEncoder> = Some(VocabEncoder::new());
 
         for id in 0..self.decoder.len() {
-            //get the ngram and find any unseen parts
-            if let Ok(ngram) = self.into_ngram(id as VocabId, &mut unseen_parts) {
+            if self.decoder.get(id).expect("item").vocabtype.check(VocabType::LM) {
+                //get the ngram and find any unseen parts
+                if let Ok(ngram) = self.into_ngram(id as VocabId, &mut unseen_parts) {
 
-                let freq = self.decoder.get(id).unwrap().frequency;
+                    let freq = self.decoder.get(id).unwrap().frequency;
 
-                if ngram.len() > 1 {
-                    //reserve the space for the total counts
-                    for _ in self.freq_sum.len()..ngram.len() {
-                        self.freq_sum.push(0);
+                    if ngram.len() > 1 {
+                        //reserve the space for the total counts
+                        for _ in self.freq_sum.len()..ngram.len() {
+                            self.freq_sum.push(0);
+                        }
+                        //add to the totals for this order of ngrams
+                        self.freq_sum[ngram.len()-1] += freq as usize;
+                    } else {
+                        self.freq_sum[0] += freq as usize;
                     }
-                    //add to the totals for this order of ngrams
-                    self.freq_sum[ngram.len()-1] += freq as usize;
-                } else {
-                    self.freq_sum[0] += freq as usize;
+                    self.add_ngram(ngram, freq);
                 }
-                self.add_ngram(ngram, freq);
             }
         }
 
@@ -254,6 +262,13 @@ impl VariantModel {
                 self.encoder.insert(part.clone(), id);
                 self.decoder.push(VocabValue::new(part, VocabType::LM));
             }
+        }
+        if self.ngrams.is_empty() {
+            eprintln!(" - No language model provided");
+            self.have_lm = false;
+        } else {
+            eprintln!(" - Found {} n-grams for language modelling", self.ngrams.len() );
+            self.have_lm = true;
         }
     }
 
@@ -450,7 +465,9 @@ impl VariantModel {
                     let fields: Vec<&str> = line.split("\t").collect();
                     let text = fields.get(params.text_column as usize).expect("Expected text column not found");
                     let frequency = if let Some(freq_column) = params.freq_column {
-                        self.have_freq = true;
+                        if params.vocab_type.check(VocabType::INDEXED) {
+                            self.have_freq = true;
+                        }
                         fields.get(freq_column as usize).unwrap_or(&"1").parse::<u32>().expect("frequency should be a valid integer")
                     } else {
                         1
@@ -1701,7 +1718,7 @@ impl VariantModel {
                 let output_symbol = output_symbols.get(*output_symbol).expect("expected valid output symbol");
                 sequence.output_symbols.push(output_symbol.clone());
             }
-            if params.lm_weight > 0.0 {
+            if self.have_lm && params.lm_weight > 0.0 {
                 let (lm_logprob, perplexity) = self.lm_score(&sequence, &boundaries);
                 sequence.lm_logprob = lm_logprob;
                 sequence.perplexity = perplexity;
@@ -1726,7 +1743,7 @@ impl VariantModel {
         let mut best_sequence: Option<Sequence> = None;
         for sequence in sequences.into_iter() {
             //we normalize both LM and variant model scores so the best score corresponds with 1.0 (in non-logarithmic terms, 0.0 in logarithmic space). We take the natural logarithm for more numerical stability and easier computation.
-            let norm_lm_score: f64 = if params.lm_weight > 0.0 {
+            let norm_lm_score: f64 = if self.have_lm && params.lm_weight > 0.0 {
                 (best_lm_perplexity / sequence.perplexity).ln()
             } else {
                 0.0
@@ -1735,7 +1752,7 @@ impl VariantModel {
 
             //then we interpret the score as a kind of pseudo-probability and minimize the joint
             //probability (the product; addition in log-space)
-            let score = if params.lm_weight > 0.0 {
+            let score = if self.have_lm && params.lm_weight > 0.0 {
                 (params.lm_weight as f64 * norm_lm_score + params.variantmodel_weight as f64 * norm_variant_score) / (params.lm_weight as f64 + params.variantmodel_weight as f64) //note: the denominator isn't really relevant for finding the best score but normalizes the output for easier interpretability (=geometric mean)
             } else {
                 norm_variant_score
@@ -1753,7 +1770,11 @@ impl VariantModel {
             //debug mode: output all candidate sequences and their scores in order
             debug_ranked.as_mut().unwrap().sort_by(|a,b| b.3.partial_cmp(&a.3).unwrap_or(Ordering::Equal) ); //sort by score
             for (i, (sequence, norm_lm_score, norm_variant_score, score)) in debug_ranked.unwrap().into_iter().enumerate() {
-                eprintln!("  (#{}, final_score={}, norm_lm_score={} (perplexity={}, logprob={}, weight={}), norm_variant_score={} (variant_cost={}, weight={})", i+1, score.exp(), norm_lm_score.exp(), sequence.perplexity, sequence.lm_logprob, params.lm_weight,  norm_variant_score.exp(), sequence.variant_cost, params.variantmodel_weight);
+                if self.have_lm && params.lm_weight > 0.0 {
+                    eprintln!("  (#{}, final_score={}, norm_lm_score={} (perplexity={}, logprob={}, weight={}), norm_variant_score={} (variant_cost={}, weight={})", i+1, score.exp(), norm_lm_score.exp(), sequence.perplexity, sequence.lm_logprob, params.lm_weight,  norm_variant_score.exp(), sequence.variant_cost, params.variantmodel_weight);
+                } else {
+                    eprintln!("  (#{}, final_score={}, norm_variant_score={} (variant_cost={}, weight={}), no LM", i+1, score.exp(),   norm_variant_score.exp(), sequence.variant_cost, params.variantmodel_weight);
+                }
                 let mut text: String = String::new();
                 for output_symbol in sequence.output_symbols.iter() {
                     if output_symbol.vocab_id > 0{
