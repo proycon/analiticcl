@@ -1087,7 +1087,7 @@ impl VariantModel {
         }
 
         //Sort the results by distance score, descending order
-        self.sort_results(&mut results, freq_weight);
+        self.rank_results(&mut results, freq_weight);
 
 
 
@@ -1133,7 +1133,7 @@ impl VariantModel {
         //rescore with confusable weights (LATE, default)
         if !self.confusables.is_empty() && !self.confusables_before_pruning {
             self.rescore_confusables(&mut results, input);
-            self.sort_results(&mut results, freq_weight);
+            self.rank_results(&mut results, freq_weight);
         }
 
         // apply the cutoff threshold
@@ -1189,7 +1189,7 @@ impl VariantModel {
 
     /// Sorts a result vector of (VocabId, distance_score, freq_score)
     /// in decreasing order (best result first)
-    pub fn sort_results(&self, results: &mut Vec<(VocabId,f64, f64)>, freq_weight: f32) {
+    pub fn rank_results(&self, results: &mut Vec<(VocabId,f64, f64)>, freq_weight: f32) {
         if freq_weight > 0.0 {
             results.sort_unstable_by(|a, b| {
                 let score_a = (a.1 + (freq_weight as f64 * a.2)) / (1.0+freq_weight as f64);
