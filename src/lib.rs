@@ -619,7 +619,7 @@ impl VariantModel {
     /// Find variants in the vocabulary for a given string (in its totality), returns a vector of vocabulary ID and score pairs
     /// Returns a vector of three-tuples (VocabId, distance_score, freq_score)
     /// The resulting vocabulary Ids can be resolved through `get_vocab()`
-    pub fn find_variants(&self, input: &str, params: &SearchParameters, cache: Option<&mut Cache>) -> Vec<(VocabId, f64,f64)> {
+    pub fn find_variants(&self, input: &str, params: &SearchParameters) -> Vec<(VocabId, f64,f64)> {
 
         if self.index.is_empty()  {
             eprintln!("ERROR: Model has not been built yet! Call build() before find_variants()");
@@ -642,14 +642,9 @@ impl VariantModel {
         };
 
         //Compute neighbouring anahashes and find the nearest anahashes in the model
-        let anahashes = self.find_nearest_anahashes(&anahash, &normstring,
+        let anahashes = self.find_nearest_anahashes(&anahash,
                                                     max_anagram_distance,
-                                                    params.stop_criterion,
-                                                    if let Some(cache) = cache {
-                                                       Some(&mut cache.visited)
-                                                    } else {
-                                                       None
-                                                    });
+                                                    params.stop_criterion);
 
 
         let max_edit_distance: u8 = match params.max_edit_distance {
@@ -687,11 +682,11 @@ impl VariantModel {
         let mut all_variants: Vec<(&'a str, Option<u32>, Vec<(VocabId,f64,f64)>)> = Vec::new();
         if params.single_thread {
             all_variants.extend( input.into_iter().map(|(inputstr, freq)| {
-                (inputstr.as_str(), *freq, self.find_variants(inputstr, params, None))
+                (inputstr.as_str(), *freq, self.find_variants(inputstr, params))
             }));
         } else {
             all_variants.par_extend( input.into_par_iter().map(|(inputstr, freq)| {
-                (inputstr.as_str(), *freq, self.find_variants(inputstr, params, None))
+                (inputstr.as_str(), *freq, self.find_variants(inputstr, params))
             }));
         }
 
@@ -707,7 +702,7 @@ impl VariantModel {
             if variants.is_empty() {
                 unknown += 1;
             }
-            for (variant, score,freq_score) in variants {
+            for (variant, score, _freq_score) in variants {
                 if variant != vocab_id { //ensure we don't add exact matches
                     if self.add_variant(variant, inputstr, score, None, &vocabparams) {
                         count += 1;
@@ -732,7 +727,7 @@ impl VariantModel {
 
     /// Find the nearest anahashes that exists in the model (computing anahashes in the
     /// neigbhourhood if needed).
-    pub(crate) fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, normstring: &Vec<u8>, max_distance: u8,  stop_criterion: StopCriterion, cache: Option<&mut HashSet<AnaValue>>) -> HashSet<&'a AnaValue> {
+    pub(crate) fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, max_distance: u8,  stop_criterion: StopCriterion) -> HashSet<&'a AnaValue> {
         let mut nearest: HashSet<&AnaValue> = HashSet::new();
 
         let begintime = if self.debug >= 2 {
@@ -750,7 +745,7 @@ impl VariantModel {
             nearest.insert(matched_anahash);
             if StopCriterion::StopAtExactMatch == stop_criterion {
                 for vocab_id in node.instances.iter() {
-                    if let Some(value) = self.decoder.get(*vocab_id as usize) {
+                    if let Some(_) = self.decoder.get(*vocab_id as usize) {
                         if self.debug >= 2 {
                             eprintln!(" (stopping early)");
                         }
@@ -968,7 +963,7 @@ impl VariantModel {
                 let suffix_score: f64 = distance.suffixlen as f64 / input_length as f64;
                 //simple weighted linear combination (arithmetic mean to normalize it again) over all normalized distance factors
                 //expresses a similarity score, sensitive to the length of the input string, and where an exact match by default is 1.0
-                let mut score = (
+                let score = (
                     self.weights.ld * distance_score +
                     self.weights.lcs * lcs_score +
                     self.weights.prefix * prefix_score +
@@ -1287,7 +1282,7 @@ impl VariantModel {
                                 if self.debug >= 1 {
                                     eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
                                 }
-                                let variants = self.find_variants(&segment.text, params, None);
+                                let variants = self.find_variants(&segment.text, params);
                                 if self.debug >= 1 {
                                     eprintln!("   (found {} variants)", variants.len());
                                 }
@@ -1302,7 +1297,7 @@ impl VariantModel {
                                 if self.debug >= 1 {
                                     eprintln!("   (----------- finding variants for: {} -----------)", segment.text);
                                 }
-                                let variants = self.find_variants(&segment.text, params, None);
+                                let variants = self.find_variants(&segment.text, params);
                                 if self.debug >= 1 {
                                     eprintln!("    (found {} variants)", variants.len());
                                 }
@@ -1360,6 +1355,7 @@ impl VariantModel {
     }
 
 
+    /*
     fn set_match_boundaries<'a>(&self, matches: &mut Vec<Match<'a>>, boundaries: &[Match<'a>]) {
         for m in matches.iter_mut() {
 
@@ -1406,6 +1402,7 @@ impl VariantModel {
         }
         results
     }
+    */
 
 
     /*

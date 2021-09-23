@@ -166,7 +166,7 @@ fn output_weighted_variants_as_json(model: &VariantModel, multioutput: bool) {
     println!("}}")
 }
 
-fn process(model: &VariantModel, inputstream: impl Read, searchparams: &SearchParameters, output_lexmatch: bool, json: bool, cache: &mut Option<Cache>, progress: bool) {
+fn process(model: &VariantModel, inputstream: impl Read, searchparams: &SearchParameters, output_lexmatch: bool, json: bool, progress: bool) {
     let mut seqnr = 0;
     let f_buffer = BufReader::new(inputstream);
     let mut progresstime = SystemTime::now();
@@ -176,15 +176,12 @@ fn process(model: &VariantModel, inputstream: impl Read, searchparams: &SearchPa
             if progress && seqnr % 1000 == 1 {
                 progresstime = show_progress(seqnr, progresstime, 1000);
             }
-            let variants = model.find_variants(&input, searchparams, cache.as_mut());
+            let variants = model.find_variants(&input, searchparams);
             if json {
                 output_matches_as_json(model, &input, Some(&variants), Some(0), None, output_lexmatch, seqnr);
             } else {
                 //Normal output mode
                 output_matches_as_tsv(model, &input, Some(&variants), Some(0), None,  output_lexmatch);
-            }
-            if let Some(cache) = cache {
-                cache.check();
             }
         }
     }
@@ -215,7 +212,7 @@ fn process_par(model: &VariantModel, inputstream: impl Read, searchparams: &Sear
         let output: Vec<_> = batch
             .par_iter()
             .map(|input| {
-                (input, model.find_variants(&input, searchparams, None))
+                (input, model.find_variants(&input, searchparams))
             }).collect();
         for (input, variants) in output {
             seqnr += 1;
@@ -403,16 +400,10 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .long("freq-ranking")
         .help("Consider frequency information and not just similarity scores when ranking variant candidates. The actual ranking will be a weighted combination between the similarity score and the frequency score. The value for this parameter is the weight you want to attribute to the frequency component in ranking, in relation to similarity. (a value between 0 and 1.0). Note that even if this parameter is not set, frequency information will always be used to break ties in case of similarity score")
         .takes_value(true));
-    /*args.push(Arg::with_name("search-cache")
-        .long("search-cache")
-        .help("Cache visited nodes between searches to speed up the search at the cost of increased memory. Only works for single core currently where it is enabled by default. The value corresponds to the maximum number of anagram values to cache, this should be set to a fairly high number, depending on memory availability, such as 100000. Set to 0 to disable the cache.")
-        .takes_value(true)
-        .default_value("100000")
-        .required(false));*/
     args.push(Arg::with_name("single-thread")
         .long("single-thread")
         .short("1")
-        .help("Run in a single thread, when running this way you can benefit from the --search-cache. If you want more than one thread but less than all available cores, set environment variable RAYON_NUM_THREADS")
+        .help("Run in a single thread, If you want more than one thread but less than all available cores, set environment variable RAYON_NUM_THREADS instead")
         .required(false));
     args.push(Arg::with_name("interactive")
         .long("interactive")
@@ -590,17 +581,6 @@ fn main() {
         case: args.value_of("weight-case").unwrap().parse::<f64>().expect("Weights should be a floating point value"),
     };
 
-    let mut cache = if let Some(visited_max_size) = args.value_of("search-cache") {
-        //deprecated
-        let visited_max_size = visited_max_size.parse::<usize>().expect("Cache size should be a large integer");
-        if visited_max_size > 0 {
-            Some(Cache::new(visited_max_size))
-        } else {
-            None
-        }
-    } else {
-        None
-    };
 
     let mut model = VariantModel::new(
         args.value_of("alphabet").unwrap(),
@@ -762,7 +742,7 @@ fn main() {
                         process_search(&model, stdin, &searchparams, output_lexmatch, json, progress, !retain_linebreaks, perline);
                     } else if searchparams.single_thread {
                         eprintln!("(accepting standard input; enter input to match, one per line)");
-                        process(&model, stdin,  &searchparams, output_lexmatch, json, &mut cache, progress);
+                        process(&model, stdin,  &searchparams, output_lexmatch, json, progress);
                     } else {
                         eprintln!("(accepting standard input; enter input to match, one per line, output may be delayed until end of input due to parallellisation)");
                         //normal parallel behaviour
@@ -777,7 +757,7 @@ fn main() {
                     } else if rootargs.subcommand_matches("search").is_some() {
                         process_search(&model, f, &searchparams, output_lexmatch, json, progress, !retain_linebreaks, perline);
                     } else if searchparams.single_thread {
-                        process(&model, f, &searchparams, output_lexmatch, json, &mut cache, progress);
+                        process(&model, f, &searchparams, output_lexmatch, json, progress);
                     } else {
                         //normal parallel behaviour
                         process_par(&model, f, &searchparams, output_lexmatch, json, progress).expect("I/O Error");

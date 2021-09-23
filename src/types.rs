@@ -1,5 +1,4 @@
 use ibig::UBig;
-use std::collections::HashMap;
 use std::str::FromStr;
 use std::io::Error;
 use std::io::ErrorKind;
