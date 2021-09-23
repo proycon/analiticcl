@@ -1038,3 +1038,18 @@ fn test0901_find_all_matches_with_multiple_lexicons() {
 
 }
 
+#[test]
+fn test1001_errorlist() {
+    let (alphabet, _alphabet_size) = get_test_alphabet();
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 2);
+    let vocab_id = model.add_to_vocabulary("afgescheid",None,&VocabParams::default());
+    model.add_weighted_variant(vocab_id, "afghescheydt", 1.0,  None, &VocabParams::default().with_vocab_type(VocabType::INDEXED | VocabType::TRANSPARENT));
+    model.build();
+    let mut searchparams = get_test_searchparams();
+    //set very strict parameters so the original key can't match but the transparent variant can
+    searchparams.max_anagram_distance = DistanceThreshold::Absolute(1);
+    searchparams.max_edit_distance = DistanceThreshold::Absolute(1);
+    let results = model.find_variants("afgheschaydt", &searchparams, None);
+    assert_eq!( results.len() , 1 );
+    assert_eq!( model.decoder.get(results.get(0).unwrap().0 as usize).unwrap().text, "afgescheid");
+}
