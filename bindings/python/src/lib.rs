@@ -369,18 +369,10 @@ impl PyVariantModel {
         }
     }
 
-    ///Load a variant list
-    fn read_variants(&mut self, filename: &str) -> PyResult<()> {
-        match self.model.read_variants(filename, Some(&libanaliticcl::VocabParams::default())) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(PyRuntimeError::new_err(format!("{}", e)))
-        }
-    }
-
-    ///Load a weighted variant list (set intermediate to true if this is an error list and you
-    ///don't want the variants to be used in matching)
-    fn read_weighted_variants(&mut self, filename: &str, intermediate: bool) -> PyResult<()> {
-        match self.model.read_weighted_variants(filename, Some(&libanaliticcl::VocabParams::default()), intermediate) {
+    ///Load a weighted variant list (set transparent to true if this is an error list and you
+    ///don't want the variants themselves to be returned when matching; i.e. they are transparent)
+    fn read_variants(&mut self, filename: &str, transparent: bool) -> PyResult<()> {
+        match self.model.read_variants(filename, Some(&libanaliticcl::VocabParams::default()), transparent) {
             Ok(_) => Ok(()),
             Err(e) => Err(PyRuntimeError::new_err(format!("{}", e)))
         }
