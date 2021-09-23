@@ -173,7 +173,7 @@ In learn mode, analiticcl takes input similar like in query mode, but rather tha
 associates the variants found with the items in the lexicon and updates the model with this information. The output this
 mode provides is effectively the inverse of what query does; for each item in the lexicon, all variants that were found
 (and their scores are listed). This output constitutes a weighted variant list which can be loaded in again using
-``--weighted-variants``.
+``--variants``.
 
 The learned variants are used as intermediate words to guide the system towards a desired solution. Assume for instance
 that our lexicon contains the word ``separate``, and we found the variant ``seperate`` in the data during learning. This
@@ -299,28 +299,19 @@ information for some simple tagging. Order matter here, only the first match is 
 ### Variant List
 
 A variant lists explicitly relate spelling variants, and in doing so go a step further than a simple lexicon which only
-specifies the validated or corpus-derived form. There are two types:
+specifies the validated or corpus-derived form.
 
-#### Unweighted variant list
-
-An unweighted variant list is *undirected*, all words are considered equally valid variant. They are provided in a
-simple TSV file with variants on a line, seperated by a tab. A variant list can be provided to analiticcl using the
-``--variants`` option.
-
-#### Weighted variant list
-
-A weighted variant list is *directed*, it specifies an normalised/preferred form first, and then specifies variants and
-variant scores. Take the following example (all fields are tab separated):
+A variant list is *directed* and *weighed*, it specifies an normalised/preferred form first, and then specifies variants and variant scores. Take the following example (all fields are tab separated):
 
 ```
 huis	huys	1.0	huijs	1.0
 ```
 This states that the preferred word *huis* has two variants (historical spelling in this case), and both have a score
 (0-1) that expresses how likely the variant maps to the preferred word. When loaded into analiticcl with
-``--weighted-variants``, both the preferred form and the variants will be valid results in normalization (as if you
+``--variants``, both the preferred form and the variants will be valid results in normalization (as if you
 loaded a lexicon with all three words in it).
 
-What you might be more interested in, is a special flavour of the weighted variant list called an *error list*, loaded
+What you might be more interested in, is a special flavour of the variant list called an *error list*, loaded
 into analiticcl using ``--errors``. Consider the following example:
 
 ```
@@ -330,7 +321,7 @@ This states that the preferred word ``seperate`` has two variants that are consi
 but they will not be returned as a solution; the preferred variant will be returned as a solution instead. This
 mechanism helps bridge larger edit distances.
 
-A weighted variant list may also contain an extra column of absolute frequencies, provided that it's consistently
+A variant list may also contain an extra column of absolute frequencies, provided that it's consistently
 provided for *all* references and variants:
 
 ```
@@ -339,7 +330,7 @@ separate	531	seperate	1.0	4	seperete 1.0	1
 
 Here the reference occurs 531 times, the first misspelling 4 times, and the last variant only 1 time.
 
-Analiticcl can also *output* weighted variant lists, given input lexicons and a text to train on, this occurs when you run it in *learn mode*.
+Analiticcl can also *output* variant lists, given input lexicons and a text to train on, this occurs when you run it in *learn mode*.
 
 ### Confusable List
 
