@@ -645,7 +645,7 @@ fn test0403_model_anagrams() {
         model.add_to_vocabulary(text,None,&VocabParams::default());
     }
     model.build();
-    model.find_variants("rite", &get_test_searchparams(), None);
+    model.find_variants("rite", &get_test_searchparams());
 }
 
 #[test]
@@ -657,7 +657,7 @@ fn test0404_score_test() {
         model.add_to_vocabulary(text,None,&VocabParams::default());
     }
     model.build();
-    let results = model.find_variants("huys", &get_test_searchparams(), None);
+    let results = model.find_variants("huys", &get_test_searchparams());
     //results are a bit indeterministic due to sort_unstable
     //(order of equal-scoring elements is not fixed)
     //we just check if we get two results with the same score
@@ -689,7 +689,7 @@ fn test0502_confusable_test() {
     }
     model.add_to_confusables("-[y]+[i]",1.1).expect("added to confusables");
     model.build();
-    let results = model.find_variants("huys", &get_test_searchparams(), None);
+    let results = model.find_variants("huys", &get_test_searchparams());
     assert_eq!( model.decoder.get(results.get(0).unwrap().0 as usize).unwrap().text, "huis");
     assert_eq!( model.decoder.get(results.get(1).unwrap().0 as usize).unwrap().text, "huls");
     assert!( results.get(0).unwrap().1 > results.get(1).unwrap().1, "score of huis should be greater than that of huls" );
@@ -705,7 +705,7 @@ fn test0503_confusable_test2() {
     }
     model.add_to_confusables("-[y]+[i]",1.1).expect("added to confusables");
     model.build();
-    let results = model.find_variants("Huys", &get_test_searchparams(), None);
+    let results = model.find_variants("Huys", &get_test_searchparams());
     assert_eq!( model.decoder.get(results.get(0).unwrap().0 as usize).unwrap().text, "huis");
     assert_eq!( model.decoder.get(results.get(1).unwrap().0 as usize).unwrap().text, "huls");
     assert!( results.get(0).unwrap().1 > results.get(1).unwrap().1, "score of huis should be greater than that of huls" );
@@ -721,7 +721,7 @@ fn test0504_confusable_nomatch() {
     }
     model.add_to_confusables("-[y]+[p]",1.1).expect("added to confusables");
     model.build();
-    let results = model.find_variants("Huys", &get_test_searchparams(), None);
+    let results = model.find_variants("Huys", &get_test_searchparams());
     assert_eq!( results.len() , 2 );
     assert_eq!( results.get(0).unwrap().1,results.get(1).unwrap().1, "score of huis should be equal to that of huls" );
 }
@@ -990,7 +990,7 @@ fn test0801_expand_variants() {
     //set very strict parameters so the original key can't match but the transparent variant can
     searchparams.max_anagram_distance = DistanceThreshold::Absolute(2);
     searchparams.max_edit_distance = DistanceThreshold::Absolute(2);
-    let results = model.find_variants("afgheschaydt", &searchparams, None);
+    let results = model.find_variants("afgheschaydt", &searchparams);
     assert_eq!( results.len() , 1 );
     assert_eq!( model.decoder.get(results.get(0).unwrap().0 as usize).unwrap().text, "afgescheid");
 }
