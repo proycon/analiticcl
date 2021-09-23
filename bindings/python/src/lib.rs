@@ -395,7 +395,7 @@ impl PyVariantModel {
     /// Find variants in the vocabulary for a given string (in its totality), returns a list of variants with scores and their source lexicons
     fn find_variants<'py>(&self, input: &str, params: PyRef<PySearchParameters>, py: Python<'py>) -> PyResult<&'py PyList> {
         let result = PyList::empty(py);
-        let results = self.model.find_variants(input, &params.data, None);
+        let results = self.model.find_variants(input, &params.data);
         for (vocab_id,score,freq_score) in results {
             let dict = PyDict::new(py);
             let vocabvalue = self.model.get_vocab(vocab_id).expect("getting vocab by id");
@@ -415,7 +415,7 @@ impl PyVariantModel {
         let output: Vec<(&str,Vec<(libanaliticcl::VocabId,f64, f64)>)> = input
             .par_iter()
             .map(|input_str| {
-                (*input_str, self.model.find_variants(input_str, params_data, None))
+                (*input_str, self.model.find_variants(input_str, params_data))
             }).collect();
         let results = PyList::empty(py);
         for (input_str, variants) in output {
