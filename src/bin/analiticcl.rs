@@ -12,7 +12,7 @@ use rayon::prelude::*;
 
 use analiticcl::*;
 
-fn output_matches_as_tsv(model: &VariantModel, input: &str, variants: Option<&Vec<(VocabId, f64, f64)>>, selected: Option<usize>, offset: Option<Offset>, output_lexmatch: bool) {
+fn output_matches_as_tsv(model: &VariantModel, input: &str, variants: Option<&Vec<VariantResult>>, selected: Option<usize>, offset: Option<Offset>, output_lexmatch: bool, freq_weight: f32) {
     print!("{}",input);
     if let Some(offset) = offset {
         print!("\t{}:{}",offset.begin, offset.end);
@@ -20,28 +20,28 @@ fn output_matches_as_tsv(model: &VariantModel, input: &str, variants: Option<&Ve
     if let Some(variants) = variants {
         if let Some(selected) = selected {
             //output selected value before all others
-            if let Some((vocab_id, score, _freq_score)) = variants.get(selected) {
-                let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
-                print!("\t{}\t{}\t", vocabvalue.text, score);
-                if  output_lexmatch {
-                    print!("\t{}", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
-                }
+            if let Some(result) = variants.get(selected) {
+                output_result_as_tsv(&model, &result, output_lexmatch, freq_weight);
             }
         }
-        for (i, (vocab_id, score, _freq_score)) in variants.iter().enumerate() {
+        for (i, result) in variants.iter().enumerate() {
             if selected.is_none() || selected.unwrap() != i { //output all others
-                let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
-                print!("\t{}\t{}\t", vocabvalue.text, score);
-                if  output_lexmatch {
-                    print!("\t{}", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
-                }
+                output_result_as_tsv(&model, &result, output_lexmatch, freq_weight);
             }
         }
     }
     println!();
 }
 
-fn output_matches_as_json(model: &VariantModel, input: &str, variants: Option<&Vec<(VocabId, f64, f64)>>, selected: Option<usize>, offset: Option<Offset>, output_lexmatch: bool, seqnr: usize) {
+fn output_result_as_tsv(model: &VariantModel, result: &VariantResult, output_lexmatch: bool, freq_weight: f32) {
+    let vocabvalue = model.get_vocab(result.vocab_id).expect("getting vocab by id");
+    print!("\t{}\t{}\t", vocabvalue.text, result.score(freq_weight));
+    if  output_lexmatch {
+        print!("\t{}", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
+    }
+}
+
+fn output_matches_as_json(model: &VariantModel, input: &str, variants: Option<&Vec<VariantResult>>, selected: Option<usize>, offset: Option<Offset>, output_lexmatch: bool, freq_weight: f32, seqnr: usize) {
     if seqnr > 1 {
         println!(",")
     }
@@ -53,38 +53,37 @@ fn output_matches_as_json(model: &VariantModel, input: &str, variants: Option<&V
         println!(", \"variants\": [ ");
         let l = variants.len();
         if let Some(selected) = selected {
-            if let Some((vocab_id, score, freq_score)) = variants.get(selected) {
-                let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
-                print!("        {{ \"text\": \"{}\", \"score\": {}", vocabvalue.text.replace("\"","\\\""), score);
-                print!(", \"freq_score\": {}", freq_score);
-                if  output_lexmatch {
-                    print!(", \"lexicon\": \"{}\"", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
-                }
-                if 0 < l - 1 {
-                    println!(" }},");
-                } else {
-                    println!(" }}");
-                }
+            if let Some(result) = variants.get(selected) {
+                output_result_as_json(&model, &result, output_lexmatch, freq_weight, l - 1 == 0);
             }
         }
-        for (i, (vocab_id, score, freq_score)) in variants.iter().enumerate() {
+        for (i, result) in variants.iter().enumerate() {
             if selected.is_none() || selected.unwrap() != i { //output all others
-                let vocabvalue = model.get_vocab(*vocab_id).expect("getting vocab by id");
-                print!("        {{ \"text\": \"{}\", \"score\": {}", vocabvalue.text.replace("\"","\\\""), score);
-                print!(", \"freq_score\": {}", freq_score);
-                if  output_lexmatch {
-                    print!(", \"lexicon\": \"{}\"", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
-                }
-                if i < l - 1 {
-                    println!(" }},");
-                } else {
-                    println!(" }}");
-                }
+                output_result_as_json(&model, &result, output_lexmatch, freq_weight, l - 1 == i);
             }
         }
         println!("    ] }}");
     } else {
         println!(" }}");
+    }
+}
+
+fn output_result_as_json(model: &VariantModel, result: &VariantResult, output_lexmatch: bool, freq_weight: f32, last: bool) {
+    let vocabvalue = model.get_vocab(result.vocab_id).expect("getting vocab by id");
+    print!("        {{ \"text\": \"{}\", \"score\": {}", vocabvalue.text.replace("\"","\\\""), result.score(freq_weight));
+    print!(", \"dist_score\": {}", result.dist_score);
+    print!(", \"freq_score\": {}", result.freq_score);
+    if let Some(via_id) = result.via {
+        let viavalue = model.get_vocab(via_id).expect("getting vocab by id");
+        print!(", \"via\": {}", viavalue.text.replace("\"","\\\""));
+    }
+    if  output_lexmatch {
+        print!(", \"lexicon\": \"{}\"", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
+    }
+    if last {
+        println!(" }}");
+    } else {
+        println!(" }},");
     }
 }
 
@@ -178,10 +177,10 @@ fn process(model: &VariantModel, inputstream: impl Read, searchparams: &SearchPa
             }
             let variants = model.find_variants(&input, searchparams);
             if json {
-                output_matches_as_json(model, &input, Some(&variants), Some(0), None, output_lexmatch, seqnr);
+                output_matches_as_json(model, &input, Some(&variants), Some(0), None, output_lexmatch, searchparams.freq_weight, seqnr);
             } else {
                 //Normal output mode
-                output_matches_as_tsv(model, &input, Some(&variants), Some(0), None,  output_lexmatch);
+                output_matches_as_tsv(model, &input, Some(&variants), Some(0), None,  output_lexmatch, searchparams.freq_weight);
             }
         }
     }
@@ -217,10 +216,10 @@ fn process_par(model: &VariantModel, inputstream: impl Read, searchparams: &Sear
         for (input, variants) in output {
             seqnr += 1;
             if json {
-                output_matches_as_json(model, &input, Some(&variants), Some(0), None, output_lexmatch, seqnr);
+                output_matches_as_json(model, &input, Some(&variants), Some(0), None, output_lexmatch, searchparams.freq_weight, seqnr);
             } else {
                 //Normal output mode
-                output_matches_as_tsv(model, &input, Some(&variants), Some(0), None, output_lexmatch);
+                output_matches_as_tsv(model, &input, Some(&variants), Some(0), None, output_lexmatch, searchparams.freq_weight);
             }
         }
         if progress {
@@ -296,10 +295,10 @@ fn process_search(model: &VariantModel, inputstream: impl Read, searchparams: &S
         for result_match in output {
             seqnr += 1;
             if json {
-                output_matches_as_json(model, result_match.text, result_match.variants.as_ref(), result_match.selected, Some(result_match.offset), output_lexmatch, seqnr);
+                output_matches_as_json(model, result_match.text, result_match.variants.as_ref(), result_match.selected, Some(result_match.offset), output_lexmatch, searchparams.freq_weight, seqnr);
             } else {
                 //Normal output mode
-                output_matches_as_tsv(model, result_match.text, result_match.variants.as_ref(), result_match.selected, Some(result_match.offset), output_lexmatch);
+                output_matches_as_tsv(model, result_match.text, result_match.variants.as_ref(), result_match.selected, Some(result_match.offset), output_lexmatch, searchparams.freq_weight);
             }
         }
         if progress {

@@ -22,7 +22,7 @@ pub struct Match<'a> {
     pub offset: Offset,
 
     /// The variants for this match (sorted by decreasing distance score (first score), second score is frequency score)
-    pub variants: Option<Vec<(VocabId, f64, f64)>>,
+    pub variants: Option<Vec<VariantResult>>,
 
     ///the variant that was selected after searching and ranking (if any)
     pub selected: Option<usize>,
@@ -55,11 +55,10 @@ impl<'a> Match<'a> {
         self.variants.is_none() || self.variants.as_ref().unwrap().is_empty()
     }
 
-    /// Returns the solution if there is one. Returns an option containing a VocabId, distance
-    /// score and frequency score.
-    pub fn solution(&self) -> Option<(VocabId,f64,f64)> {
+    /// Returns the solution if there is one.
+    pub fn solution(&self) -> Option<&VariantResult> {
         if let Some(selected) = self.selected {
-            self.variants.as_ref().expect("match must have variants when 'selected' is set").get(selected).map(|x| *x)
+            self.variants.as_ref().expect("match must have variants when 'selected' is set").get(selected)
         } else {
             None
         }
@@ -269,14 +268,14 @@ pub fn find_match_ngrams<'a>(text: &'a str, boundaries: &[Match<'a>], order: u8,
 }
 
 
-/// A redundant match is a higher order match which already scores a perfect score when its unigram
+/// A redundant match is a higher order match which already scores a perfect distance score when its unigram
 /// components are considered separately.
 pub fn redundant_match<'a>(candidate: &Match<'a>, matches: &[Match<'a>]) -> bool {
     for refmatch in matches.iter() {
         if refmatch.n == 1 {
             if refmatch.offset.begin >= candidate.offset.begin && refmatch.offset.end <= candidate.offset.end {
                 if let Some(variants) = &refmatch.variants {
-                    if variants.is_empty() || variants.get(0).expect("variant").1 < 1.0 {
+                    if variants.is_empty() || variants.get(0).expect("variant").dist_score < 1.0 {
                         return false; //non-perfect score, so not redundant
                     }
                 } else {

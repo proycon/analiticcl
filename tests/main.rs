@@ -662,8 +662,9 @@ fn test0404_score_test() {
     //(order of equal-scoring elements is not fixed)
     //we just check if we get two results with the same score
     assert_eq!( results.len(), 2);
-    assert_ne!( results.get(0).unwrap().0, results.get(1).unwrap().0 );
-    assert_eq!( results.get(0).unwrap().1, results.get(1).unwrap().1 );
+    assert_ne!( results.get(0).unwrap().vocab_id, results.get(1).unwrap().vocab_id );
+    assert_eq!( results.get(0).unwrap().dist_score, results.get(1).unwrap().dist_score );
+    assert_eq!( results.get(0).unwrap().freq_score, results.get(1).unwrap().freq_score );
 }
 
 
@@ -690,9 +691,9 @@ fn test0502_confusable_test() {
     model.add_to_confusables("-[y]+[i]",1.1).expect("added to confusables");
     model.build();
     let results = model.find_variants("huys", &get_test_searchparams());
-    assert_eq!( model.decoder.get(results.get(0).unwrap().0 as usize).unwrap().text, "huis");
-    assert_eq!( model.decoder.get(results.get(1).unwrap().0 as usize).unwrap().text, "huls");
-    assert!( results.get(0).unwrap().1 > results.get(1).unwrap().1, "score of huis should be greater than that of huls" );
+    assert_eq!( model.decoder.get(results.get(0).unwrap().vocab_id as usize).unwrap().text, "huis");
+    assert_eq!( model.decoder.get(results.get(1).unwrap().vocab_id as usize).unwrap().text, "huls");
+    assert!( results.get(0).unwrap().dist_score > results.get(1).unwrap().dist_score, "score of huis should be greater than that of huls" );
 }
 
 #[test]
@@ -706,9 +707,9 @@ fn test0503_confusable_test2() {
     model.add_to_confusables("-[y]+[i]",1.1).expect("added to confusables");
     model.build();
     let results = model.find_variants("Huys", &get_test_searchparams());
-    assert_eq!( model.decoder.get(results.get(0).unwrap().0 as usize).unwrap().text, "huis");
-    assert_eq!( model.decoder.get(results.get(1).unwrap().0 as usize).unwrap().text, "huls");
-    assert!( results.get(0).unwrap().1 > results.get(1).unwrap().1, "score of huis should be greater than that of huls" );
+    assert_eq!( model.decoder.get(results.get(0).unwrap().vocab_id as usize).unwrap().text, "huis");
+    assert_eq!( model.decoder.get(results.get(1).unwrap().vocab_id as usize).unwrap().text, "huls");
+    assert!( results.get(0).unwrap().dist_score > results.get(1).unwrap().dist_score, "score of huis should be greater than that of huls" );
 }
 
 #[test]
@@ -723,7 +724,7 @@ fn test0504_confusable_nomatch() {
     model.build();
     let results = model.find_variants("Huys", &get_test_searchparams());
     assert_eq!( results.len() , 2 );
-    assert_eq!( results.get(0).unwrap().1,results.get(1).unwrap().1, "score of huis should be equal to that of huls" );
+    assert_eq!( results.get(0).unwrap().dist_score,results.get(1).unwrap().dist_score, "score of huis should be equal to that of huls" );
 }
 
 #[test]
@@ -992,7 +993,7 @@ fn test0801_expand_variants() {
     searchparams.max_edit_distance = DistanceThreshold::Absolute(2);
     let results = model.find_variants("afgheschaydt", &searchparams);
     assert_eq!( results.len() , 1 );
-    assert_eq!( model.decoder.get(results.get(0).unwrap().0 as usize).unwrap().text, "afgescheid");
+    assert_eq!( model.decoder.get(results.get(0).unwrap().vocab_id as usize).unwrap().text, "afgescheid");
 }
 
 #[test]
