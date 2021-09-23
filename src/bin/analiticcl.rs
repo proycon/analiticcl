@@ -117,19 +117,9 @@ fn output_weighted_variants_as_tsv(model: &VariantModel, multioutput: bool) {
         if let Some(variants) = &vocabitem.variants {
             print!("{}", vocabitem.text);
             for variant in variants {
-                match variant {
-                    VariantReference::WeightedVariant((vocab_id, score)) => {
-                        let variantitem = model.decoder.get(*vocab_id as usize).expect("vocab id must exist");
-                        output_weighted_variant_as_tsv(&variantitem.text, *score, variantitem.lexindex, multioutput, &mut outfiles, model);
-                    },
-                    VariantReference::VariantCluster(cluster_id) => {
-
-                        let cluster = model.variantclusters.get(&cluster_id).expect("cluster id must exist");
-                        for vocab_id in cluster.iter() {
-                            let variantitem = model.decoder.get(*vocab_id as usize).expect("vocab id must exist");
-                            output_weighted_variant_as_tsv(&variantitem.text, 1.0, variantitem.lexindex, multioutput, &mut outfiles, model);
-                        }
-                    }
+                if let VariantReference::ReferenceFor((vocab_id, score)) = variant {
+                    let variantitem = model.decoder.get(*vocab_id as usize).expect("vocab id must exist");
+                    output_weighted_variant_as_tsv(&variantitem.text, *score, variantitem.lexindex, multioutput, &mut outfiles, model);
                 }
             }
             println!();
@@ -165,19 +155,9 @@ fn output_weighted_variants_as_json(model: &VariantModel, multioutput: bool) {
         println!("    \"{}\": [ ", vocabitem.text.replace("\"","\\\"").as_str());
         if let Some(variants) = &vocabitem.variants {
             for variant in variants {
-                match variant {
-                    VariantReference::WeightedVariant((vocab_id, score)) => {
-                        let variantitem = model.decoder.get(*vocab_id as usize).expect("vocab id must exist");
-                        output_weighted_variant_as_json(&variantitem.text, *score, variantitem.lexindex, multioutput, &mut outfiles, model);
-                    },
-                    VariantReference::VariantCluster(cluster_id) => {
-
-                        let cluster = model.variantclusters.get(&cluster_id).expect("cluster id must exist");
-                        for vocab_id in cluster.iter() {
-                            let variantitem = model.decoder.get(*vocab_id as usize).expect("vocab id must exist");
-                            output_weighted_variant_as_json(&variantitem.text, 1.0, variantitem.lexindex, multioutput, &mut outfiles, model);
-                        }
-                    }
+                if let VariantReference::ReferenceFor((vocab_id, score)) = variant {
+                    let variantitem = model.decoder.get(*vocab_id as usize).expect("vocab id must exist");
+                    output_weighted_variant_as_json(&variantitem.text, *score, variantitem.lexindex, multioutput, &mut outfiles, model);
                 }
             }
         }
@@ -353,25 +333,18 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .takes_value(true)
         .number_of_values(1)
         .multiple(true)
-        .required_unless("weighted-variants"));
+        .required_unless("variants"));
     args.push(Arg::with_name("variants")
         .long("variants")
         .short("V")
-        .help("Loads a variant list, a tab-separated file in which all items on a single line are considered variants of equal weight. This option may be used multiple times.")
-        .takes_value(true)
-        .number_of_values(1)
-        .multiple(true));
-    args.push(Arg::with_name("weighted-variants")
-        .long("weighted-variants")
-        .short("W")
-        .help("Loads a weighted variant list, the first column contains the lexicon word and subsequent repeating columns (tab-separated) contain respectively a variant and the score of the variant. This option may be used multiple times.")
+        .help("Loads a (weighted) variant list, the first column contains the lexicon word and subsequent repeating columns (tab-separated) contain respectively a variant and the score of the variant. This option may be used multiple times.")
         .takes_value(true)
         .number_of_values(1)
         .multiple(true));
     args.push(Arg::with_name("errors")
         .long("errors")
         .short("E")
-        .help("This is a form of --weighted-variants in which all the variants are considered erroneous forms, they will be used only to find the authoritative solution from the first column and won't be returned as solutions themselves. This option may be used multiple times.")
+        .help("This is a form of --variants in which all the variants are considered erroneous forms, they will be used only to find the authoritative solution from the first column and won't be returned as solutions themselves (i.e. they are transparent). This option may be used multiple times.")
         .takes_value(true)
         .number_of_values(1)
         .multiple(true));
@@ -574,7 +547,7 @@ fn main() {
                     )
                     .subcommand(
                         SubCommand::with_name("learn")
-                            .about("Learn variants from the input data. Outputs a weighted variant list.")
+                            .about("Learn variants from the input data. Outputs a (weighted) variant list.")
                             .args(&common_arguments())
                             .arg(Arg::with_name("iterations")
                                 .short("I")
@@ -585,7 +558,7 @@ fn main() {
                             .arg(Arg::with_name("multi-output")
                                 .short("O")
                                 .long("multi-output")
-                                .help("Output to multiple weighted variant lists rather than to standard output, each variant lists corresponds to an input lexicon. This allows keeping the link with the original lexicon."))
+                                .help("Output to multiple (weighted) variant lists rather than to standard output, each variant lists corresponds to an input lexicon. This allows keeping the link with the original lexicon."))
                     )
                     .arg(Arg::with_name("debug")
                         .long("debug")
@@ -653,19 +626,13 @@ fn main() {
 
     if args.is_present("variants") {
         for filename in args.values_of("variants").unwrap().collect::<Vec<&str>>() {
-            model.read_variants(filename, Some(&VocabParams::default())).expect(&format!("Error reading variant list {}", filename));
-        }
-    }
-
-    if args.is_present("weighted-variants") {
-        for filename in args.values_of("weighted-variants").unwrap().collect::<Vec<&str>>() {
-            model.read_weighted_variants(filename, Some(&VocabParams::default()), false).expect(&format!("Error reading weighted variant list {}", filename));
+            model.read_variants(filename, Some(&VocabParams::default()), false).expect(&format!("Error reading weighted variant list {}", filename));
         }
     }
 
     if args.is_present("errors") {
         for filename in args.values_of("errors").unwrap().collect::<Vec<&str>>() {
-            model.read_weighted_variants(filename, Some(&VocabParams::default()), true).expect(&format!("Error reading error list {}", filename));
+            model.read_variants(filename, Some(&VocabParams::default()), true).expect(&format!("Error reading error list {}", filename));
         }
     }
 
