@@ -395,6 +395,16 @@ impl VariantModel {
     /// have already been added previously through a more authoritative lexicon.
     pub fn add_variant(&mut self, ref_id: VocabId, variant: &str, score: f64, freq: Option<u32>, params: &VocabParams) -> bool {
         let variantid = self.add_to_vocabulary(variant, freq, &params);
+        self.add_variant_by_id(ref_id, variantid, score)
+    }
+
+    /// Add a (weighted) variant to the model, referring to a reference that already exists in
+    /// the model.
+    /// Variants will be added
+    /// to the lexicon automatically when necessary. Set VocabType::TRANSPARENT
+    /// if you want variants to only be used as an intermediate towards items that
+    /// have already been added previously through a more authoritative lexicon.
+    pub fn add_variant_by_id(&mut self, ref_id: VocabId, variantid: VocabId, score: f64) -> bool {
         if variantid != ref_id {
             //link reference to variant
             if let Some(vocabvalue) = self.decoder.get_mut(ref_id as usize) {
@@ -673,13 +683,32 @@ impl VariantModel {
         self.score_and_rank(variants, input, normstring.len(), params.max_matches, params.score_threshold, params.cutoff_threshold, params.freq_weight)
     }
 
+
+    ///Auxiliary function used by [`learn_variants()`], abstracts over strict mode
+    fn find_variants_for_learning(&self, inputstr: &str, params: &SearchParameters, strict: bool) -> Vec<VariantResult> {
+        if strict {
+            self.find_variants(inputstr, params)
+        } else {
+            self.find_all_matches(inputstr, params).iter().filter_map(|result_match| {
+                if let Some(variants) = &result_match.variants {
+                    if let Some(selected) = result_match.selected {
+                        if let Some(result) = variants.get(selected) {
+                            return Some(result.clone());
+                        }
+                    }
+                }
+                None
+            }).collect()
+        }
+    }
+
     /// Processes input and finds variants (like [`find_variants()`]), but all variants that are found (which meet
     /// the set thresholds) will be stored in the model rather than returned. Unlike `find_variants()`, this is
     /// invoked with an iterator over multiple inputs and returns no output by itself. It
     /// will automatically apply parallellisation.
-    pub fn learn_variants<'a, I>(&mut self, input: I, params: &SearchParameters, auto_build: bool) -> (usize, usize)
+    pub fn learn_variants<'a, I>(&mut self, input: I, params: &SearchParameters, strict: bool, auto_build: bool) -> (usize, usize)
     where
-        I: IntoParallelIterator<Item = &'a (String, Option<u32>)> + IntoIterator<Item = &'a (String, Option<u32>)>,
+        I: IntoParallelIterator<Item = &'a String> + IntoIterator<Item = &'a String>,
     {
         if self.debug >= 1 {
             eprintln!("(Learning variants)");
@@ -687,14 +716,16 @@ impl VariantModel {
 
         let vocabparams = VocabParams::default().with_vocab_type(VocabType::TRANSPARENT).with_freq_handling(FrequencyHandling::Max);
 
-        let mut all_variants: Vec<(&'a str, Option<u32>, Vec<VariantResult>)> = Vec::new();
+        let mut all_variants: Vec<(&'a str, Vec<VariantResult>)> = Vec::new();
         if params.single_thread {
-            all_variants.extend( input.into_iter().map(|(inputstr, freq)| {
-                (inputstr.as_str(), *freq, self.find_variants(inputstr, params))
+            all_variants.extend( input.into_iter().map(|inputstr| {
+                (inputstr.as_str(),
+                self.find_variants_for_learning(inputstr.as_str(), params, strict))
             }));
         } else {
-            all_variants.par_extend( input.into_par_iter().map(|(inputstr, freq)| {
-                (inputstr.as_str(), *freq, self.find_variants(inputstr, params))
+            all_variants.par_extend( input.into_par_iter().map(|inputstr| {
+                (inputstr.as_str(),
+                self.find_variants_for_learning(inputstr.as_str(), params, strict))
             }));
         }
 
@@ -702,25 +733,36 @@ impl VariantModel {
             eprintln!("(adding variants over {} input items to the model)", all_variants.len());
         }
 
+
         let mut count = 0;
         let mut unknown = 0;
-        for (inputstr, freq, variants) in all_variants {
-            //we add it to the vocabulary manually once (because add_weighted_variant doesn't handle freq)
-            let vocab_id = self.add_to_vocabulary(inputstr, freq, &vocabparams);
+        for (inputstr, variants) in all_variants {
             if variants.is_empty() {
                 unknown += 1;
-            }
-            for result in variants {
-                if result.vocab_id != vocab_id { //ensure we don't add exact matches
-                    if self.add_variant(result.vocab_id, inputstr, result.dist_score, None, &vocabparams) {
-                        count += 1;
+            } else {
+                //get a vocabulary id for the input string;
+                //adding it to the vocabulary if it does not exist yet
+                let vocab_id = if let Some(vocab_id) = self.encoder.get(inputstr) {
+                    //item exists, increment frequency
+                    let vocabitem = self.decoder.get_mut(*vocab_id as usize).expect("item must exist");
+                    vocabitem.frequency += 1;
+                    *vocab_id
+                } else {
+                    //item is new
+                    self.add_to_vocabulary(inputstr, Some(1), &vocabparams)
+                };
+                for result in variants {
+                    if result.vocab_id != vocab_id { //ensure we don't add exact matches
+                        if self.add_variant_by_id(result.vocab_id, vocab_id, result.dist_score) {
+                            count += 1;
+                        }
                     }
                 }
             }
         }
 
         if self.debug >= 1 {
-            eprintln!("(added {} weighted variants, unable to match {} input strings)", count, unknown);
+            eprintln!("(added {} variants, unable to match {} input strings)", count, unknown);
         }
 
         if auto_build {

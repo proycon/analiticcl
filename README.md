@@ -154,11 +154,14 @@ $ analiticcl query --lexicon examples/eng.aspell.lexicon --alphabet examples/sim
 
 ### Learn Mode
 
-In learn mode, analiticcl takes input similar like in query mode, but rather than output the results directly, it
-associates the variants found with the items in the lexicon and updates the model with this information. The output this
-mode provides is effectively the inverse of what query does; for each item in the lexicon, all variants that were found
-(and their scores are listed). This output constitutes a weighted variant list which can be loaded in again using
-``--variants``.
+In learn mode, analiticcl takes a lexicon, and collects variants from the input for each item in the lexicon.
+
+It takes input similar like search mode or query mode (add an extra ``--strict`` flag if your input is a list/lexicon
+rather than running text). Instead of outputting the results directly, it collects all varaints and associates them with
+the items in the lexicon, effectively updating the model with this information. The output this mode provides is
+the inverse of what search or query does; for each item in the lexicon, all variants that were found (and their scores
+are listed). This output constitutes a weighted variant
+list which can be loaded in again using ``--variants``.
 
 The learned variants are used as intermediate words to guide the system towards a desired solution. Assume for instance
 that our lexicon contains the word ``separate``, and we found the variant ``seperate`` in the data during learning. This
@@ -171,7 +174,8 @@ Learn mode may do multiple iterations over the same data (set ``--iterations``).
 distances can be covered, but this is also a source for extra noise so accuracy will go down too.
 
 When using learn mode, make sure to choose tight constraints (e.g. ``--max-matches 1`` and a high
-``--score-threshold``).
+``--score-threshold``). Learning on a list/lexicon using ``--strict`` rather than on running text, generally leads to
+better results.
 
 ### Search Mode
 
@@ -446,6 +450,10 @@ The properties of the anagram values facilitate a much quicker lookup, when give
     * Optionally, if a confusable list was provided, we compute the edit script between the input and each variant, and
       rescore when there are known confusables that are either favoured or penalized.
 
+
+## Licence
+
+Analiticcl is open-source software licenced under the GNU Public Licence v3.
 
 ## References
 
