@@ -239,7 +239,7 @@ Analiticcl **will not** work for you if you just feed it some small lexicons and
 In query mode, analiticcl will return a similarity/distance score between your input and any matching variants. This
 score is expressed on a scale of 1.0 (exact match) to 0.0. The score takes the length of the input into account, so a
 levenshtein difference of 2 on a word weighs less than a levenshtein distance of 2 on a shorter word. The distance score
-itself is consists of multiple components, each with a weight:
+itself consists of multiple components, each with a configurable weight:
 
 * Damerau-Levenshtein
 * Longest common substring
@@ -249,7 +249,7 @@ itself is consists of multiple components, each with a weight:
 
 A frequency score on a scale of 1.0 (most frequent variant) to 0.0 is returned separately (not shown in TSV output).
 By default, the ranking of variants is based primarily on the distance score, the frequency score is only used as a
-secondary key in case their is a tie (multiple items with the same distance score).
+secondary key in case there is a tie (multiple items with the same distance score).
 
 If you do want frequency information to play a larger role in the ranking of variants, you can use the ``--freq-ranking`` parameter, the value of
 which is a weight to attribute to frequency ranking in relation to the distance component and should be in the range 0.0
