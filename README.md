@@ -67,8 +67,7 @@ Note that 32-bit architectures are not supported.
 
 ## Usage
 
-Analiticcl is typically used through its command line interface, full syntax help is always available through
-``analiticcl --help``.
+Analiticcl is typically used through its command line interface or through the [Python binding](https://github.com/proycon/analiticcl/tree/master/bindings/python). Full syntax help for the command line tool is always available through ``analiticcl --help``.
 
 Analiticcl can be run in several **modes**, each is invoked through a subcommand:
 
@@ -112,7 +111,7 @@ parallellisation:
 
 ```
 seperate
-seperate        separate        0.7666666666666667              desperate       0.6             generate        0.5583333333333333              venerate        0.5583333333333333              federate        0.5583333333333333              exasperate     0.52             sewerage        0.5083333333333334              seatmate        0.5083333333333333              saturate        0.5             prate   0.49333333333333335
+seperate        separate        0.734375                operate 0.6875          desperate       0.6875          temperate       0.6875          serrate 0.65625         separates       0.609375                separated       0.609375
 ```
 
 Rather than running it interactively, you can use your shell's standard redirection facilities to provide input and output, multiple variants will be processed in parallel.
@@ -122,13 +121,34 @@ $ analiticcl query --lexicon examples/eng.aspell.lexicon --alphabet examples/sim
 output.tsv
 ```
 
+
 The ``--lexicon`` argument can be specified multiple times for multiple lexicons. Lexicons may
 contain absolute frequency information, but frequencies between multiple lexicons must be balanced! In case you are using multiple lexicons, you can
 get analiticcl to output information on which lexicon a match was found in by setting. ``--output-lexmatch``. The order
-of the lexicons matters; if multiple lexicons contain the same entry, only the first lexicon is returned as a match.
+of the lexicons (and variant lists) matters if there is associated frequency information. If an entry occurs in multiple lexicons, they will all be returned.
 
-If you want JSON output rather than TSV, use the ``--json`` flag.
+If you want JSON output rather than TSV, use the ``--json`` flag. The JSON output includes more details than the TSV
+output. Most notable, you will see the distance score (aka similarity score) and the frequency scores seperated, whereas
+the TSV mode only outputs the combined score.
 
+```
+$ analiticcl query --lexicon examples/eng.aspell.lexicon --alphabet examples/simple.alphabet.tsv --output-lexmatch
+--json < input.tsv > output.json
+```
+
+```json
+[
+    { "input": "seperate", "variants": [
+        { "text": "separate", "score": 0.734375, "dist_score": 0.734375, "freq_score": 1, "lexicons": [ "examples/eng.aspell.lexicon" ] },
+        { "text": "desperate", "score": 0.6875, "dist_score": 0.6875, "freq_score": 1, "lexicons": [ "examples/eng.aspell.lexicon" ] },
+        { "text": "operate", "score": 0.6875, "dist_score": 0.6875, "freq_score": 1, "lexicons": [ "examples/eng.aspell.lexicon" ] },
+        { "text": "temperate", "score": 0.6875, "dist_score": 0.6875, "freq_score": 1, "lexicons": [ "examples/eng.aspell.lexicon" ] },
+        { "text": "serrate", "score": 0.65625, "dist_score": 0.65625, "freq_score": 1, "lexicons": [ "examples/eng.aspell.lexicon" ] },
+        { "text": "separated", "score": 0.609375, "dist_score": 0.609375, "freq_score": 1, "lexicons": [ "examples/eng.aspell.lexicon" ] },
+        { "text": "separates", "score": 0.609375, "dist_score": 0.609375, "freq_score": 1, "lexicons": [ "examples/eng.aspell.lexicon" ] }
+    ] }
+]
+```
 
 ### Index Mode
 
@@ -301,7 +321,7 @@ information for some simple tagging. Order matter here, only the first match is 
 A variant lists explicitly relate spelling variants, and in doing so go a step further than a simple lexicon which only
 specifies the validated or corpus-derived form.
 
-A variant list is *directed* and *weighed*, it specifies an normalised/preferred form first, and then specifies variants and variant scores. Take the following example (all fields are tab separated):
+A variant list is *directed* and *weighted*, it specifies a normalised/preferred form first, and then specifies variants and variant scores. Take the following example (all fields are tab separated):
 
 ```
 huis	huys	1.0	huijs	1.0
@@ -309,7 +329,8 @@ huis	huys	1.0	huijs	1.0
 This states that the preferred word *huis* has two variants (historical spelling in this case), and both have a score
 (0-1) that expresses how likely the variant maps to the preferred word. When loaded into analiticcl with
 ``--variants``, both the preferred form and the variants will be valid results in normalization (as if you
-loaded a lexicon with all three words in it).
+loaded a lexicon with all three words in it). Any matches on the variants will automatically *expand* to also match on
+the preferred form.
 
 What you might be more interested in, is a special flavour of the variant list called an *error list*, loaded
 into analiticcl using ``--errors``. Consider the following example:
@@ -317,9 +338,7 @@ into analiticcl using ``--errors``. Consider the following example:
 ```
 separate	seperate	1.0	seperete 1.0
 ```
-This states that the preferred word ``seperate`` has two variants that are considered errors. In this case, analiticcl will still match against the variants but
-but they will not be returned as a solution; the preferred variant will be returned as a solution instead. This
-mechanism helps bridge larger edit distances.
+This states that the preferred word ``seperate`` has two variants that are considered errors. In this case, analiticcl considers these variants *transparent*, it will still match against the variants but but they will never be returned as a solution; the preferred variant will be returned as a solution instead. This mechanism helps bridge larger edit distances. In the JSON output, the "via" property conveys that a transparent variant was used in matching.
 
 A variant list may also contain an extra column of absolute frequencies, provided that it's consistently
 provided for *all* references and variants:

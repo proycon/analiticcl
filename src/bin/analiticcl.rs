@@ -487,7 +487,7 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
     args.push(Arg::with_name("max-edit-distance")
         .long("max-edit-distance")
         .short("d")
-        .help("Maximum edit distance (levenshtein-damarau). The maximum edit distance according to Levenshtein-Damarau. Can either be an absolute value (integer), or a ratio of the input length (float between 0.0 and 1.0), or a combination of a ratio with an absolute maximum, separated by a semicolon (ratio;limit). When a ratio is expressed, longer inputs use a higher edit distance than shorter ones. Insertions, deletions, substitutions and transposition all have the same cost (1). It is recommended to set this value slightly lower than the maximum anagram distance.")
+        .help("Maximum edit distance (levenshtein-damerau). The maximum edit distance according to Levenshtein-Damarau. Can either be an absolute value (integer), or a ratio of the input length (float between 0.0 and 1.0), or a combination of a ratio with an absolute maximum, separated by a semicolon (ratio;limit). When a ratio is expressed, longer inputs use a higher edit distance than shorter ones. Insertions, deletions, substitutions and transposition all have the same cost (1). It is recommended to set this value slightly lower than the maximum anagram distance.")
         .takes_value(true)
         .default_value("2"));
     args.push(Arg::with_name("max-matches")
