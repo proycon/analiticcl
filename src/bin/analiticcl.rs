@@ -44,7 +44,14 @@ fn output_result_as_tsv(model: &VariantModel, result: &VariantResult, output_lex
     let vocabvalue = model.get_vocab(result.vocab_id).expect("getting vocab by id");
     print!("\t{}\t{}\t", vocabvalue.text, result.score(freq_weight));
     if  output_lexmatch {
-        print!("\t{}", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
+        let lexicons: Vec<&str> = model.lexicons.iter().enumerate().filter_map(|(i,name)| {
+            if vocabvalue.in_lexicon(i as u8) {
+                Some(name.as_str())
+            } else {
+                None
+            }
+        }).collect();
+        print!("\t\"{}\"", lexicons.join(";"));
     }
 }
 
@@ -85,7 +92,14 @@ fn output_result_as_json(model: &VariantModel, result: &VariantResult, output_le
         print!(", \"via\": \"{}\"", viavalue.text.replace("\"","\\\""));
     }
     if  output_lexmatch {
-        print!(", \"lexicon\": \"{}\"", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
+        let lexicons: Vec<String> = model.lexicons.iter().enumerate().filter_map(|(i,name)| {
+            if vocabvalue.in_lexicon(i as u8) {
+                Some(format!("\"{}\"", name.replace("\"","\\\"")))
+            } else {
+                None
+            }
+        }).collect();
+        print!(", \"lexicons\": [ {} ]", lexicons.join(", "));
     }
     if last {
         println!(" }}");
@@ -96,20 +110,29 @@ fn output_result_as_json(model: &VariantModel, result: &VariantResult, output_le
 
 
 ///auxiliary function outputting a single variant
-fn output_weighted_variant_as_tsv(text: &str, score: f64, lexindex: u8, multioutput: bool, outfiles: &mut HashMap<u8,File>, model: &VariantModel) {
+fn output_weighted_variant_as_tsv(text: &str, score: f64, lexindex: u32, multioutput: bool, outfiles: &mut HashMap<u8,File>, model: &VariantModel) {
     if multioutput {
-        let f = if let Some(f) = outfiles.get_mut(&lexindex) {
-            f
-        } else {
-            let filename: String = format!("{}.variants.tsv", model.lexicons.get(lexindex as usize).expect("lexindex must exist"));
-            if let Ok(f) = File::create(filename.as_str()) {
-                outfiles.insert(lexindex, f);
-                outfiles.get_mut(&lexindex).expect("outfile must be prepared")
+        for lexindex in model.lexicons.iter().enumerate().filter_map(|(i,_name)| {
+            if lexindex as usize & (1 << i) == i << i {
+                Some(i)
             } else {
-                panic!("unable to write to {}", filename.as_str());
+                None
             }
-        };
-        f.write(format!("\t{}\t{}\n", text, score).as_bytes()).expect("error writing to file");
+        }) {
+            let lexindex = lexindex as u8;
+            let f = if let Some(f) = outfiles.get_mut(&lexindex) {
+                f
+            } else {
+                let filename: String = format!("{}.variants.tsv", model.lexicons.get(lexindex as usize).expect("lexindex must exist"));
+                if let Ok(f) = File::create(filename.as_str()) {
+                    outfiles.insert(lexindex, f);
+                    outfiles.get_mut(&lexindex).expect("outfile must be prepared")
+                } else {
+                    panic!("unable to write to {}", filename.as_str());
+                }
+            };
+            f.write(format!("\t{}\t{}\n", text, score).as_bytes()).expect("error writing to file");
+        }
     } else {
         print!("\t{}\t{}", text, score);
     }
@@ -134,20 +157,29 @@ fn output_weighted_variants_as_tsv(model: &VariantModel, multioutput: bool) {
 }
 
 ///auxiliary function outputting a single variant
-fn output_weighted_variant_as_json(text: &str, score: f64, lexindex: u8, multioutput: bool, outfiles: &mut HashMap<u8,File>, model: &VariantModel) {
+fn output_weighted_variant_as_json(text: &str, score: f64, lexindex: u32, multioutput: bool, outfiles: &mut HashMap<u8,File>, model: &VariantModel) {
     if multioutput {
-        let f = if let Some(f) = outfiles.get_mut(&lexindex) {
-            f
-        } else {
-            let filename: String = format!("{}.variants.json", model.lexicons.get(lexindex as usize).expect("lexindex must exist"));
-            if let Ok(f) = File::create(filename.as_str()) {
-                outfiles.insert(lexindex, f);
-                outfiles.get_mut(&lexindex).expect("outfile must be prepared")
+        for lexindex in model.lexicons.iter().enumerate().filter_map(|(i,_name)| {
+            if lexindex as usize & (1 << i) == 1 << i {
+                Some(i)
             } else {
-                panic!("unable to write to {}", filename.as_str());
+                None
             }
-        };
-        f.write(format!("        {{ \"text\": \"{}\", \"score\": {} }}, ", text.replace("\"","\\\""), score).as_bytes()).expect("error writing to file");
+        }) {
+            let lexindex = lexindex as u8;
+            let f = if let Some(f) = outfiles.get_mut(&lexindex) {
+                f
+            } else {
+                let filename: String = format!("{}.variants.json", model.lexicons.get(lexindex as usize).expect("lexindex must exist"));
+                if let Ok(f) = File::create(filename.as_str()) {
+                    outfiles.insert(lexindex, f);
+                    outfiles.get_mut(&lexindex).expect("outfile must be prepared")
+                } else {
+                    panic!("unable to write to {}", filename.as_str());
+                }
+            };
+            f.write(format!("        {{ \"text\": \"{}\", \"score\": {} }}, ", text.replace("\"","\\\""), score).as_bytes()).expect("error writing to file");
+        }
     } else {
         println!("        {{ \"text\": \"{}\", \"score\": {} }}, ", text.replace("\"","\\\""), score);
     }

@@ -318,7 +318,6 @@ impl PyVariantModel {
     fn variantresult_to_dict<'py>(&self, result: &libanaliticcl::VariantResult, freq_weight: f32, py: Python<'py>) -> PyResult<&'py PyDict> {
         let dict = PyDict::new(py);
         let vocabvalue = self.model.get_vocab(result.vocab_id).expect("getting vocab by id");
-        let lexicon = self.model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index");
         dict.set_item("text", vocabvalue.text.as_str())?;
         dict.set_item("score", result.score(freq_weight))?;
         dict.set_item("dist_score", result.dist_score)?;
@@ -327,7 +326,14 @@ impl PyVariantModel {
             let viavalue = self.model.get_vocab(via_id).expect("getting vocab by id");
             dict.set_item("via", viavalue.text.as_str())?;
         }
-        dict.set_item("lexicon", lexicon.as_str())?;
+        let lexicons: Vec<&str> = self.model.lexicons.iter().enumerate().filter_map(|(i,name)| {
+            if vocabvalue.in_lexicon(i as u8) {
+                Some(name.as_str())
+            } else {
+                None
+            }
+        }).collect();
+        dict.set_item("lexicons", lexicons)?;
         Ok(dict)
     }
 }

@@ -32,7 +32,7 @@ class AnaliticclPythonBindingTests(unittest.TestCase):
         assert len(result['variants']) > 0
         best_match = result['variants'][0]
         self.assertEqual(best_match['text'], lex_term)
-        self.assertEqual(best_match['lexicon'], lexicon)
+        self.assertEqual(best_match['lexicons'], [lexicon])
 
 
 if __name__ == '__main__':

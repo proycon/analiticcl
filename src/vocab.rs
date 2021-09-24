@@ -16,8 +16,8 @@ pub struct VocabValue {
     /// The number of words
     pub tokencount: u8,
 
-    /// The first lexicon index which matches
-    pub lexindex: u8,
+    /// Bitflag to indicate which lexicons match (can refer to multiple lexicons)
+    pub lexindex: u32,
 
     /// Pointer to other vocabulary items that are considered a variant
     /// of this one (with a certain score between 0 and 1). This structure is used when loading variant/error lists
@@ -45,6 +45,7 @@ bitflags! {
     }
 }
 
+
 impl VocabType {
     pub fn check(&self, test: VocabType) -> bool {
         *self & test == test
@@ -69,6 +70,10 @@ impl VocabValue {
             variants: None,
             vocabtype,
         }
+    }
+
+    pub fn in_lexicon(&self, index: u8) -> bool {
+        self.lexindex & (1 << index) == 1 << index
     }
 }
 

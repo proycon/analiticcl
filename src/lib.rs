@@ -583,7 +583,6 @@ impl VariantModel {
                     };
                 },
                 FrequencyHandling::Replace => {
-                    item.lexindex = params.index;
                     item.frequency = frequency;
                 },
             }
@@ -593,8 +592,9 @@ impl VariantModel {
                 //we can lose the transparency flag if a later lexicon doesn't provide it
                 item.vocabtype ^= VocabType::TRANSPARENT;
             }
+            item.lexindex |= 1 << params.index;
             if self.debug >= 3 {
-                eprintln!("    (updated) freq={}, lexindex={}", item.frequency, item.lexindex);
+                eprintln!("    (updated) freq={}, lexindex+={}", item.frequency, params.index);
             }
             *vocab_id
         } else {
@@ -605,7 +605,7 @@ impl VariantModel {
                 norm: text.normalize_to_alphabet(&self.alphabet),
                 frequency: frequency,
                 tokencount: text.chars().filter(|c| *c == ' ').count() as u8 + 1,
-                lexindex: params.index,
+                lexindex:  1 << params.index,
                 variants: None,
                 vocabtype: params.vocab_type
             });

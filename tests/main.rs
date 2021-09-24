@@ -1001,7 +1001,9 @@ fn test0901_find_all_matches_with_multiple_lexicons() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 2);
     assert!(model.read_vocabulary(LEXICON_AMPHIBIANS, &VocabParams::default()).is_ok());
+    const LEXICON_AMPHIBIANS_INDEX: u8 = 0;
     assert!(model.read_vocabulary(LEXICON_REPTILES, &VocabParams::default()).is_ok());
+    const LEXICON_REPTILES_INDEX: u8 = 1;
     model.build();
     assert_eq!( model.lexicons.len(), 2);
     let inputwords = vec!("Salamander", "lizard","frog","snake","toad");
@@ -1021,20 +1023,15 @@ fn test0901_find_all_matches_with_multiple_lexicons() {
     }
 
     //salamander
-    assert_eq!( model.lexicons[model.match_to_vocabvalue(&matches[0]).expect("must exist").lexindex as usize],
-                LEXICON_AMPHIBIANS  );
+    assert!( model.match_to_vocabvalue(&matches[0]).expect("must exist").in_lexicon(LEXICON_AMPHIBIANS_INDEX) );
     //lizard
-    assert_eq!( model.lexicons[model.match_to_vocabvalue(&matches[1]).expect("must exist").lexindex as usize],
-                LEXICON_REPTILES  );
+    assert!( model.match_to_vocabvalue(&matches[1]).expect("must exist").in_lexicon(LEXICON_REPTILES_INDEX) );
     //frog
-    assert_eq!( model.lexicons[model.match_to_vocabvalue(&matches[2]).expect("must exist").lexindex as usize],
-                LEXICON_AMPHIBIANS  );
+    assert!( model.match_to_vocabvalue(&matches[2]).expect("must exist").in_lexicon(LEXICON_AMPHIBIANS_INDEX) );
     //snake
-    assert_eq!( model.lexicons[model.match_to_vocabvalue(&matches[3]).expect("must exist").lexindex as usize],
-                LEXICON_REPTILES  );
+    assert!( model.match_to_vocabvalue(&matches[3]).expect("must exist").in_lexicon(LEXICON_REPTILES_INDEX) );
     //toad
-    assert_eq!( model.lexicons[model.match_to_vocabvalue(&matches[4]).expect("must exist").lexindex as usize],
-                LEXICON_AMPHIBIANS  );
+    assert!( model.match_to_vocabvalue(&matches[4]).expect("must exist").in_lexicon(LEXICON_AMPHIBIANS_INDEX) );
 
 }
 
