@@ -74,12 +74,14 @@ impl PyWeights {
 
 //should ideally be implemented using FromPyObject but can't do that because libanaliticcl is not considered not crate-internal anymore here
 fn extract_distance_threshold(value: &PyAny) -> PyResult<libanaliticcl::DistanceThreshold> {
-    if let Ok(Some(v)) = value.extract() {
+    if let Ok(Some((v,limit))) = value.extract() {
+        Ok(libanaliticcl::DistanceThreshold::RatioWithLimit(v,limit))
+    } else if let Ok(Some(v)) = value.extract() {
         Ok(libanaliticcl::DistanceThreshold::Absolute(v))
     } else if let Ok(Some(v)) = value.extract() {
         Ok(libanaliticcl::DistanceThreshold::Ratio(v))
     } else {
-        Err(PyValueError::new_err("Must be an integer expressing an absolute value, or float in range 0-1 expressing a ratio"))
+        Err(PyValueError::new_err("Must be an integer expressing an absolute value, or float in range 0-1 expressing a ratio. Or a two-tuple expression a ratio with an absolute limit (float;int)"))
     }
 }
 
@@ -167,6 +169,12 @@ impl PySearchParameters {
             },
             libanaliticcl::DistanceThreshold::Ratio(value) => {
                 Ok(value.into_py(py).into_ref(py))
+            },
+            libanaliticcl::DistanceThreshold::RatioWithLimit(value, limit) => {
+                let dict = PyDict::new(py);
+                dict.set_item("ratio", value)?;
+                dict.set_item("limit", limit)?;
+                Ok( dict )
             }
         }
     }
@@ -178,6 +186,12 @@ impl PySearchParameters {
             },
             libanaliticcl::DistanceThreshold::Ratio(value) => {
                 Ok(value.into_py(py).into_ref(py))
+            },
+            libanaliticcl::DistanceThreshold::RatioWithLimit(value, limit) => {
+                let dict = PyDict::new(py);
+                dict.set_item("ratio", value)?;
+                dict.set_item("limit", limit)?;
+                Ok( dict )
             }
         }
     }

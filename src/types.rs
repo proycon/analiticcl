@@ -57,22 +57,35 @@ impl Weights {
 pub enum DistanceThreshold {
     ///The distance threshold is expressed as a ratio of the total length of the text fragment under consideration, should be in range 0-1
     Ratio(f32),
+    ///Like ratio, but with a set absolute maximum
+    RatioWithLimit(f32,u8),
     ///Absolute distance threshold
     Absolute(u8)
+
 }
 
 impl FromStr for DistanceThreshold {
     type Err = std::io::Error;
 
     fn from_str(s: &str) -> Result<Self, std::io::Error> {
-        if let Ok(num) = s.parse::<u8>() {
+        if s.contains(";") {
+            let fields: Vec<&str> = s.split(";").collect();
+            if fields.len() == 2 {
+                if let Ok(ratio) = s.parse::<f32>() {
+                    if let Ok(limit) = s.parse::<u8>() {
+                        return Ok(Self::RatioWithLimit(ratio,limit));
+                    }
+                }
+            }
+            return Err(Error::new(ErrorKind::InvalidInput, "Expected a combination of a ratio (float) and and absolute maximum (integer) separated by a semicolon"));
+        } else if let Ok(num) = s.parse::<u8>() {
             return Ok(Self::Absolute(num));
         } else if let Ok(num) = s.parse::<f32>() {
             if num >= 0.0 && num <= 1.0 {
                 return Ok(Self::Ratio(num))
             }
         }
-        Err(Error::new(ErrorKind::InvalidInput, "Input must be integer (absolute threshold) or float between 0.0 and 1.0 (ratio)"))
+        Err(Error::new(ErrorKind::InvalidInput, "Input must be integer (absolute threshold) or float between 0.0 and 1.0 (ratio), or a combination of a ratio and and absolute maximum separated by a semicolon"))
     }
 }
 

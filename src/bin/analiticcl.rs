@@ -481,13 +481,13 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
     args.push(Arg::with_name("max-anagram-distance")
         .long("max-anagram-distance")
         .short("k")
-        .help("Maximum anagram distance. Can either be an absolute value (integer), or a ratio of the input length (float between 0.0 and 1.0). The anagram distance impacts the size of the search space. Each insertion or deletion has cost 1, substitutions can not be separately tracked so they counts as 2 (deletion+insertion). It is therefore recommended to set this value slightly higher than the max edit distance.")
+        .help("Maximum anagram distance. Can either be an absolute value (integer), or a ratio of the input length (float between 0.0 and 1.0), or a combination of a ratio with an absolute maximum, separated by a semicolon (ratio;limit). The anagram distance impacts the size of the search space. Each insertion or deletion has cost 1, substitutions can not be separately tracked so they counts as 2 (deletion+insertion). It is therefore recommended to set this value slightly higher than the max edit distance.")
         .takes_value(true)
         .default_value("3"));
     args.push(Arg::with_name("max-edit-distance")
         .long("max-edit-distance")
         .short("d")
-        .help("Maximum edit distance (levenshtein-damarau). The maximum edit distance according to Levenshtein-Damarau. Can either be an absolute value (integer), or a ratio of the input length (float between 0.0 and 1.0) so longer inputs use a higher edit distance than short ones. Insertions, deletions, substitutions and transposition all have the same cost (1). It is recommended to set this value slightly lower than the maximum anagram distance.")
+        .help("Maximum edit distance (levenshtein-damarau). The maximum edit distance according to Levenshtein-Damarau. Can either be an absolute value (integer), or a ratio of the input length (float between 0.0 and 1.0), or a combination of a ratio with an absolute maximum, separated by a semicolon (ratio;limit). When a ratio is expressed, longer inputs use a higher edit distance than shorter ones. Insertions, deletions, substitutions and transposition all have the same cost (1). It is recommended to set this value slightly lower than the maximum anagram distance.")
         .takes_value(true)
         .default_value("2"));
     args.push(Arg::with_name("max-matches")

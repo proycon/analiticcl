@@ -635,6 +635,10 @@ impl VariantModel {
                 (normstring.len() as f32 * x).floor() as u8,
                 MAX_ANAGRAM_DISTANCE, //absolute maximum as a safeguard
             ),
+            DistanceThreshold::RatioWithLimit(x,limit) => min(
+                (normstring.len() as f32 * x).floor() as u8,
+                limit,
+            ),
             DistanceThreshold::Absolute(x) => min(
                     x,
                     (normstring.len() as f64 / 2.0).floor() as u8 //we still override the absolute threshold when dealing with very small inputs
@@ -651,6 +655,10 @@ impl VariantModel {
             DistanceThreshold::Ratio(x) => min(
                 (normstring.len() as f32 * x).floor() as u8,
                 MAX_EDIT_DISTANCE, //absolute maximum as a safeguard
+            ),
+            DistanceThreshold::RatioWithLimit(x,limit) => min(
+                (normstring.len() as f32 * x).floor() as u8,
+                limit,
             ),
             DistanceThreshold::Absolute(x) => min(
                     x,
