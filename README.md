@@ -39,13 +39,12 @@ implementation written in [Rust](https://www.rust-lang.org).
   confusables in the ranking stage (this weight is applied to the whole score).
 * Rather than look up words in spelling-correction style, users may also output the entire hashed anagram index, or
   output a reverse index of all variants found the supplied input data for each item in the lexicon.
-* Also supports ingesting explicit variant lists or explicit error lists. These can be either weighted or not.
+* Also supports ingesting explicit variant lists/error lists.
+* Support for language models to consider context information.
 * Multi-threading support
 
-* **implementation still in progress:**
-    * variant matching on full text documents (rather than delivering the input line by line), simple tokenisation
-    * better handling of unknown values
-    * proper handling of n-grams (splits/merges)
+The current implementation is still a work in progress and should be considered experimental. Especially the search mode
+and the use of language models is still being evaluated and improved.
 
 ## Installation
 
@@ -69,12 +68,13 @@ Note that 32-bit architectures are not supported.
 
 Analiticcl is typically used through its command line interface or through the [Python binding](https://github.com/proycon/analiticcl/tree/master/bindings/python). Full syntax help for the command line tool is always available through ``analiticcl --help``.
 
-Analiticcl can be run in several **modes**, each is invoked through a subcommand:
+Analiticcl can be run in several **modes**, each is invoked through a subcommand, each subcommand also takes its own
+``--help`` parameter for detailed usage information.
 
 * **Query mode** - ``analiticcl query`` - Queries the model for variants for the provided input item (one per line)
 * **Search mode** - ``analiticcl search`` - Searches for variants in running text. This encompasses detection and correction whereas the above query mode only handles correction.
-* **Index mode** - ``analiticcl index`` - Computes and outputs the anagram index, takes no further input
 * **Learn mode** - ``analiticcl learn`` - Learns variants from the input for each item in the lexicon and outputs a weighted variant list.
+* **Index mode** - ``analiticcl index`` - Computes and outputs the anagram index, takes no further input
 
 In all modes, the performance of the system depends to a large depree on the quality of the lexicons, including the **background lexicon**, the importance of which can not be understated so we dedicate a special section to it later, and the chosen parameters.
 
@@ -122,10 +122,11 @@ output.tsv
 ```
 
 
-The ``--lexicon`` argument can be specified multiple times for multiple lexicons. Lexicons may
-contain absolute frequency information, but frequencies between multiple lexicons must be balanced! In case you are using multiple lexicons, you can
-get analiticcl to output information on which lexicon a match was found in by setting. ``--output-lexmatch``. The order
-of the lexicons (and variant lists) matters if there is associated frequency information. If an entry occurs in multiple lexicons, they will all be returned.
+The ``--lexicon`` argument can be specified multiple times for multiple lexicons. Lexicons may contain absolute
+frequency information, but frequencies between multiple lexicons must be balanced! In case you are using multiple
+lexicons, you can get analiticcl to output information on which lexicon a match was found in by setting.
+``--output-lexmatch``. The order of the lexicons (and variant lists) matters if there is associated frequency
+information. If an entry occurs in multiple lexicons, they will all be returned.
 
 If you want JSON output rather than TSV, use the ``--json`` flag. The JSON output includes more details than the TSV
 output. Most notable, you will see the distance score (aka similarity score) and the frequency scores seperated, whereas
@@ -149,6 +150,42 @@ $ analiticcl query --lexicon examples/eng.aspell.lexicon --alphabet examples/sim
     ] }
 ]
 ```
+
+
+### Learn Mode
+
+In learn mode, analiticcl takes input similar like in query mode, but rather than output the results directly, it
+associates the variants found with the items in the lexicon and updates the model with this information. The output this
+mode provides is effectively the inverse of what query does; for each item in the lexicon, all variants that were found
+(and their scores are listed). This output constitutes a weighted variant list which can be loaded in again using
+``--variants``.
+
+The learned variants are used as intermediate words to guide the system towards a desired solution. Assume for instance
+that our lexicon contains the word ``separate``, and we found the variant ``seperate`` in the data during learning. This
+variant is now associated with the right reference, and on subsequent runs matches against ``seperate`` will count
+towards matches on ``separate``. This mechanism allows the system to bridge larger edit distances even when it is
+contrained to smaller ones. For example: ``seperete`` will match against ``seperate`` but not ``separate`` when the
+edit/anagram distance is constrained to 1.
+
+Learn mode may do multiple iterations over the same data (set ``--iterations``). As iterations grow, larger edit
+distances can be covered, but this is also a source for extra noise so accuracy will go down too.
+
+When using learn mode, make sure to choose tight constraints (e.g. ``--max-matches 1`` and a high
+``--score-threshold``).
+
+### Search Mode
+
+In query mode you provide an exact input string and ask Analiticcl to correct it as a single unit. Query mode
+effectively implements the *correction* part of a spelling-correction system, but does not really handle the *detection*
+aspect. This is where *search mode* comes in. In search mode you can provide running text as input and the system will
+automatically attempt to detect the parts of your input that can corrected, and give the suggestions for correction.
+
+In the output, Analiticcl will return UTF-8 byte offsets for fragments in your data that it finds variants for. Your
+input does not have to be tokenised, because tokenisation errors in the input may in itself account for variation which
+the system will attempt to resolve. Search mode can look at n-grams to this end, which effectively makes Analiticcl
+context-aware. You can use the ``--max-ngram-order`` parameter to set the maximum n-gram order you want to consider. Any
+setting above 1 enables a language modelling component in Analiticcl, which requires a frequency list of n-grams as
+input (using ``--lm``).
 
 ### Index Mode
 
@@ -188,41 +225,6 @@ $ analiticcl index --lexicon examples/eng.aspell.lexicon --alphabet examples/sim
 6       96935466        parses  passer  spares  sparse  spears  Spears
 ```
 The large number is the [anagram value](#theoretical-background) of the anagram.
-
-### Learn Mode
-
-In learn mode, analiticcl takes input similar like in query mode, but rather than output the results directly, it
-associates the variants found with the items in the lexicon and updates the model with this information. The output this
-mode provides is effectively the inverse of what query does; for each item in the lexicon, all variants that were found
-(and their scores are listed). This output constitutes a weighted variant list which can be loaded in again using
-``--variants``.
-
-The learned variants are used as intermediate words to guide the system towards a desired solution. Assume for instance
-that our lexicon contains the word ``separate``, and we found the variant ``seperate`` in the data during learning. This
-variant is now associated with the right reference, and on subsequent runs matches against ``seperate`` will count
-towards matches on ``separate``. This mechanism allows the system to bridge larger edit distances even when it is
-contrained to smaller ones. For example: ``seperete`` will match against ``seperate`` but not ``separate`` when the
-edit/anagram distance is constrained to 1.
-
-Learn mode may do multiple iterations over the same data (set ``--iterations``). As iterations grow, larger edit
-distances can be covered, but this is also a source for extra noise so accuracy will go down too.
-
-When using learn mode, make sure to choose tight constraints (e.g. ``--max-matches 1`` and a high
-``--score-threshold``).
-
-### Search Mode
-
-In query mode you provide an exact input string and ask Analiticcl to correct it as a single unit. Query mode
-effectively implements the *correction* part of a spelling-correction system, but does not really handle the *detection*
-aspect. This is where *search mode* comes in. In search mode you can provide running text as input and the system will
-automatically attempt to detect the parts of your input that can corrected, and give the suggestions for correction.
-
-In the output, Analiticcl will return UTF-8 byte offsets for fragments in your data that it finds variants for. Your
-input does not have to be tokenised, because tokenisation errors in the input may in itself account for variation which
-the system will attempt to resolve. Search mode can look at n-grams to this end, which effectively makes Analiticcl
-context-aware. You can use the ``--max-ngram-order`` parameter to set the maximum n-gram order you want to consider. Any
-setting above 1 enables a language modelling component in Analiticcl, which requires a frequency list of n-grams as
-input (using ``--lm``).
 
 ### Background Lexicon
 
