@@ -109,7 +109,7 @@ The program is now taking standard input, enter a word to query and press ENTER 
 Specify the ``--interactive`` parameter otherwise output may not be returned immediately but will be buffered for
 parallellisation:
 
-```
+```tsv
 seperate
 seperate        separate        0.734375                operate 0.6875          desperate       0.6875          temperate       0.6875          serrate 0.65625         separates       0.609375                separated       0.609375
 ```
@@ -164,6 +164,8 @@ It may be insightful to sort on the number of anagrams and show the top 20 , wit
 ```
 $ analiticcl index --lexicon examples/eng.aspell.lexicon --alphabet examples/simple.alphabet.tsv | awk -F'\t' '{ print NF-1"\t"$0 }' | sort -rn | head -n 20
 [...]
+```
+```tsv
 8       1227306 least   slate   Stael   stale   steal   tales   teals   Tesla
 7       98028906        elan's  lane's  Lane's  lean's  Lean's  Lena's  Neal's
 7       55133630        actors  castor  Castor  Castro  costar  Croats  scrota
@@ -281,7 +283,7 @@ c
 Multiple values on a line may be tab separated and are used to denote equivalents. A single line
 representing a single character could for example look like:
 
-```
+```tsv
 a	A	á	à	ä	Á	À	Ä
 ```
 
@@ -289,7 +291,7 @@ This means that these are all encoded the same way and are considered identical 
 metrics. A common situation is that all numerals are encoded indiscriminately, which you can accomplish with an alphabet entry
 like:
 
-```
+```tsv
 0	1	2	3	4	5	6	7	8	9
 ```
 
@@ -299,7 +301,7 @@ the most optimal performance (i.e. generally smaller anagram values), but this i
 
 Entries in the alphabet file are not constrained to a single character but may also correspond to multiple characters, for instance:
 
-```
+```tsv
 ae	æ
 ```
 
@@ -314,7 +316,7 @@ and the optional second column contains the absolute frequency count. If no freq
 items in the lexicon carry the exact same weight.
 
 Multiple lexicons may be passed and analiticcl will remember which lexicon was matched against, so you could use this
-information for some simple tagging. Order matter here, only the first match is returned.
+information for some simple tagging.
 
 ### Variant List
 
@@ -323,7 +325,7 @@ specifies the validated or corpus-derived form.
 
 A variant list is *directed* and *weighted*, it specifies a normalised/preferred form first, and then specifies variants and variant scores. Take the following example (all fields are tab separated):
 
-```
+```tsv
 huis	huys	1.0	huijs	1.0
 ```
 This states that the preferred word *huis* has two variants (historical spelling in this case), and both have a score
@@ -335,7 +337,7 @@ the preferred form.
 What you might be more interested in, is a special flavour of the variant list called an *error list*, loaded
 into analiticcl using ``--errors``. Consider the following example:
 
-```
+```tsv
 separate	seperate	1.0	seperete 1.0
 ```
 This states that the preferred word ``seperate`` has two variants that are considered errors. In this case, analiticcl considers these variants *transparent*, it will still match against the variants but but they will never be returned as a solution; the preferred variant will be returned as a solution instead. This mechanism helps bridge larger edit distances. In the JSON output, the "via" property conveys that a transparent variant was used in matching.
@@ -343,7 +345,7 @@ This states that the preferred word ``seperate`` has two variants that are consi
 A variant list may also contain an extra column of absolute frequencies, provided that it's consistently
 provided for *all* references and variants:
 
-```
+```tsv
 separate	531	seperate	1.0	4	seperete 1.0	1
 ```
 
@@ -357,7 +359,7 @@ The confusable list is a TSV file (tab separated fields) containing known confus
 these patterns when they are found. The file contains one confusable pattern per line. The patterns are expressed in the
 edit script language of [sesdiff](https://github.com/proycon/sesdiff). Consider the following example:
 
-```
+```tsv
 -[y]+[i]	1.1
 ```
 
@@ -371,7 +373,7 @@ score, so weights should be values fairly close to ``1.0`` in order not to intro
 The edit script language from sesdiff also allows for matching on immediate context, consider the following variant of the above
 which only matches the substituion when it comes after a ``c`` or a ``k``:
 
-```
+```tsv
 =[c|k]-[y]+[i]	1.1
 ```
 
