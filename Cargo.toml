@@ -11,8 +11,10 @@ name = "analiticcl"
 readme = "README.md"
 repository = "https://github.com/proycon/analiticcl"
 version = "0.3.0"
+
 [[bench]]
 harness = false
+path = "benches/benchmarks.rs"
 name = "benchmarks"
 
 [dependencies]

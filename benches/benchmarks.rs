@@ -138,19 +138,20 @@ pub fn benchmarks(c: &mut Criterion) {
 
     let simple_lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
 
-    let mut model = VariantModel::new_with_alphabet(get_test_alphabet().0, Weights::default(), false);
+    let mut model = VariantModel::new_with_alphabet(get_test_alphabet().0, Weights::default(), 0);
+    let params = VocabParams::default();
 
     c.bench_function("model_add_vocab", |b| b.iter(||{
         for item in black_box(simple_lexicon) {
-            model.add_to_vocabulary(item,None,None,0);
+            model.add_to_vocabulary(item,None,&params);
         }
     }));
 
 
     c.bench_function("model_init_and_build", |b| b.iter(||{
-        let mut model = VariantModel::new_with_alphabet(get_test_alphabet().0, Weights::default(), false);
+        let mut model = VariantModel::new_with_alphabet(get_test_alphabet().0, Weights::default(), 0);
         for item in black_box(simple_lexicon) {
-            model.add_to_vocabulary(item,None,None,0);
+            model.add_to_vocabulary(item,None,&params);
         }
         model.build()
     }));
