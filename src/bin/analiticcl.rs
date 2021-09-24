@@ -12,6 +12,13 @@ use rayon::prelude::*;
 
 use analiticcl::*;
 
+#[derive(Debug)]
+enum Resource<'a> {
+    Lexicon(&'a str),
+    VariantList(&'a str),
+    ErrorList(&'a str)
+}
+
 fn output_matches_as_tsv(model: &VariantModel, input: &str, variants: Option<&Vec<VariantResult>>, selected: Option<usize>, offset: Option<Offset>, output_lexmatch: bool, freq_weight: f32) {
     print!("{}",input);
     if let Some(offset) = offset {
@@ -75,7 +82,7 @@ fn output_result_as_json(model: &VariantModel, result: &VariantResult, output_le
     print!(", \"freq_score\": {}", result.freq_score);
     if let Some(via_id) = result.via {
         let viavalue = model.get_vocab(via_id).expect("getting vocab by id");
-        print!(", \"via\": {}", viavalue.text.replace("\"","\\\""));
+        print!(", \"via\": \"{}\"", viavalue.text.replace("\"","\\\""));
     }
     if  output_lexmatch {
         print!(", \"lexicon\": \"{}\"", model.lexicons.get(vocabvalue.lexindex as usize).expect("valid lexicon index"));
@@ -587,31 +594,52 @@ fn main() {
         rootargs.value_of("debug").unwrap_or("0").parse::<u8>().expect("Debug level should be integer in range 0-4")
     );
 
+
     eprintln!("Loading lexicons...");
 
+    //Gathering everything to load, in the exact order specified
+    let mut resources: Vec<(usize, Resource)> = Vec::new();
+
     if args.is_present("lexicon") {
-        for filename in args.values_of("lexicon").unwrap().collect::<Vec<&str>>() {
-            model.read_vocabulary(filename, &VocabParams::default()).expect(&format!("Error reading lexicon {}", filename));
+        let lexicons = args.values_of("lexicon").unwrap().collect::<Vec<&str>>();
+        let lexicon_indices = args.indices_of("lexicon").unwrap().collect::<Vec<usize>>();
+        for (filename, index) in lexicons.iter().zip(lexicon_indices) {
+            resources.push((index, Resource::Lexicon(filename)));
         }
     }
+    if args.is_present("variants") {
+        let variantlists = args.values_of("variants").unwrap().collect::<Vec<&str>>();
+        let variantlist_indices = args.indices_of("variants").unwrap().collect::<Vec<usize>>();
+        for (filename, index) in variantlists.iter().zip(variantlist_indices) {
+            resources.push((index, Resource::VariantList(filename)));
+        }
+    }
+
+    if args.is_present("errors") {
+        let errorlists = args.values_of("errors").unwrap().collect::<Vec<&str>>();
+        let errorlist_indices = args.indices_of("errors").unwrap().collect::<Vec<usize>>();
+        for (filename, index) in errorlists.iter().zip(errorlist_indices) {
+            resources.push((index, Resource::ErrorList(filename)));
+        }
+    }
+
+    //sort by index
+    resources.sort_by_key(|x| x.0);
+
+    for (_, resource) in resources {
+        match resource {
+            Resource::Lexicon(filename) => model.read_vocabulary(filename, &VocabParams::default()).expect(&format!("Error reading lexicon {}", filename)),
+            Resource::VariantList(filename) => model.read_variants(filename, Some(&VocabParams::default()), false).expect(&format!("Error reading weighted variant list {}", filename)),
+            Resource::ErrorList(filename) => model.read_variants(filename, Some(&VocabParams::default()), true).expect(&format!("Error reading weighted variant list {}", filename)),
+        }
+    }
+
     if args.is_present("lm") {
         for filename in args.values_of("lm").unwrap().collect::<Vec<&str>>() {
             model.read_vocabulary(filename, &VocabParams {
                 vocab_type: VocabType::LM,
                 ..Default::default()
             }).expect(&format!("Error reading lm {}", filename));
-        }
-    }
-
-    if args.is_present("variants") {
-        for filename in args.values_of("variants").unwrap().collect::<Vec<&str>>() {
-            model.read_variants(filename, Some(&VocabParams::default()), false).expect(&format!("Error reading weighted variant list {}", filename));
-        }
-    }
-
-    if args.is_present("errors") {
-        for filename in args.values_of("errors").unwrap().collect::<Vec<&str>>() {
-            model.read_variants(filename, Some(&VocabParams::default()), true).expect(&format!("Error reading error list {}", filename));
         }
     }
 
