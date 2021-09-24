@@ -320,7 +320,7 @@ information for some simple tagging.
 
 ### Variant List
 
-A variant lists explicitly relate spelling variants, and in doing so go a step further than a simple lexicon which only
+A variant list explicitly relates spelling variants to preferred forms, and in doing so go a step further than a simple lexicon which only
 specifies the validated or corpus-derived form.
 
 A variant list is *directed* and *weighted*, it specifies a normalised/preferred form first, and then specifies variants and variant scores. Take the following example (all fields are tab separated):
