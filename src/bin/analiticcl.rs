@@ -293,40 +293,48 @@ fn process_learn(model: &mut VariantModel, inputstream: impl Read, searchparams:
         //batch for learning in strict mode simply contains all input data at once
         let batch_size = lines.len();
         for i in 0..iterations {
-            let (count, unknown) = model.learn_variants(&lines, searchparams, strict, true);
-            eprintln!("(Iteration #{}: learned {} variants, unable to match {} input strings out of a total of {})", i+1, count, unknown, batch_size);
+            let count = model.learn_variants(&lines, searchparams, strict, true);
+            eprintln!("(Iteration #{}: learned {} variants (out of a total of {} input strings)", i+1, count, batch_size);
             if count == 0 && i+1 < iterations {
                 eprintln!("(Halting further iterations)");
                 break;
             }
         }
     } else {
-        let mut eof = false;
-        let mut line_iter = lines.iter();
-        while !eof {
-            let mut batch = String::new();
-            for i in 0..MAX_BATCHSIZE_SEARCH {
-                if let Some(input) = line_iter.next() {
-                    if i > 0 {
-                        batch.push(if newline_as_space {
-                                        ' '
-                                   } else {
-                                        '\n'
-                                   });
-                    }
-                    let empty = input.is_empty();
-                    batch.extend(input.chars());
-                    if empty || per_line {
-                        //an empty line is a good breakpoint for a batch
+        for i in 0..iterations {
+            let mut eof = false;
+            let mut line_iter = lines.iter();
+            while !eof {
+                let mut batch = String::new();
+                for j in 0..MAX_BATCHSIZE_SEARCH {
+                    if let Some(input) = line_iter.next() {
+                        if j > 0 {
+                            batch.push(if newline_as_space {
+                                            ' '
+                                       } else {
+                                            '\n'
+                                       });
+                        }
+                        let empty = input.is_empty();
+                        batch.extend(input.chars());
+                        if empty || per_line {
+                            //an empty line is a good breakpoint for a batch
+                            break;
+                        }
+                    } else {
+                        eof = true;
                         break;
                     }
-                } else {
-                    eof = true;
-                    break;
+                    if batch.is_empty() {
+                        break;
+                    }
                 }
-                if batch.is_empty() {
-                    break;
-                }
+            }
+            let count = model.learn_variants(&lines, searchparams, strict, true);
+            eprintln!("(Iteration #{}: learned {} variants", i+1, count);
+            if count == 0 && i+1 < iterations {
+                eprintln!("(Halting further iterations)");
+                break;
             }
         }
     }

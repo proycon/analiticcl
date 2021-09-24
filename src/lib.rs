@@ -685,15 +685,15 @@ impl VariantModel {
 
 
     ///Auxiliary function used by [`learn_variants()`], abstracts over strict mode
-    fn find_variants_for_learning(&self, inputstr: &str, params: &SearchParameters, strict: bool) -> Vec<VariantResult> {
+    fn find_variants_for_learning<'a>(&self, inputstr: &'a str, params: &SearchParameters, strict: bool) -> Vec<(&'a str, VariantResult)> {
         if strict {
-            self.find_variants(inputstr, params)
+            self.find_variants(inputstr, params).into_iter().map(|result| (inputstr, result)).collect()
         } else {
             self.find_all_matches(inputstr, params).iter().filter_map(|result_match| {
                 if let Some(variants) = &result_match.variants {
                     if let Some(selected) = result_match.selected {
                         if let Some(result) = variants.get(selected) {
-                            return Some(result.clone());
+                            return Some((result_match.text, result.clone()));
                         }
                     }
                 }
@@ -706,7 +706,7 @@ impl VariantModel {
     /// the set thresholds) will be stored in the model rather than returned. Unlike `find_variants()`, this is
     /// invoked with an iterator over multiple inputs and returns no output by itself. It
     /// will automatically apply parallellisation.
-    pub fn learn_variants<'a, I>(&mut self, input: I, params: &SearchParameters, strict: bool, auto_build: bool) -> (usize, usize)
+    pub fn learn_variants<'a, I>(&mut self, input: I, params: &SearchParameters, strict: bool, auto_build: bool) -> usize
     where
         I: IntoParallelIterator<Item = &'a String> + IntoIterator<Item = &'a String>,
     {
@@ -716,16 +716,14 @@ impl VariantModel {
 
         let vocabparams = VocabParams::default().with_vocab_type(VocabType::TRANSPARENT).with_freq_handling(FrequencyHandling::Max);
 
-        let mut all_variants: Vec<(&'a str, Vec<VariantResult>)> = Vec::new();
+        let mut all_variants: Vec<Vec<(&'a str, VariantResult)>> = Vec::new();
         if params.single_thread {
             all_variants.extend( input.into_iter().map(|inputstr| {
-                (inputstr.as_str(),
-                self.find_variants_for_learning(inputstr.as_str(), params, strict))
+                self.find_variants_for_learning(inputstr.as_str(), params, strict)
             }));
         } else {
             all_variants.par_extend( input.into_par_iter().map(|inputstr| {
-                (inputstr.as_str(),
-                self.find_variants_for_learning(inputstr.as_str(), params, strict))
+                self.find_variants_for_learning(inputstr.as_str(), params, strict)
             }));
         }
 
@@ -735,34 +733,33 @@ impl VariantModel {
 
 
         let mut count = 0;
-        let mut unknown = 0;
-        for (inputstr, variants) in all_variants {
-            if variants.is_empty() {
-                unknown += 1;
-            } else {
-                //get a vocabulary id for the input string;
-                //adding it to the vocabulary if it does not exist yet
-                let vocab_id = if let Some(vocab_id) = self.encoder.get(inputstr) {
-                    //item exists, increment frequency
-                    let vocabitem = self.decoder.get_mut(*vocab_id as usize).expect("item must exist");
+        let mut prev = None;
+        for (inputstr, result) in all_variants.into_iter().flatten() {
+            //get a vocabulary id for the input string;
+            //adding it to the vocabulary if it does not exist yet
+            let vocab_id = if let Some(vocab_id) = self.encoder.get(inputstr) {
+                //item exists
+                let vocabitem = self.decoder.get_mut(*vocab_id as usize).expect("item must exist");
+                //is this the first occurrence in a consecutive sequence?
+                if prev != Some(inputstr) {
+                    //then increment the frequency
                     vocabitem.frequency += 1;
-                    *vocab_id
-                } else {
-                    //item is new
-                    self.add_to_vocabulary(inputstr, Some(1), &vocabparams)
-                };
-                for result in variants {
-                    if result.vocab_id != vocab_id { //ensure we don't add exact matches
-                        if self.add_variant_by_id(result.vocab_id, vocab_id, result.dist_score) {
-                            count += 1;
-                        }
-                    }
+                }
+                *vocab_id
+            } else {
+                //item is new
+                self.add_to_vocabulary(inputstr, Some(1), &vocabparams)
+            };
+            if result.vocab_id != vocab_id { //ensure we don't add exact matches
+                if self.add_variant_by_id(result.vocab_id, vocab_id, result.dist_score) {
+                    count += 1;
                 }
             }
+            prev = Some(inputstr);
         }
 
         if self.debug >= 1 {
-            eprintln!("(added {} variants, unable to match {} input strings)", count, unknown);
+            eprintln!("(added {} variants)", count);
         }
 
         if auto_build {
@@ -771,7 +768,7 @@ impl VariantModel {
             }
             self.build();
         }
-        (count, unknown)
+        count
     }
 
 
