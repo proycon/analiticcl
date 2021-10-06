@@ -1,0 +1,15 @@
+[project]
+name = "analiticcl"
+classifiers = ["Programming Language :: Python"]
+
+[project.optional-dependencies]
+test = [ "pytest" ]
+
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python"
+]
+
+[build-system]
+requires = ["maturin>=0.11,<0.12"]
+build-backend = "maturin"
