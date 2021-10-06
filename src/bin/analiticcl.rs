@@ -57,32 +57,43 @@ fn output_result_as_tsv(model: &VariantModel, result: &VariantResult, output_lex
 
 fn output_matches_as_json(model: &VariantModel, input: &str, variants: Option<&Vec<VariantResult>>, selected: Option<usize>, offset: Option<Offset>, output_lexmatch: bool, freq_weight: f32, seqnr: usize) {
     if seqnr > 1 {
-        println!(",")
+        print!("    ,")
+    } else {
+        print!("    ")
     }
-    print!("    {{ \"input\": \"{}\"", input.replace("\"","\\\"").as_str());
+    print!("{{ \"input\": \"{}\"", input.replace("\"","\\\"").as_str());
     if let Some(offset) = offset {
         print!(", \"begin\": {}, \"end\": {}", offset.begin, offset.end);
     }
     if let Some(variants) = variants {
         println!(", \"variants\": [ ");
-        let l = variants.len();
+        let mut wroteoutput = false;
         if let Some(selected) = selected {
             if let Some(result) = variants.get(selected) {
-                output_result_as_json(&model, &result, output_lexmatch, freq_weight, l - 1 == 0);
+                if wroteoutput {
+                    println!(",");
+                }
+                output_result_as_json(&model, &result, output_lexmatch, freq_weight);
+                wroteoutput = true;
             }
         }
         for (i, result) in variants.iter().enumerate() {
             if selected.is_none() || selected.unwrap() != i { //output all others
-                output_result_as_json(&model, &result, output_lexmatch, freq_weight, l - 1 == i);
+                if wroteoutput {
+                    println!(",");
+                }
+                output_result_as_json(&model, &result, output_lexmatch, freq_weight);
+                wroteoutput = true;
             }
         }
+        println!("");
         println!("    ] }}");
     } else {
         println!(" }}");
     }
 }
 
-fn output_result_as_json(model: &VariantModel, result: &VariantResult, output_lexmatch: bool, freq_weight: f32, last: bool) {
+fn output_result_as_json(model: &VariantModel, result: &VariantResult, output_lexmatch: bool, freq_weight: f32) {
     let vocabvalue = model.get_vocab(result.vocab_id).expect("getting vocab by id");
     print!("        {{ \"text\": \"{}\", \"score\": {}", vocabvalue.text.replace("\"","\\\""), result.score(freq_weight));
     print!(", \"dist_score\": {}", result.dist_score);
@@ -101,11 +112,7 @@ fn output_result_as_json(model: &VariantModel, result: &VariantResult, output_le
         }).collect();
         print!(", \"lexicons\": [ {} ]", lexicons.join(", "));
     }
-    if last {
-        println!(" }}");
-    } else {
-        println!(" }},");
-    }
+    print!(" }}");
 }
 
 
