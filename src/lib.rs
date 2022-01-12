@@ -1714,7 +1714,7 @@ impl VariantModel {
             None
         };
 
-        //Compute the normalizes scores
+        //Compute the normalized scores
         let mut best_score: f64 = -99999999.0; //to be maximised
         let mut best_sequence: Option<Sequence> = None;
         for sequence in sequences.into_iter() {

@@ -947,7 +947,7 @@ fn test0704_find_all_matches_two_batches() {
 #[test]
 fn test0705_find_all_matches_context_only() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 3);
     model.add_to_vocabulary("I",Some(2),&VocabParams::default());
     model.add_to_vocabulary("think",Some(2), &VocabParams::default());
     model.add_to_vocabulary("sink",Some(2), &VocabParams::default()); //language model will decide between think/sink
