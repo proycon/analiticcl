@@ -17,7 +17,7 @@ date: 2022-01-20
 
 ## Introduction: Context
 
-* Developed in the Golden Agents projects
+* Developed in the Golden Agents project
 * Builds upon prior research (Reynaert 2010; Reynaert 2004)
 
 ## Introduction: Implementation
@@ -308,7 +308,7 @@ Given an input sentence:
     * Not trivial, strikes a balance between LM and variant model
     * Compute normalised joint variant score: $$variantscore_i = \ln(\frac{cost_{best}}{cost_{i}})$$
     * Compute normalised LM score: $$lmscore_{i} = \ln(\frac{PP_{best}}{PP_{i}})$$
-    * Weighted geometric mean: $$score_{i} = \lambda_1 variantscore_{i} + \lambda_2 lmscore_{i}$$
+    * Weighted geometric mean: $$score_{i} = \frac{\lambda_1 variantscore_{i} + \lambda_2 lmscore_{i}}{\lambda_1\lambda_2}$$
 4. Select the best scoring solution (minimize score)
 
 ## Error Detection (5): Output example
