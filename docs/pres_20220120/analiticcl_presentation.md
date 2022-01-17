@@ -80,6 +80,15 @@ seperate        separate        0.734375  \
 ```
 \normalsize
 
+## Recap: Edit Distance (Levenshtein)
+
+* Measures distance/similarity between two strings
+* Operations to go from string A to B (at a cost)
+    * Insertions
+    * Deletions
+    * Substitutions
+* Distance = sum of costs
+
 ## Variant matching: Naive approach
 
 A naive approach to variant matching:
@@ -212,7 +221,7 @@ Analiticcl takes simple TSV files (tab separated values) as input:
 ## Background lexicon
 
 * Analiticcl depends greatly on the quality of your input (lexicons)
-* A good background corpus is required (out of vocabulary problem)
+* A good background lexicon is required (*out of vocabulary problem*)
     * including morphological variants
 * ..otherwise analiticcl will eagerly mismatch to words it does know!
 * Lexicon may also consist of phrases: less sensitive to false positives
