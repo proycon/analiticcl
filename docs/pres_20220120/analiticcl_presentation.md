@@ -2,6 +2,7 @@
 title: Analiticcl
 author: Maarten van Gompel
 date: 2022-01-20
+aspectratio: 169
 ---
 
 ## Introduction
