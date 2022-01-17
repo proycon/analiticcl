@@ -10,10 +10,10 @@ date: 2022-01-20
 
 * Analiticcl is a string-matching / fuzzy-matching system
 * Intended for text normalisation like:
-    * Diachronic variation
+    * diachronic spelling variation
     * post-OCR/HTR variation
     * spelling correction (especially non-word errors)
-* Lexicon-based; fuzzy lookups against a lexicon
+* Lexicon-based; fuzzy lookups against a lexicon, using a smart *heuristic*
 
 ## Introduction: Context
 
@@ -155,10 +155,9 @@ Computation of the Anagram Value is simple composition of **prime** factors:
     * Uses a binary search to find the anagrams that we should check our anagram value against (i.e. to check whether it is a subset of the anagram)
     * Prevents needing to exhaustively try all anagram values in our index.
 
-## Variant matching: Search (4)
+## Variant matching: Search, scoring and ranking (4)
 
-We have collected all possibly relevant variant instances: a considerably smaller set than the entire set we'd get if we
-didn't have the anagram heuristic! Now the set is reduced we apply more conventional measures:
+After collecting applying the heuristic and collecting variants, reduce using more conventional means:
 
 * We compute several similarity metrics between the input and the possible variants:
     * Damerau-Levenshtein
@@ -168,8 +167,21 @@ didn't have the anagram heuristic! Now the set is reduced we apply more conventi
 * A score is computed that is a weighted linear combination of the above components
     * the actual weights are configurable.
     * an exact match always has score 1.0.
-* A cut-off value prunes the list of candidates that score too low
+    * most score components are expressed as a fraction of the input length
+* Frequency as an extra component
 * Optionally, if a confusable list was provided, we adjust the score for known confusables
+
+## Parameters and weights
+
+* Various parameters can be absolute and or relative to the pattern length:
+    * Anagram distance
+    * Edit distance (Damerau-Levenshtein)
+    * Substring length
+* Score threshold
+* Cut-off threshold
+* Max number of matches
+* Weights: determines the importance of a component in the score function
+    * Frequency ranking
 
 ## Feature: Confusable lists
 
@@ -194,14 +206,63 @@ Analiticcl takes simple TSV files (tab separated values) as input:
     * Example: ``separate  seperate  1.0  seperete  1.0``
     * This is also the output form in *learn* mode
 * **Language model**: for context-sensitive error detection/correction
-* Multiple lexicon/variants lists supported
+* *Multiple* lexicons/variants lists supported
 * Output is TSV or JSON
 
 ## Background lexicon
 
 * Analiticcl depends greatly on the quality of your input (lexicons)
 * A good background corpus is required (out of vocabulary problem)
-* ..otherwise analiticcl will eagerly mismatch to words it does know
+    * including morphological variants
+* ..otherwise analiticcl will eagerly mismatch to words it does know!
+* Lexicon may also consist of phrases: less sensitive to false positives
+    * cf. Fuzzy-Search (Marijn Koolen)
+
+## Learn Mode (1)
+
+* Allows extending an existing lexicon with variants
+    * Multiple iterations, covering larger edit distances
+* Outputs a variant list
+    * Can subsequently be used as input again
+    * Possibly after manual curation
+
+## Learn Mode (2): Output example
+
+\footnotesize
+
+```
+{ "Amsterdam": [
+    { "text": "Amsteldam", "score": 0.7499999999999999, "freq": 1 },
+    { "text": "amsterdam", "score": 0.875, "freq": 1 },
+    { "text": "Amster", "score": 0.625, "freq": 1 },
+    { "text": "Amstelredam", "score": 0.6818181818181818, "freq": 1 },
+    { "text": "Amsterd", "score": 0.7321428571428572, "freq": 1 },
+    { "text": "Amstedam", "score": 0.765625, "freq": 1 },
+    { "text": "sterdam", "score": 0.6071428571428572, "freq": 1 },
+    { "text": "Amsterdm", "score": 0.796875, "freq": 1 },
+    { "text": "Tamsterdam", "score": 0.8, "freq": 1 },
+    { "text": "tamsterdam", "score": 0.675, "freq": 1 },
+    { "text": "Amstelredame", "score": 0.6041666666666666, "freq": 1 },
+    { "text": "t'Amsterdam", "score": 0.6136363636363636, "freq": 1 },
+    { "text": "Asterdam", "score": 0.796875, "freq": 1 },
+    { "text": "terdam", "score": 0.5, "freq": 1 },
+    { "text": "Amstelredamm", "score": 0.6145833333333333, "freq": 1 },
+    { "text": "t'amsterdam", "score": 0.6136363636363636, "freq": 1 },
+    { "text": "Amterdam", "score": 0.78125, "freq": 1 },
+    { "text": "msterdam", "score": 0.6875, "freq": 1 },
+    { "text": "amsterd", "score": 0.6071428571428572, "freq": 1 },
+    { "text": "tAmsterdam", "score": 0.675, "freq": 1 },
+    { "text": "amsteldam", "score": 0.6249999999999999, "freq": 1 },
+    { "text": "Amstrdam", "score": 0.75, "freq": 1 },
+    { "text": "amster", "score": 0.5, "freq": 1 },
+    { "text": "Amsterda", "score": 0.8125, "freq": 1 },
+    { "text": "Amsterdom", "score": 0.7777777777777777, "freq": 1 },
+    { "text": "Amsterdamter", "score": 0.6875, "freq": 1 },
+    { "text": "Amserdam", "score": 0.765625, "freq": 1 },
+```
+
+\normalsize
+
 
 ## Error Detection (1)
 
@@ -250,7 +311,42 @@ Given an input sentence:
     * Weighted geometric mean: $$score_{i} = \lambda_1 variantscore_{i} + \lambda_2 lmscore_{i}$$
 4. Select the best scoring solution (minimize score)
 
+## Error Detection (5): Output example
 
+```
+het     0:3     het     1
+is      4:6     is      0.9879325407796102
+een     7:10    een     0.953746422299111  \
+                en      0.7713267631867726
+huys    11:15   huis    0.8893535359305973  \
+                huls    0.7993278799180914
+```
+
+## Future Work
+
+* Evaluation
+    * Golden Agents
+    * Spelling correction task?
+* Comparative study
+    * Analiticcl
+    * TICCL
+    * Fuzzy-Search
+
+* **Questions?**
+
+## References
+
+**Software**:
+
+* Analiticcl: https://github.com/proycon/analiticcl
+* TICCLtools: https://github.com/LanguageMachines/ticcltools
+* Fuzzy-Search: https://github.com/marijnkoolen/fuzzy-search
+* Golden Agents NER pipeline: https://github.com/knaw-huc/golden-agents-htr/tree/master/package
+
+**Publications**:
+
+* Reynaert, Martin. (2004) Text induced spelling correction. In: Proceedings COLING 2004, Geneva (2004). https://doi.org/10.3115/1220355.1220475
+* Reynaert, Martin. (2011) Character confusion versus focus word-based correction of spelling and OCR variants in corpora. IJDAR 14, 173–187 (2011). https://doi.org/10.1007/s10032-010-0133-5
 
 
 
