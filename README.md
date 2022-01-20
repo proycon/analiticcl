@@ -19,6 +19,9 @@ This *analiticcl* implementation attempts to re-implement the core of these idea
 novelties, such as the introduction of prime factors for improved anagram hashing. We aim at a high-performant
 implementation written in [Rust](https://www.rust-lang.org).
 
+Aside from reading this documentation, you can also view an in-depth [presentation
+video](https://diode.zone/w/kkrqA4MocGwxyC3s68Zsq7) that was presented at the KNAW Humanities Cluster in January 2022.
+
 ## Features
 
 * Quick retrieval of spelling variants given an input word due to smart anagram hashing lookup. This is the main feature
