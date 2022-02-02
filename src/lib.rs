@@ -521,9 +521,11 @@ impl VariantModel {
                         //autodetect whether we have frequency information or not
                         if (fields.len() - 2) % 3 == 0 {
                             let freq = fields.get(1).expect("second field");
-                            has_freq = Some(true);
                             match freq.parse::<u32>() {
-                                Ok(freq) => Some(freq),
+                                Ok(freq) => {
+                                    has_freq = Some(true);
+                                    Some(freq)
+                                },
                                 _ => None
                             }
                         } else {
@@ -543,7 +545,7 @@ impl VariantModel {
                     if has_freq == Some(true) {
                         iter.next(); iter.next();
                         while let (Some(variant), Some(score), Some(freq)) = (iter.next(), iter.next(), iter.next()) {
-                            let score = score.parse::<f64>().expect(format!("Variant scores must be a floating point value (line {} of {})", linenr, filename).as_str());
+                            let score = score.parse::<f64>().expect(format!("Variant scores must be a floating point value (line {} of {}, got {} instead), also parsing frequency", linenr, filename, score).as_str());
                             let freq = freq.parse::<u32>().expect(format!("Variant frequency must be an integer (line {} of {}), got {} instead", linenr, filename, freq).as_str());
                             if self.add_variant(ref_id, variant, score, Some(freq), if transparent { &transparent_params } else { &params } ) {
                                 count += 1;
@@ -552,7 +554,7 @@ impl VariantModel {
                     } else {
                         iter.next();
                         while let (Some(variant), Some(score)) = (iter.next(), iter.next()) {
-                            let score = score.parse::<f64>().expect(format!("Variant scores must be a floating point value (line {} of {})", linenr, filename).as_str());
+                            let score = score.parse::<f64>().expect(format!("Variant scores must be a floating point value (line {} of {}, got {}), no frequency information", linenr, filename, score).as_str());
                             if self.add_variant(ref_id, variant, score, None, if transparent { &transparent_params } else { &params } ) {
                                 count += 1;
                             }
