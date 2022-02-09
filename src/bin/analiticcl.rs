@@ -680,7 +680,8 @@ fn main() {
     } else if let Some(args) = rootargs.subcommand_matches("search") {
         args
     } else {
-       panic!("No command specified");
+       eprintln!("No command specified, please see analiticcl --help");
+       exit(2);
     };
 
     let weights = Weights {
