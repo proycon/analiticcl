@@ -619,9 +619,11 @@ pub fn search_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
     args
 }
 
+const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
 fn main() {
     let rootargs = App::new("Analiticcl")
-                    .version("0.3.0")
+                    .version(VERSION)
                     .author("Maarten van Gompel (proycon) <proycon@anaproy.nl>")
                     .about("Spelling variant matching / approximate string matching / fuzzy search")
                     .subcommand(
