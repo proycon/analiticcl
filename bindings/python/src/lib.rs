@@ -117,9 +117,13 @@ impl PySearchParameters {
                     match key {
                         "max_anagram_distance" => if let Ok(v) = extract_distance_threshold(value) {
                             instance.data.max_anagram_distance = v
+                        } else {
+                            eprintln!("ERROR: Unable to parse value for max_anagram_distance ({})! Falling back to default value", value);
                         },
                         "max_edit_distance" => if let Ok(v) = extract_distance_threshold(value) {
                             instance.data.max_edit_distance = v
+                        } else {
+                            eprintln!("ERROR: Unable to parse value for max_edit_distance ({})! Falling back to to default value", value);
                         },
                         "max_matches" => if let Ok(Some(value)) = value.extract() {
                             instance.data.max_matches = value
@@ -269,6 +273,7 @@ impl PySearchParameters {
         dict.set_item("max_edit_distance", self.get_max_edit_distance(py)?)?;
         dict.set_item("max_matches", self.get_max_matches()?)?;
         dict.set_item("score_threshold", self.get_score_threshold()?)?;
+        dict.set_item("cutoff_threshold", self.get_cutoff_threshold()?)?;
         dict.set_item("max_ngram", self.get_max_ngram()?)?;
         dict.set_item("max_seq", self.get_max_seq()?)?;
         dict.set_item("single_thread", self.get_single_thread()?)?;
