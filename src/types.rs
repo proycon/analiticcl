@@ -293,7 +293,7 @@ impl VariantResult {
         if freq_weight == 0.0 {
             self.dist_score
         } else {
-            (self.dist_score + (freq_weight as f64 * self.dist_score)) / (1.0+freq_weight as f64)
+            (self.dist_score + (freq_weight as f64 * self.freq_score)) / (1.0+freq_weight as f64)
         }
     }
 
