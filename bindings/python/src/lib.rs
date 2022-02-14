@@ -69,6 +69,16 @@ impl PyWeights {
     fn set_suffix(&mut self, value: f64) -> PyResult<()> { self.weights.suffix = value; Ok(()) }
     #[setter]
     fn set_case(&mut self, value: f64) -> PyResult<()> { self.weights.case = value; Ok(()) }
+
+    fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<&'py PyDict> {
+        let dict = PyDict::new(py);
+        dict.set_item("ld", self.get_ld()?)?;
+        dict.set_item("lcs", self.get_lcs()?)?;
+        dict.set_item("prefix", self.get_prefix()?)?;
+        dict.set_item("suffix", self.get_suffix()?)?;
+        dict.set_item("case", self.get_case()?)?;
+        Ok(dict)
+    }
 }
 
 
@@ -252,6 +262,23 @@ impl PySearchParameters {
 
     #[setter]
     fn set_stop_at_exact_match(&mut self, value: bool) -> PyResult<()> { if value { self.data.stop_criterion = libanaliticcl::StopCriterion::StopAtExactMatch; } else { self.data.stop_criterion = libanaliticcl::StopCriterion::Exhaustive; }; Ok(()) }
+
+    fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<&'py PyDict> {
+        let dict = PyDict::new(py);
+        dict.set_item("max_anagram_distance", self.get_max_anagram_distance(py)?)?;
+        dict.set_item("max_edit_distance", self.get_max_edit_distance(py)?)?;
+        dict.set_item("max_matches", self.get_max_matches()?)?;
+        dict.set_item("score_threshold", self.get_score_threshold()?)?;
+        dict.set_item("max_ngram", self.get_max_ngram()?)?;
+        dict.set_item("max_seq", self.get_max_seq()?)?;
+        dict.set_item("single_thread", self.get_single_thread()?)?;
+        dict.set_item("context_weight", self.get_context_weight()?)?;
+        dict.set_item("freq_weight", self.get_freq_weight()?)?;
+        dict.set_item("lm_weight", self.get_lm_weight()?)?;
+        dict.set_item("variantmodel_weight", self.get_variantmodel_weight()?)?;
+        dict.set_item("consolidate_matches", self.get_consolidate_matches()?)?;
+        Ok(dict)
+    }
 }
 
 #[pyclass(dict,name="VocabParams")]
