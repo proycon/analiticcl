@@ -130,20 +130,30 @@ impl PySearchParameters {
                             Ok(v) => instance.data.max_edit_distance = v,
                             Err(v) => eprintln!("{}", v)
                         },
-                        "max_matches" => if let Ok(Some(value)) = value.extract() {
-                            instance.data.max_matches = value
+                        "max_matches" => match value.extract() {
+                            Ok(Some(value)) => instance.data.max_matches = value,
+                            Ok(None) => eprintln!("No value specified for max_matches parameter"),
+                            Err(v) => eprintln!("{}", v)
                          },
-                        "score_threshold" => if let Ok(Some(value)) = value.extract() {
-                            instance.data.score_threshold = value
+                        "score_threshold" => match value.extract() {
+                            Ok(Some(value)) => instance.data.score_threshold = value,
+                            Ok(None) => eprintln!("No value specified for score_threshold parameter"),
+                            Err(v) => eprintln!("{}", v)
                          },
-                        "cutoff_threshold" => if let Ok(Some(value)) = value.extract() {
-                            instance.data.cutoff_threshold = value
+                        "cutoff_threshold" => match value.extract() {
+                            Ok(Some(value)) => instance.data.cutoff_threshold = value,
+                            Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
+                            Err(v) => eprintln!("{}", v)
                          },
-                        "max_ngram" => if let Ok(Some(value)) = value.extract() {
-                            instance.data.max_ngram = value
+                        "max_ngram" => match value.extract() {
+                            Ok(Some(value)) => instance.data.max_ngram = value,
+                            Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
+                            Err(v) => eprintln!("{}", v)
                          },
-                        "max_seq" => if let Ok(Some(value)) = value.extract() {
-                            instance.data.max_seq = value
+                        "max_seq" => match value.extract() {
+                            Ok(Some(value)) => instance.data.max_seq = value,
+                            Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
+                            Err(v) => eprintln!("{}", v)
                          },
                         "stop_at_exact_match" => {
                             if let Ok(Some(value)) = value.extract() {
@@ -154,23 +164,35 @@ impl PySearchParameters {
                                 }
                             }
                          },
-                        "single_thread" => if let Ok(Some(value)) = value.extract() {
-                            instance.data.single_thread = value
+                        "single_thread" => match value.extract() {
+                            Ok(Some(value)) => instance.data.single_thread = value,
+                            Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
+                            Err(v) => eprintln!("{}", v)
                          },
-                        "freq_weight" => if let Ok(Some(value)) = value.extract() {
-                            instance.data.freq_weight = value
+                        "freq_weight" => match value.extract() {
+                            Ok(Some(value)) => instance.data.freq_weight = value,
+                            Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
+                            Err(v) => eprintln!("{}", v)
                          },
-                        "lm_weight" => if let Ok(Some(value)) = value.extract() {
-                            instance.data.lm_weight = value
+                        "lm_weight" => match value.extract() {
+                            Ok(Some(value)) => instance.data.lm_weight = value,
+                            Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
+                            Err(v) => eprintln!("{}", v)
                          },
-                        "variantmodel_weight" => if let Ok(Some(value)) = value.extract() {
-                            instance.data.variantmodel_weight = value
+                        "variantmodel_weight" => match value.extract() {
+                            Ok(Some(value)) => instance.data.variantmodel_weight = value,
+                            Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
+                            Err(v) => eprintln!("{}", v)
                          },
-                        "context_weight" => if let Ok(Some(value)) = value.extract() {
-                            instance.data.context_weight = value
+                        "context_weight" => match value.extract() {
+                            Ok(Some(value)) => instance.data.context_weight = value,
+                            Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
+                            Err(v) => eprintln!("{}", v)
                          },
-                        "consolidate_matches" => if let Ok(Some(value)) = value.extract() {
-                            instance.data.consolidate_matches = value
+                        "consolidate_matches" => match value.extract() {
+                            Ok(Some(value)) => instance.data.consolidate_matches = value,
+                            Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
+                            Err(v) => eprintln!("{}", v)
                          },
                         _ => eprintln!("Ignored unknown kwargs option {}", key),
                     }
