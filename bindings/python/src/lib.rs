@@ -1,5 +1,6 @@
 extern crate analiticcl as libanaliticcl;
 
+use std::str::FromStr;
 use rayon::prelude::*;
 use pyo3::prelude::*;
 use pyo3::types::*;
@@ -90,8 +91,14 @@ fn extract_distance_threshold(value: &PyAny) -> PyResult<libanaliticcl::Distance
         Ok(libanaliticcl::DistanceThreshold::Absolute(v))
     } else if let Ok(Some(v)) = value.extract() {
         Ok(libanaliticcl::DistanceThreshold::Ratio(v))
+    } else if let Ok(Some(v)) = value.extract() {
+        if let Ok(v) = libanaliticcl::DistanceThreshold::from_str(v) {
+            Ok(v)
+        } else {
+            Err(PyValueError::new_err(format!("Unable to convert from string ({}). Must be an integer expressing an absolute value, or float in range 0-1 expressing a ratio. Or a two-tuple expression a ratio with an absolute limit (float;int)",v)))
+        }
     } else {
-        Err(PyValueError::new_err("Must be an integer expressing an absolute value, or float in range 0-1 expressing a ratio. Or a two-tuple expression a ratio with an absolute limit (float;int)"))
+        Err(PyValueError::new_err("Must be an integer expressing an absolute value, or float in range 0-1 expressing a ratio. Or a two-tuple expression a ratio with an absolute limit (float, int)"))
     }
 }
 
@@ -115,15 +122,13 @@ impl PySearchParameters {
             for (key, value) in kwargs {
                 if let Some(key) = key.extract().unwrap() {
                     match key {
-                        "max_anagram_distance" => if let Ok(v) = extract_distance_threshold(value) {
-                            instance.data.max_anagram_distance = v
-                        } else {
-                            eprintln!("ERROR: Unable to parse value for max_anagram_distance ({})! Falling back to default value", value);
+                        "max_anagram_distance" => match extract_distance_threshold(value) {
+                            Ok(v) => instance.data.max_anagram_distance = v,
+                            Err(v) => eprintln!("{}", v)
                         },
-                        "max_edit_distance" => if let Ok(v) = extract_distance_threshold(value) {
-                            instance.data.max_edit_distance = v
-                        } else {
-                            eprintln!("ERROR: Unable to parse value for max_edit_distance ({})! Falling back to to default value", value);
+                        "max_edit_distance" => match extract_distance_threshold(value) {
+                            Ok(v) => instance.data.max_edit_distance = v,
+                            Err(v) => eprintln!("{}", v)
                         },
                         "max_matches" => if let Ok(Some(value)) = value.extract() {
                             instance.data.max_matches = value

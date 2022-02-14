@@ -71,8 +71,8 @@ impl FromStr for DistanceThreshold {
         if s.contains(";") {
             let fields: Vec<&str> = s.split(";").collect();
             if fields.len() == 2 {
-                if let Ok(ratio) = s.parse::<f32>() {
-                    if let Ok(limit) = s.parse::<u8>() {
+                if let Ok(ratio) = fields[0].parse::<f32>() {
+                    if let Ok(limit) = fields[1].parse::<u8>() {
                         return Ok(Self::RatioWithLimit(ratio,limit));
                     }
                 }
