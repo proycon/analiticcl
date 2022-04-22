@@ -974,7 +974,7 @@ impl VariantModel {
     /// Rank and score all variants, returns a vector of three-tuples: (VocabId, distance score, frequency score)
     pub(crate) fn score_and_rank(&self, instances: Vec<(VocabId,Distance)>, input: &str, input_length: usize, max_matches: usize, score_threshold: f64, cutoff_threshold: f64, freq_weight: f32) -> Vec<VariantResult> {
         let mut results: Vec<VariantResult> = Vec::new();
-        let mut max_freq = 0;
+        let mut max_freq = 0.0;
         let mut has_expandable_variants = false;
         let weights_sum = self.weights.sum();
 
@@ -987,16 +987,6 @@ impl VariantModel {
             None
         };
 
-        //Collect maximum frequency
-        for (vocab_id, _distance) in instances.iter() {
-            if self.have_freq {
-                if let Some(vocabitem) = self.decoder.get(*vocab_id as usize) {
-                    if vocabitem.frequency > max_freq {
-                        max_freq = vocabitem.frequency;
-                    }
-                }
-            }
-        }
 
         //Compute scores
         for (vocab_id, distance) in instances.iter() {
@@ -1020,11 +1010,14 @@ impl VariantModel {
                     if distance.samecase { self.weights.case } else { 0.0 }
                 ) / weights_sum;
 
-                let freq_score: f64 = if self.have_freq && max_freq > 0 {
-                    vocabitem.frequency as f64 / max_freq as f64
+                let freq_score: f64 = if self.have_freq { //absolute frequency, normalisation in later pass
+                    vocabitem.frequency as f64
                 } else {
                     1.0
                 };
+                if freq_score > max_freq {
+                    max_freq = freq_score;
+                }
 
                 if !has_expandable_variants && vocabitem.variants.is_some() {
                     has_expandable_variants = true;
@@ -1059,6 +1052,19 @@ impl VariantModel {
 
         if has_expandable_variants {
             results = self.expand_variants(results);
+            //Collect maximum frequency after expansion
+            for result in results.iter() {
+                if result.freq_score > max_freq {
+                    max_freq = result.freq_score;
+                }
+            }
+        }
+
+        //normalize frequency score
+        if max_freq > 0.0 {
+            for result in results.iter_mut() {
+                result.freq_score = result.freq_score / max_freq;
+            }
         }
 
         //Sort the results by distance score, descending order
@@ -1194,7 +1200,16 @@ impl VariantModel {
                         new_results.push(VariantResult {
                             vocab_id: *target_id,
                             dist_score: result.dist_score * variant_dist_score,
-                            freq_score: result.freq_score,
+                            freq_score: {
+                                //take the minimum frequency of the item we refer to and the one of this variant
+                                //note: frequency score is still absolute (not-normalised) at this point
+                                let targetitem = self.decoder.get(*target_id as usize).expect("vocabitem must exist");
+                                if (targetitem.frequency as f64) < result.freq_score {
+                                    targetitem.frequency as f64
+                                } else {
+                                    result.freq_score
+                                }
+                            },
                             via: Some(result.vocab_id)
                         });
                     }
