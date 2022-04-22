@@ -1181,7 +1181,7 @@ impl VariantModel {
     /// may be expanded.
     pub fn expand_variants(&self, mut results: Vec<VariantResult>) -> Vec<VariantResult> {
         if self.debug >= 3 {
-            eprintln!("   (resolving transparency)");
+            eprintln!("   (expanding variants, resolving transparency)");
         }
         let mut new_results = Vec::with_capacity(results.len());
         let mut count = 0;
@@ -1190,10 +1190,10 @@ impl VariantModel {
             let vocabitem = self.decoder.get(result.vocab_id as usize).expect("vocabitem must exist");
             if let Some(variantrefs) = &vocabitem.variants {
                 for variantref in variantrefs.iter() {
-                    if let VariantReference::VariantOf((target_id,target_score)) = variantref {
+                    if let VariantReference::VariantOf((target_id,variant_dist_score)) = variantref {
                         new_results.push(VariantResult {
                             vocab_id: *target_id,
-                            dist_score: result.dist_score * target_score,
+                            dist_score: result.dist_score * variant_dist_score,
                             freq_score: result.freq_score,
                             via: Some(result.vocab_id)
                         });
