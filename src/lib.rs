@@ -448,7 +448,7 @@ impl VariantModel {
     ///The parameters define what value can be read from what column
     pub fn read_vocabulary(&mut self, filename: &str, params: &VocabParams) -> Result<(), std::io::Error> {
         if self.debug >= 1 {
-            eprintln!("Reading vocabulary #{} from {}...", self.lexicons.len() + 1, filename);
+            eprintln!("Reading vocabulary #{} from {} ({:?})...", self.lexicons.len() + 1, filename, params.vocab_type);
         }
         let beginlen = self.decoder.len();
         let f = File::open(filename)?;
@@ -1913,29 +1913,29 @@ impl VariantModel {
         match word_dec.tokencount {
             0 => Ok(NGram::Empty),
             1 => Ok(NGram::UniGram(
-                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts)
+                self.encode_token(iter.next().expect("ngram part"), true, unseen_parts)
             )),
             2 => Ok(NGram::BiGram(
-                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
-                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts)
+                self.encode_token(iter.next().expect("ngram part"), true, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), true, unseen_parts)
             )),
             3 => Ok(NGram::TriGram(
-                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
-                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
-                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts)
+                self.encode_token(iter.next().expect("ngram part"), true, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), true, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), true, unseen_parts)
             )),
             4 => Ok(NGram::QuadGram(
-                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
-                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
-                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
-                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts)
+                self.encode_token(iter.next().expect("ngram part"), true, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), true, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), true, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), true, unseen_parts)
             )),
             5 => Ok(NGram::QuintGram(
-                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
-                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
-                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
-                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts),
-                self.encode_token(iter.next().expect("ngram part"), false, unseen_parts)
+                self.encode_token(iter.next().expect("ngram part"), true, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), true, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), true, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), true, unseen_parts),
+                self.encode_token(iter.next().expect("ngram part"), true, unseen_parts)
             )),
             _ => simple_error::bail!("Can only deal with n-grams up to order 5")
         }
