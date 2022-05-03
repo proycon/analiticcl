@@ -498,17 +498,18 @@ impl VariantModel {
                         return Err(std::io::Error::new(std::io::ErrorKind::Other, "Expected two columns in context rules file"));
                     }
 
-                    let sources: Vec<&str> = fields.get(0).unwrap().split(",").map(|s| s.trim()).collect();
+                    let sources: Vec<&str> = fields.get(0).unwrap().split(";").map(|s| s.trim()).collect();
                     let score = fields.get(1).unwrap().parse::<f32>().expect("context rule score should be a floating point value above or below 1.0");
-                    let mut sequence: Vec<Option<u8>> = Vec::new();
+                    let mut sequence: Vec<ContextMatch> = Vec::new();
                     for source in sources {
                         let mut found = false;
-                        if source == "NONE" {
-                            sequence.push(None)
-                        } else {
+                        if source == "^" {
+                            sequence.push(ContextMatch::NoLexicon)
+                        } else if source.starts_with("@") {
+                            let source = &source[1..];
                             for (i, lexicon) in self.lexicons.iter().enumerate() {
                                 if source == lexicon {
-                                    sequence.push(Some(i as u8));
+                                    sequence.push(ContextMatch::FromLexicon(i as u8));
                                     found = true;
                                     break;
                                 }
@@ -516,6 +517,29 @@ impl VariantModel {
                             if !found {
                                 eprintln!("WARNING: Context rule references lexicon or variant list '{}' but this source was not loaded", source);
                             }
+                        } else if source.starts_with("^") {
+                            let source = &source[1..];
+                            for (i, lexicon) in self.lexicons.iter().enumerate() {
+                                if source == lexicon {
+                                    sequence.push(ContextMatch::NotFromLexicon(i as u8));
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if !found {
+                                eprintln!("WARNING: Context rule references lexicon or variant list '{}' but this source was not loaded", source);
+                            }
+                        } else {
+                            let words: Vec<&str> = source.split("|").collect();
+                            let mut words_encoded: Vec<VocabId> = Vec::new();
+                            for word in words.into_iter() {
+                                if let Some(vocab_id) = self.encoder.get(word) {
+                                    words_encoded.push(*vocab_id);
+                                } else {
+                                    eprintln!("WARNING: Context rule references word '{}' but this word does not occur in any lexicon", word);
+                                }
+                            }
+                            sequence.push(ContextMatch::Exact(words_encoded));
                         }
                     }
                     if !sequence.is_empty() {
@@ -1869,14 +1893,14 @@ impl VariantModel {
 
         let mut match_history: Vec<usize> = Vec::new(); //refers to indices of self.context_rules
 
-        let sequence_lexicons: Vec<u32> = sequence.output_symbols.iter().map(|output_symbol|
+        let sequence_lexicons: Vec<(VocabId,u32)> = sequence.output_symbols.iter().map(|output_symbol|
             if output_symbol.vocab_id == 0 {
-                0
+                (output_symbol.vocab_id, 0)
             } else {
                 if let Some(vocabvalue) = self.decoder.get(output_symbol.vocab_id as usize) {
-                    vocabvalue.lexindex
+                    (output_symbol.vocab_id, vocabvalue.lexindex)
                 } else {
-                    0
+                    (output_symbol.vocab_id, 0)
                 }
             }).collect();
 
