@@ -484,6 +484,14 @@ impl PyVariantModel {
         }
     }
 
+    /// Load context rules from a TSV file
+    fn read_contextrules(&mut self, filename: &str) -> PyResult<()> {
+        match self.model.read_contextrules(filename) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(PyRuntimeError::new_err(format!("{}", e)))
+        }
+    }
+
 
     ///Is this exact text in a loaded lexicon?
     fn __contains__(&self, text: &str) -> bool {
