@@ -75,6 +75,16 @@ impl VocabValue {
     pub fn in_lexicon(&self, index: u8) -> bool {
         self.lexindex & (1 << index) == 1 << index
     }
+
+    pub fn lexindex_as_vec(&self) -> Vec<u8> {
+        let mut v = Vec::new();
+        for i in 0..31 {
+            if self.in_lexicon(i) {
+                v.push(i);
+            }
+        }
+        v
+    }
 }
 
 

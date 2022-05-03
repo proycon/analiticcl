@@ -289,4 +289,51 @@ pub fn redundant_match<'a>(candidate: &Match<'a>, matches: &[Match<'a>]) -> bool
     true
 }
 
+pub struct ContextRule {
+    /// Lexicon index
+    pub sequence: Vec<Option<u8>>,
+    /// Score (> 1.0) for bonus, (< 1.0) for penalty
+    pub score: f32,
+    /// Point to indices of context rules that subsume this one
+    pub subsumed_by: Vec<u8>
+}
+
+impl ContextRule {
+    pub fn invert_score(&self) -> f32 {
+        return 1.0 / self.score;
+    }
+
+    pub fn len(&self) -> usize {
+        self.sequence.len()
+    }
+
+    ///Checks if the sequence of the contextrole is present in larger sequence
+    ///provided as parameter. Returns the number of matches
+    pub fn find_matches(&self, sequence: &[u32]) -> usize {
+        let mut matches = 0;
+        for begin in 0..(sequence.len() - self.sequence.len()) {
+            let mut found = true;
+            for (cursor, lextest) in self.sequence.iter().enumerate() {
+                if let Some(lextest) = lextest {
+                    if let Some(lexindex) = sequence.get(begin+cursor) {
+                        if !(lexindex & (1 << lextest) == 1 << lextest) {
+                            found = false;
+                            break
+                        }
+                    }
+                } else {
+                    if sequence.get(begin+cursor) != Some(&0) {
+                        found = false;
+                        break
+                    }
+                }
+            }
+            if found {
+                matches += 1
+            }
+        }
+        matches
+    }
+}
+
 

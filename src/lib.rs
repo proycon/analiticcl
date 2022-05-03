@@ -80,6 +80,9 @@ pub struct VariantModel {
     /// Do we have an LM?
     pub have_lm: bool,
 
+    /// Context rules
+    pub context_rules: Vec<ContextRule>,
+
     ///Weights used in distance scoring
     pub weights: Weights,
 
@@ -113,6 +116,7 @@ impl VariantModel {
             lexicons: Vec::new(),
             confusables: Vec::new(),
             confusables_before_pruning: false,
+            context_rules: Vec::new(),
             debug,
         };
         model.read_alphabet(alphabet_file).expect("Error loading alphabet file");
@@ -137,6 +141,7 @@ impl VariantModel {
             lexicons: Vec::new(),
             confusables: Vec::new(),
             confusables_before_pruning: false,
+            context_rules: Vec::new(),
             debug,
         };
         init_vocab(&mut model.decoder, &mut model.encoder);
@@ -476,6 +481,60 @@ impl VariantModel {
             eprintln!(" - Read vocabulary of size {}", self.decoder.len() - beginlen);
         }
         self.lexicons.push(filename.to_string());
+        Ok(())
+    }
+
+    pub fn read_contextrules(&mut self, filename: &str) -> Result<(), std::io::Error> {
+        if self.debug >= 1 {
+            eprintln!("Reading context rules {}...",  filename);
+        }
+        let f = File::open(filename)?;
+        let f_buffer = BufReader::new(f);
+        for line in f_buffer.lines() {
+            if let Ok(line) = line {
+                if !line.is_empty() {
+                    let fields: Vec<&str> = line.split("\t").collect();
+                    if fields.len() != 2 {
+                        return Err(std::io::Error::new(std::io::ErrorKind::Other, "Expected two columns in context rules file"));
+                    }
+
+                    let sources: Vec<&str> = fields.get(0).unwrap().split(",").map(|s| s.trim()).collect();
+                    let score = fields.get(1).unwrap().parse::<f32>().expect("context rule score should be a floating point value above or below 1.0");
+                    let mut sequence: Vec<Option<u8>> = Vec::new();
+                    for source in sources {
+                        let mut found = false;
+                        if source == "NONE" {
+                            sequence.push(None)
+                        } else {
+                            for (i, lexicon) in self.lexicons.iter().enumerate() {
+                                if source == lexicon {
+                                    sequence.push(Some(i as u8));
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if !found {
+                                eprintln!("WARNING: Context rule references lexicon or variant list '{}' but this source was not loaded", source);
+                            }
+                        }
+                    }
+                    if !sequence.is_empty() {
+                        self.context_rules.push( ContextRule {
+                            sequence: sequence,
+                            score: score,
+                            subsumed_by: vec!()
+                        });
+                    }
+                }
+            }
+        }
+
+        //sort context rules by length (descending)
+        self.context_rules.sort_by_key(|x| -1 * x.sequence.len() as i64);
+
+
+        //TODO: compute which context rules subsume others
+
         Ok(())
     }
 
@@ -1701,7 +1760,7 @@ impl VariantModel {
         let mut best_lm_perplexity: f64 = 999999.0; //to be minimised
         let mut best_variant_cost: f32 = (boundaries.len() - 1) as f32 * 2.0; //worst score, to be improved (to be minimised)
         for (i, path)  in fst.paths_iter().enumerate() { //iterates over the n shortest path hypotheses (does not return them in weighted order)
-            let variant_cost: f32 = *path.weight.value();
+            let mut variant_cost: f32 = *path.weight.value();
             let mut sequence = Sequence::new(variant_cost);
             if self.debug >= 3 {
                 eprintln!("  (#{}, path: {:?})", i+1, path);
@@ -1718,6 +1777,10 @@ impl VariantModel {
                 if sequence.perplexity < best_lm_perplexity {
                     best_lm_perplexity = sequence.perplexity;
                 }
+            }
+            if !self.context_rules.is_empty() {
+                variant_cost *= self.test_context_rules(&sequence);
+                sequence.variant_cost = variant_cost;
             }
             if variant_cost < best_variant_cost {
                 best_variant_cost = variant_cost;
@@ -1791,6 +1854,49 @@ impl VariantModel {
         }).collect()
     }
 
+    /// Favours or penalizes certain combinations of lexicon matches. matching words X and Y
+    /// respectively with lexicons A and B might be favoured over other combinations.
+    /// This returns either a bonus or penalty (number slightly below/above to 1.0)
+    /// The variant cost will multiplied by this number
+    pub fn test_context_rules<'a>(&self, sequence: &Sequence) -> f32 {
+        //build a prefix trie of what lexicons items in the sequence are from
+        let mut cost = 1.0;
+
+        let mut match_history: Vec<usize> = Vec::new(); //refers to indices of self.context_rules
+
+        let sequence_lexicons: Vec<u32> = sequence.output_symbols.iter().map(|output_symbol|
+            if output_symbol.vocab_id == 0 {
+                0
+            } else {
+                if let Some(vocabvalue) = self.decoder.get(output_symbol.vocab_id as usize) {
+                    vocabvalue.lexindex
+                } else {
+                    0
+                }
+            }).collect();
+
+
+        for (i, context_rule) in self.context_rules.iter().enumerate() {
+            let matchcount = context_rule.find_matches(&sequence_lexicons);
+            if matchcount > 0 {
+                //skip this match if we already had a larger match before that subsumes this one
+                let mut skip = false;
+                for j in  context_rule.subsumed_by.iter() {
+                    if match_history.contains(&(*j as usize)) {
+                        skip = true;
+                        break;
+                    }
+                }
+                if !skip {
+                    //valid match
+                    cost *= (matchcount as f32) * context_rule.invert_score();
+                    match_history.push(i);
+                }
+            }
+        }
+
+        cost
+    }
 
     /// Computes the logprob and perplexity for a given sequence as produced in
     /// most_likely_sequence()
@@ -2006,3 +2112,4 @@ impl VariantModel {
 
 
 }
+
