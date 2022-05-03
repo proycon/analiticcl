@@ -126,7 +126,7 @@ pub struct Sequence {
     pub variant_cost: f32,
     pub lm_logprob: f32,
     pub perplexity: f64,
-    pub adjusted_cost: f32
+    pub adjusted_cost_by: f32
 }
 
 impl Sequence {
@@ -136,7 +136,7 @@ impl Sequence {
             variant_cost,
             lm_logprob: 0.0,
             perplexity: 0.0,
-            adjusted_cost: 1.0,
+            adjusted_cost_by: 1.0,
         }
     }
 
