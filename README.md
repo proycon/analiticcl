@@ -402,6 +402,33 @@ it contains the special tokens ``<bos>`` (begin of sentence) and ``<eos>`` end o
 these items. It is fine to have an entry in both the language model and lexicon, analiticcl will store it only once
 internally.
 
+### Context Rules
+
+Another way to consider context information is through context rules. The context rules define certain patterns that are
+to be either favoured or penalized. The context rules are expressed in a tab separated file which can be passed to
+analiticcl using ``--contextrules``. The first column contains a sequence separated by semicolons, and the second a
+score close to 1.0 (lower scores penalize the pattern, higher scores favour it):
+
+```
+hello ; world	1.1
+```
+
+Note that the words also need to be in a lexicon you provide for a rule to work. You can express disjunctions using the
+pipe character, as follows:
+
+```
+hello|hi ; world|planet	1.1
+```
+
+This will match all four possible combinations. Rather than match the text, you can match specific lexicons you loaded
+using the `@` prefix. This makes sense mainly if you use different lexicons and could be used a form of elementary tagging:
+
+```
+@greetings.tsv ; world	1.1
+```
+
+Instead of ``@`` you can use the prefix ``^`` to match anything *except* the words in the lexicon. Note that you'll still need to explicitly load the lexicons (or variants lists) using ``--lexicon``, ``--variants``,
+etc. A standalone ``^`` may also be used and matches only if there are *no* matches against *any* lexicon.
 
 ## Theoretical Background
 
