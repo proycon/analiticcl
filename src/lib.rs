@@ -1779,8 +1779,13 @@ impl VariantModel {
                 }
             }
             if !self.context_rules.is_empty() {
-                variant_cost *= self.test_context_rules(&sequence);
+                let adjust_cost = self.test_context_rules(&sequence);
+                variant_cost *= adjust_cost;
+                if self.debug >= 3 && adjust_cost != 1.0 {
+                    eprintln!("   (context rules adjusted cost by {}: {})", adjust_cost, variant_cost);
+                }
                 sequence.variant_cost = variant_cost;
+                sequence.adjusted_cost = adjust_cost;
             }
             if variant_cost < best_variant_cost {
                 best_variant_cost = variant_cost;
@@ -1827,9 +1832,9 @@ impl VariantModel {
             debug_ranked.as_mut().unwrap().sort_by(|a,b| b.3.partial_cmp(&a.3).unwrap_or(Ordering::Equal) ); //sort by score
             for (i, (sequence, norm_lm_score, norm_variant_score, score)) in debug_ranked.unwrap().into_iter().enumerate() {
                 if self.have_lm && params.lm_weight > 0.0 {
-                    eprintln!("  (#{}, final_score={}, norm_lm_score={} (perplexity={}, logprob={}, weight={}), norm_variant_score={} (variant_cost={}, weight={})", i+1, score.exp(), norm_lm_score.exp(), sequence.perplexity, sequence.lm_logprob, params.lm_weight,  norm_variant_score.exp(), sequence.variant_cost, params.variantmodel_weight);
+                    eprintln!("  (#{}, final_score={}, norm_lm_score={} (perplexity={}, logprob={}, weight={}), norm_variant_score={} (variant_cost={}, weight={}, adjusted_cost={})", i+1, score.exp(), norm_lm_score.exp(), sequence.perplexity, sequence.lm_logprob, params.lm_weight,  norm_variant_score.exp(), sequence.variant_cost, params.variantmodel_weight, sequence.adjusted_cost);
                 } else {
-                    eprintln!("  (#{}, final_score={}, norm_variant_score={} (variant_cost={}, weight={}), no LM", i+1, score.exp(),   norm_variant_score.exp(), sequence.variant_cost, params.variantmodel_weight);
+                    eprintln!("  (#{}, final_score={}, norm_variant_score={} (variant_cost={}, weight={}, adjusted_cost={}), no LM", i+1, score.exp(),   norm_variant_score.exp(), sequence.variant_cost, params.variantmodel_weight, sequence.adjusted_cost);
                 }
                 let mut text: String = String::new();
                 for output_symbol in sequence.output_symbols.iter() {
