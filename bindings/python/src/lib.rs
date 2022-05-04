@@ -459,8 +459,8 @@ impl PyVariantModel {
         }
     }
 
-    fn add_contextrule(&mut self, pattern: &str, score: f32) -> PyResult<()> {
-        self.model.add_contextrule( pattern, score);
+    fn add_contextrule(&mut self, pattern: &str, score: f32, tag: Option<&str>, tagoffset: Option<&str>) -> PyResult<()> {
+        self.model.add_contextrule( pattern, score, tag, tagoffset);
         Ok(())
     }
 
