@@ -1462,7 +1462,7 @@ impl VariantModel {
                 let l = matches.len();
                 //consolidate the matches, finding a single segmentation that has the best (highest
                 //scoring) solution
-                if params.max_ngram > 1 {
+                if params.max_ngram > 1 || self.lm || !self.context_rules.is_empty() {
                     //(debug will be handled in the called method)
                     matches.extend(
                         self.most_likely_sequence(batch_matches, boundaries, begin, boundary.offset.begin, params, text_current).into_iter()
