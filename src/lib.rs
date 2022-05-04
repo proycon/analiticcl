@@ -82,6 +82,8 @@ pub struct VariantModel {
 
     /// Context rules
     pub context_rules: Vec<ContextRule>,
+    /// Tags used by the context rules
+    pub tags: Vec<String>,
 
     ///Weights used in distance scoring
     pub weights: Weights,
@@ -117,6 +119,7 @@ impl VariantModel {
             confusables: Vec::new(),
             confusables_before_pruning: false,
             context_rules: Vec::new(),
+            tags: Vec::new(),
             debug,
         };
         model.read_alphabet(alphabet_file).expect("Error loading alphabet file");
@@ -142,6 +145,7 @@ impl VariantModel {
             confusables: Vec::new(),
             confusables_before_pruning: false,
             context_rules: Vec::new(),
+            tags: Vec::new(),
             debug,
         };
         init_vocab(&mut model.decoder, &mut model.encoder);
@@ -494,13 +498,14 @@ impl VariantModel {
             if let Ok(line) = line {
                 if !line.is_empty() {
                     let fields: Vec<&str> = line.split("\t").collect();
-                    if fields.len() != 2 {
-                        return Err(std::io::Error::new(std::io::ErrorKind::Other, "Expected two columns in context rules file"));
+                    if fields.len() < 2 {
+                        return Err(std::io::Error::new(std::io::ErrorKind::Other, "Expected at least two columns in context rules file"));
                     }
 
                     let pattern: &str = fields.get(0).unwrap();
                     let score = fields.get(1).unwrap().parse::<f32>().expect("context rule score should be a floating point value above or below 1.0");
-                    self.add_contextrule(pattern, score);
+
+                    self.add_contextrule(pattern, score, fields.get(2).map(|s| *s), fields.get(3).map(|s| *s));
 
                 }
             }
@@ -518,7 +523,7 @@ impl VariantModel {
         self.context_rules.sort_by_key(|x| -1 * x.pattern.len() as i64);
     }
 
-    pub fn add_contextrule(&mut self, pattern: &str, score: f32) {
+    pub fn add_contextrule(&mut self, pattern: &str, score: f32, tag: Option<&str>, tagoffset: Option<&str>) {
         let sources: Vec<&str> = pattern.split(";").map(|s| s.trim()).collect();
         let mut pattern: Vec<PatternMatch> = Vec::new();
         for source in sources {
@@ -564,10 +569,54 @@ impl VariantModel {
                 pattern.push(PatternMatch::Exact(words_encoded));
             }
         }
+
+        let tag: Option<u16> = tag.map(|tag| {
+            let mut pos = None;
+            for (i, t) in self.tags.iter().enumerate() {
+                if t == tag {
+                    pos = Some(i as u16);
+                    break;
+                }
+            }
+            if pos.is_none() {
+                self.tags.push(tag.to_string());
+                (self.tags.len() - 1) as u16
+            } else {
+                pos.unwrap()
+            }
+        });
+
+        let tagoffset: Option<(u8,u8)> = tagoffset.map(|s| {
+            let fields: Vec<&str> = s.split(":").collect();
+            let tagbegin: u8 = if let Some(tagbegin) = fields.get(0) {
+                if tagbegin.is_empty() {
+                    0
+                } else {
+                    tagbegin.parse::<u8>().expect("tag offset should be an integer")
+                }
+            } else {
+                0
+            };
+            let taglength: u8 = if let Some(taglength) = fields.get(1) {
+                if taglength.is_empty() {
+                    pattern.len() as u8 - tagbegin
+                } else {
+                    taglength.parse::<u8>().expect("tag length should be an integer")
+                }
+            } else {
+                pattern.len() as u8 - tagbegin
+            };
+
+            (tagbegin,taglength)
+        });
+
+
         if !pattern.is_empty() {
             self.context_rules.push( ContextRule {
                 pattern: pattern,
-                score: score
+                score: score,
+                tag: tag,
+                tagoffset: tagoffset
             });
         }
     }

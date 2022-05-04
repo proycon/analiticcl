@@ -27,6 +27,12 @@ pub struct Match<'a> {
     ///the variant that was selected after searching and ranking (if any)
     pub selected: Option<usize>,
 
+
+    /// The tag that was assigned to this match (if any)
+    pub tag: Option<u16>,
+    /// The sequence number in a tagged sequence
+    pub seqnr: Option<u8>,
+
     /// the index of the previous boundary, None if at start position
     pub prevboundary: Option<usize>,
 
@@ -46,6 +52,8 @@ impl<'a> Match<'a> {
             selected: None,
             prevboundary: None,
             nextboundary: None,
+            tag: None,
+            seqnr: None,
             n: 0
         }
     }
@@ -306,7 +314,9 @@ pub struct ContextRule {
     /// Lexicon index
     pub pattern: Vec<PatternMatch>,
     /// Score (> 1.0) for bonus, (< 1.0) for penalty
-    pub score: f32
+    pub score: f32,
+    pub tag: Option<u16>,
+    pub tagoffset: Option<(u8,u8)> //begin,length
 }
 
 impl ContextRule {
