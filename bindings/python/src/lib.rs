@@ -179,6 +179,11 @@ impl PySearchParameters {
                             Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
                             Err(v) => eprintln!("{}", v)
                          },
+                        "contextrules_weight" => match value.extract() {
+                            Ok(Some(value)) => instance.data.contextrules_weight = value,
+                            Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
+                            Err(v) => eprintln!("{}", v)
+                         },
                         "variantmodel_weight" => match value.extract() {
                             Ok(Some(value)) => instance.data.variantmodel_weight = value,
                             Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
@@ -257,6 +262,8 @@ impl PySearchParameters {
     #[getter]
     fn get_variantmodel_weight(&self) -> PyResult<f32> { Ok(self.data.variantmodel_weight) }
     #[getter]
+    fn get_contextrules_weight(&self) -> PyResult<f32> { Ok(self.data.contextrules_weight) }
+    #[getter]
     fn get_consolidate_matches(&self) -> PyResult<bool> { Ok(self.data.consolidate_matches) }
 
     #[setter]
@@ -286,6 +293,8 @@ impl PySearchParameters {
     #[setter]
     fn set_lm_weight(&mut self, value: f32) -> PyResult<()> { self.data.lm_weight = value; Ok(()) }
     #[setter]
+    fn set_contextrules_weight(&mut self, value: f32) -> PyResult<()> { self.data.contextrules_weight = value; Ok(()) }
+    #[setter]
     fn set_variantmodel_weight(&mut self, value: f32) -> PyResult<()> { self.data.variantmodel_weight = value; Ok(()) }
 
     #[setter]
@@ -307,6 +316,7 @@ impl PySearchParameters {
         dict.set_item("context_weight", self.get_context_weight()?)?;
         dict.set_item("freq_weight", self.get_freq_weight()?)?;
         dict.set_item("lm_weight", self.get_lm_weight()?)?;
+        dict.set_item("contextrules_weight", self.get_contextrules_weight()?)?;
         dict.set_item("variantmodel_weight", self.get_variantmodel_weight()?)?;
         dict.set_item("consolidate_matches", self.get_consolidate_matches()?)?;
         Ok(dict)
