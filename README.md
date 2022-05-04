@@ -413,7 +413,9 @@ score close to 1.0 (lower scores penalize the pattern, higher scores favour it):
 hello ; world	1.1
 ```
 
-This means that if the words "hello world" appear as a solution a text/sentence, its total variant score will be boosted by 1.1, effectively preferring this solution over others.
+This means that if the words "hello world" appear as a solution a text/sentence, its total context score will be boosted
+(proportial to the length of the match), effectively preferring this solution over others. This context score is an
+independent component in the final score function and its weight can be set using ``--contextrules-weight``.
 
 Note that the words also need to be in a lexicon you provide for a rule to work. You can express disjunctions using the
 pipe character, as follows:
@@ -429,10 +431,12 @@ using the `@` prefix. This makes sense mainly if you use different lexicons and 
 @greetings.tsv ; world	1.1
 ```
 
-Instead of ``@`` you can use the prefix ``^`` to match anything *except* the words in the lexicon. Note that you'll still need to explicitly load the lexicons (or variants lists) using ``--lexicon``, ``--variants``,
+Instead of ``@`` you can use the prefix ``^`` to match anything *except* the words in the lexicon. Note that you'll
+still need to explicitly load the lexicons (or variants lists) using ``--lexicon``, ``--variants``,
 etc. A standalone ``^`` may also be used and matches only if there are *no* matches against *any* lexicon.
 
-The rules are applied in a greedy manner where longer rules are applied before shorter rules, words will only match with one rule, but multiple non-overlapping patterns may be found in the a text.
+The rules are applied in a greedy manner where longer rules are applied before shorter rules, words will only match with
+one rule, but multiple non-overlapping patterns may be found in the a text.
 
 
 ## Theoretical Background
