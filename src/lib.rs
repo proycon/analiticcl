@@ -500,16 +500,16 @@ impl VariantModel {
 
                     let sources: Vec<&str> = fields.get(0).unwrap().split(";").map(|s| s.trim()).collect();
                     let score = fields.get(1).unwrap().parse::<f32>().expect("context rule score should be a floating point value above or below 1.0");
-                    let mut sequence: Vec<ContextMatch> = Vec::new();
+                    let mut pattern: Vec<PatternMatch> = Vec::new();
                     for source in sources {
                         let mut found = false;
                         if source == "^" {
-                            sequence.push(ContextMatch::NoLexicon)
+                            pattern.push(PatternMatch::NoLexicon)
                         } else if source.starts_with("@") {
                             let source = &source[1..];
                             for (i, lexicon) in self.lexicons.iter().enumerate() {
                                 if source == lexicon {
-                                    sequence.push(ContextMatch::FromLexicon(i as u8));
+                                    pattern.push(PatternMatch::FromLexicon(i as u8));
                                     found = true;
                                     break;
                                 }
@@ -521,7 +521,7 @@ impl VariantModel {
                             let source = &source[1..];
                             for (i, lexicon) in self.lexicons.iter().enumerate() {
                                 if source == lexicon {
-                                    sequence.push(ContextMatch::NotFromLexicon(i as u8));
+                                    pattern.push(PatternMatch::NotFromLexicon(i as u8));
                                     found = true;
                                     break;
                                 }
@@ -539,12 +539,12 @@ impl VariantModel {
                                     eprintln!("WARNING: Context rule references word '{}' but this word does not occur in any lexicon", word);
                                 }
                             }
-                            sequence.push(ContextMatch::Exact(words_encoded));
+                            pattern.push(PatternMatch::Exact(words_encoded));
                         }
                     }
-                    if !sequence.is_empty() {
+                    if !pattern.is_empty() {
                         self.context_rules.push( ContextRule {
-                            sequence: sequence,
+                            pattern: pattern,
                             score: score
                         });
                     }
@@ -553,7 +553,7 @@ impl VariantModel {
         }
 
         //sort context rules by length (descending)
-        self.context_rules.sort_by_key(|x| -1 * x.sequence.len() as i64);
+        self.context_rules.sort_by_key(|x| -1 * x.pattern.len() as i64);
 
         Ok(())
     }

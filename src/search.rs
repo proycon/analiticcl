@@ -291,7 +291,7 @@ pub fn redundant_match<'a>(candidate: &Match<'a>, matches: &[Match<'a>]) -> bool
     true
 }
 
-pub enum ContextMatch {
+pub enum PatternMatch {
     /// Exact match with any of the specified vocabulary IDs
     Exact(Vec<VocabId>),
     /// Match with no lexicon
@@ -304,7 +304,7 @@ pub enum ContextMatch {
 
 pub struct ContextRule {
     /// Lexicon index
-    pub sequence: Vec<ContextMatch>,
+    pub pattern: Vec<PatternMatch>,
     /// Score (> 1.0) for bonus, (< 1.0) for penalty
     pub score: f32
 }
@@ -315,7 +315,7 @@ impl ContextRule {
     }
 
     pub fn len(&self) -> usize {
-        self.sequence.len()
+        self.pattern.len()
     }
 
     ///Checks if the sequence of the contextrole is present in larger sequence
@@ -323,15 +323,15 @@ impl ContextRule {
     pub fn find_matches(&self, sequence: &[(VocabId,u32)], sequence_mask: &mut Vec<bool>) -> usize {
         assert_eq!(sequence.len(), sequence_mask.len());
         let mut matches = 0;
-        for begin in 0..(sequence.len() - self.sequence.len()) {
+        for begin in 0..(sequence.len() - self.pattern.len()) {
             let mut found = true;
-            for (cursor, contextmatch) in self.sequence.iter().enumerate() {
+            for (cursor, contextmatch) in self.pattern.iter().enumerate() {
                 if sequence_mask[begin+cursor] {
                     found = false;
                     break;
                 }
                 match contextmatch {
-                    ContextMatch::Exact(vocabids) => {
+                    PatternMatch::Exact(vocabids) => {
                         if let Some((vocabid, _lexindex)) = sequence.get(begin+cursor) {
                             if !vocabids.contains(vocabid) {
                                 found = false;
@@ -339,7 +339,7 @@ impl ContextRule {
                             }
                         }
                     },
-                    ContextMatch::FromLexicon(lextest) =>  {
+                    PatternMatch::FromLexicon(lextest) =>  {
                         if let Some((_vocabid, lexindex)) = sequence.get(begin+cursor) {
                             if !(lexindex & (1 << lextest) == 1 << lextest) {
                                 found = false;
@@ -347,7 +347,7 @@ impl ContextRule {
                             }
                         }
                     },
-                    ContextMatch::NotFromLexicon(lextest) =>  {
+                    PatternMatch::NotFromLexicon(lextest) =>  {
                         if let Some((_vocabid, lexindex)) = sequence.get(begin+cursor) {
                             if lexindex & (1 << lextest) == 1 << lextest {
                                 found = false;
@@ -355,7 +355,7 @@ impl ContextRule {
                             }
                         }
                     },
-                    ContextMatch::NoLexicon => {
+                    PatternMatch::NoLexicon => {
                         if let Some((_vocabid, lexindex)) = sequence.get(begin+cursor) {
                             if *lexindex != 0 {
                                 found = false;
@@ -366,7 +366,7 @@ impl ContextRule {
                 };
             }
             if found {
-                for cursor in 0..self.sequence.len() {
+                for cursor in 0..self.pattern.len() {
                     sequence_mask[begin+cursor] = true;
                 }
                 matches += 1
