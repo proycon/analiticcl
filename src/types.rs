@@ -128,15 +128,19 @@ pub struct SearchParameters {
     /// as much weight) when considering input context and rescoring.
     pub context_weight: f32,
 
+    /// Weight attributed to the variant model in finding the most likely sequence
+    pub variantmodel_weight: f32,
+
     /// Weight attributed to the language model in finding the most likely sequence
     pub lm_weight: f32,
+
+    /// Weight attributed to the context rules model in finding the most likely sequence
+    pub contextrules_weight: f32,
 
     /// Weight attributed to the frequency information in frequency reranking, in relation to
     /// the similarity component. 0 = disabled)
     pub freq_weight: f32,
 
-    /// Weight attributed to the variant model in finding the most likely sequence
-    pub variantmodel_weight: f32,
 
     /// Consolidate matches and extract a single most likely sequence, if set
     /// to false, all possible matches (including overlapping ones) are returned.
@@ -157,9 +161,10 @@ impl Default for SearchParameters {
             single_thread: false,
             max_seq: 250,
             context_weight: 0.0,
-            lm_weight: 1.0,
             freq_weight: 0.0,
-            variantmodel_weight: 1.0,
+            variantmodel_weight: 3.0,
+            lm_weight: 1.0,
+            contextrules_weight: 1.0,
             consolidate_matches: true,
         }
     }

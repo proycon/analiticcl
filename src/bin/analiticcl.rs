@@ -606,6 +606,11 @@ pub fn search_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
             .long("weight-variant-model")
             .help("Weight attributed to the variant model in finding the most likely sequence in search mode")
             .takes_value(true)
+            .default_value("3.0"));
+        args.push(Arg::with_name("weight-contextrules")
+            .long("weight-contextrules")
+            .help("Weight attributed to the context rules model in finding the most likely sequence in search mode")
+            .takes_value(true)
             .default_value("1.0"));
         args.push(Arg::with_name("weight-context")
             .long("weight-context")
@@ -806,6 +811,11 @@ fn main() {
         },
         context_weight: if args.is_present("weight-context") {
             args.value_of("weight-context").unwrap().parse::<f32>().expect("Context weight should be a floating point number")
+        } else {
+            1.0
+        },
+        contextrules_weight: if args.is_present("weight-contextrules") {
+            args.value_of("weight-contextrules").unwrap().parse::<f32>().expect("Context-rules weight should be a floating point number")
         } else {
             1.0
         },

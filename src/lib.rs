@@ -1793,8 +1793,10 @@ impl VariantModel {
         let mut sequences: Vec<Sequence> = Vec::new();
         let mut best_lm_perplexity: f64 = 999999.0; //to be minimised
         let mut best_variant_cost: f32 = (boundaries.len() - 1) as f32 * 2.0; //worst score, to be improved (to be minimised)
+        let mut best_context_score: f64 = 0.0; //to be maximised
+
         for (i, path)  in fst.paths_iter().enumerate() { //iterates over the n shortest path hypotheses (does not return them in weighted order)
-            let mut variant_cost: f32 = *path.weight.value();
+            let variant_cost: f32 = *path.weight.value();
             let mut sequence = Sequence::new(variant_cost);
             if self.debug >= 3 {
                 eprintln!("  (#{}, path: {:?})", i+1, path);
@@ -1813,21 +1815,22 @@ impl VariantModel {
                 }
             }
             if !self.context_rules.is_empty() {
-                let adjust_cost = self.test_context_rules(&sequence);
-                variant_cost *= adjust_cost;
-                if self.debug >= 3 && adjust_cost != 1.0 {
-                    eprintln!("   (context rules adjusted cost by {}: {})", adjust_cost, variant_cost);
+                //Apply context rules, considers context
+                sequence.context_score = self.test_context_rules(&sequence);
+                if self.debug >= 3 && sequence.context_score != 1.0 {
+                    eprintln!("   (context_score: {})", sequence.context_score);
                 }
-                sequence.variant_cost = variant_cost;
-                sequence.adjusted_cost_by = adjust_cost;
             }
             if variant_cost < best_variant_cost {
                 best_variant_cost = variant_cost;
             }
+            if sequence.context_score > best_context_score {
+                best_context_score = sequence.context_score;
+            }
             sequences.push(sequence);
         }
 
-        let mut debug_ranked: Option<Vec<(Sequence, f64, f64, f64)>> = if self.debug >= 1 {
+        let mut debug_ranked: Option<Vec<(Sequence, f64, f64, f64, f64)>> = if self.debug >= 1 {
             Some(Vec::new())
         } else {
             None
@@ -1844,16 +1847,18 @@ impl VariantModel {
                 0.0
             };
             let norm_variant_score: f64 = (best_variant_cost as f64 / sequence.variant_cost as f64).ln();
+            let norm_context_score: f64 = (sequence.context_score / best_context_score).ln();
 
             //then we interpret the score as a kind of pseudo-probability and minimize the joint
             //probability (the product; addition in log-space)
-            let score = if self.have_lm && params.lm_weight > 0.0 {
-                (params.lm_weight as f64 * norm_lm_score + params.variantmodel_weight as f64 * norm_variant_score) / (params.lm_weight as f64 + params.variantmodel_weight as f64) //note: the denominator isn't really relevant for finding the best score but normalizes the output for easier interpretability (=geometric mean)
-            } else {
+            let score = if (!self.have_lm || params.lm_weight == 0.0) && (self.context_rules.is_empty() || params.contextrules_weight == 0.0) {
+                //no need for full computation, take a shortcut:
                 norm_variant_score
+            } else {
+                (params.lm_weight as f64 * norm_lm_score + params.variantmodel_weight as f64 * norm_variant_score + params.contextrules_weight as f64 * norm_context_score) / (params.lm_weight as f64 + params.variantmodel_weight as f64 + params.contextrules_weight as f64) //note: the denominator isn't really relevant for finding the best score but normalizes the output for easier interpretability (=geometric mean)
             };
             if self.debug >= 1 {
-                debug_ranked.as_mut().unwrap().push( (sequence.clone(), norm_lm_score, norm_variant_score, score) );
+                debug_ranked.as_mut().unwrap().push( (sequence.clone(), norm_lm_score, norm_variant_score, norm_context_score, score) );
             }
             if score > best_score || best_sequence.is_none() {
                 best_score = score;
@@ -1863,13 +1868,9 @@ impl VariantModel {
 
         if self.debug >= 1 {
             //debug mode: output all candidate sequences and their scores in order
-            debug_ranked.as_mut().unwrap().sort_by(|a,b| b.3.partial_cmp(&a.3).unwrap_or(Ordering::Equal) ); //sort by score
-            for (i, (sequence, norm_lm_score, norm_variant_score, score)) in debug_ranked.unwrap().into_iter().enumerate() {
-                if self.have_lm && params.lm_weight > 0.0 {
-                    eprintln!("  (#{}, final_score={}, norm_lm_score={} (perplexity={}, logprob={}, weight={}), norm_variant_score={} (variant_cost={}, weight={}, adjusted_cost_by={})", i+1, score.exp(), norm_lm_score.exp(), sequence.perplexity, sequence.lm_logprob, params.lm_weight,  norm_variant_score.exp(), sequence.variant_cost, params.variantmodel_weight, sequence.adjusted_cost_by);
-                } else {
-                    eprintln!("  (#{}, final_score={}, norm_variant_score={} (variant_cost={}, weight={}, adjusted_cost_by={}), no LM", i+1, score.exp(),   norm_variant_score.exp(), sequence.variant_cost, params.variantmodel_weight, sequence.adjusted_cost_by);
-                }
+            debug_ranked.as_mut().unwrap().sort_by(|a,b| b.4.partial_cmp(&a.4).unwrap_or(Ordering::Equal) ); //sort by score
+            for (i, (sequence, norm_lm_score, norm_variant_score, norm_context_score, score)) in debug_ranked.unwrap().into_iter().enumerate() {
+                eprintln!("  (#{}, final_score={}, norm_lm_score={} (perplexity={}, logprob={}, weight={}), norm_variant_score={} (variant_cost={}, weight={}), norm_context_score={} (context_score={}, weight={})", i+1, score.exp(), norm_lm_score.exp(), sequence.perplexity, sequence.lm_logprob, params.lm_weight,  norm_variant_score.exp(), sequence.variant_cost, params.variantmodel_weight, norm_context_score.exp(), sequence.context_score, params.contextrules_weight);
                 let mut text: String = String::new();
                 for output_symbol in sequence.output_symbols.iter() {
                     if output_symbol.vocab_id > 0{
@@ -1895,12 +1896,9 @@ impl VariantModel {
 
     /// Favours or penalizes certain combinations of lexicon matches. matching words X and Y
     /// respectively with lexicons A and B might be favoured over other combinations.
-    /// This returns either a bonus or penalty (number slightly below/above to 1.0)
-    /// The variant cost will multiplied by this number
-    pub fn test_context_rules<'a>(&self, sequence: &Sequence) -> f32 {
-        //build a prefix trie of what lexicons items in the sequence are from
-        let mut cost = 1.0;
-
+    /// This returns either a bonus or penalty (number slightly above/below 1.0) score/
+    /// for the sequence as a whole.
+    pub fn test_context_rules<'a>(&self, sequence: &Sequence) -> f64 {
         let sequence: Vec<(VocabId,u32)> = sequence.output_symbols.iter().map(|output_symbol|
             if output_symbol.vocab_id == 0 {
                 (output_symbol.vocab_id, 0)
@@ -1912,17 +1910,23 @@ impl VariantModel {
                 }
             }).collect();
 
-        //The mask will flag which items in the sequence have been covered by matches
-        let mut sequence_mask: Vec<bool> = vec![false; sequence.len()];
+        //The sequence will flag which items in the sequence have been covered by matches (Some),
+        //and if so, what context rule scores apply to that match. It's later used to compute
+        //the final score
+        let mut sequence_scores: Vec<Option<f32>> = vec![None; sequence.len()];
 
+        let mut found = false;
         for context_rule in self.context_rules.iter() {
-            let matchcount = context_rule.find_matches(&sequence, &mut sequence_mask);
-            if matchcount > 0 {
-                cost *= (matchcount as f32) * context_rule.invert_score();
+            if context_rule.find_matches(&sequence, &mut sequence_scores) > 0 {
+                found = true;
             }
         }
 
-        cost
+        if !found {
+            1.0 //just a shortcut to prevent unnecessary computation
+        } else {
+            sequence_scores.into_iter().map(|x| x.unwrap_or(1.0)).sum::<f32>() as f64 / sequence.len() as f64
+        }
     }
 
     /// Computes the logprob and perplexity for a given sequence as produced in

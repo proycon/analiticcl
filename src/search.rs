@@ -126,7 +126,7 @@ pub struct Sequence {
     pub variant_cost: f32,
     pub lm_logprob: f32,
     pub perplexity: f64,
-    pub adjusted_cost_by: f32
+    pub context_score: f64
 }
 
 impl Sequence {
@@ -136,7 +136,7 @@ impl Sequence {
             variant_cost,
             lm_logprob: 0.0,
             perplexity: 0.0,
-            adjusted_cost_by: 1.0,
+            context_score: 1.0,
         }
     }
 
@@ -320,8 +320,8 @@ impl ContextRule {
 
     ///Checks if the sequence of the contextrole is present in larger sequence
     ///provided as parameter. Returns the number of matches
-    pub fn find_matches(&self, sequence: &[(VocabId,u32)], sequence_mask: &mut Vec<bool>) -> usize {
-        assert_eq!(sequence.len(), sequence_mask.len());
+    pub fn find_matches(&self, sequence: &[(VocabId,u32)], sequence_score: &mut Vec<Option<f32>>) -> usize {
+        assert_eq!(sequence.len(), sequence_score.len());
         let mut matches = 0;
         if self.pattern.len() > sequence.len() {
             return 0;
@@ -329,7 +329,7 @@ impl ContextRule {
         for begin in 0..(sequence.len() - self.pattern.len()) {
             let mut found = true;
             for (cursor, contextmatch) in self.pattern.iter().enumerate() {
-                if sequence_mask[begin+cursor] {
+                if sequence_score[begin+cursor].is_some() {
                     found = false;
                     break;
                 }
@@ -370,7 +370,7 @@ impl ContextRule {
             }
             if found {
                 for cursor in 0..self.pattern.len() {
-                    sequence_mask[begin+cursor] = true;
+                    sequence_score[begin+cursor] = Some(self.score);
                 }
                 matches += 1
             }
