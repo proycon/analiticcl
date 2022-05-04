@@ -438,9 +438,9 @@ etc. A standalone ``^`` may also be used and matches only if there are *no* matc
 The rules are applied in a greedy manner where longer rules are applied before shorter rules, words will only match with
 one rule, but multiple non-overlapping patterns may be found in the a text.
 
-### Tagging
+### Entity Tagging
 
-Analiticcl can be uses as a simple tagger using via context rules. Make sure you understand the above section before you
+Analiticcl can be uses as a simple entity tagger using via its context rules. Make sure you understand the above section before you
 continue reading.
 
 You may pass two additional tab-separaed columns to the context rules file, the third column specifies a tag to assign
