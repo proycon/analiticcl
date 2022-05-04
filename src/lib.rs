@@ -498,56 +498,10 @@ impl VariantModel {
                         return Err(std::io::Error::new(std::io::ErrorKind::Other, "Expected two columns in context rules file"));
                     }
 
-                    let sources: Vec<&str> = fields.get(0).unwrap().split(";").map(|s| s.trim()).collect();
+                    let pattern: &str = fields.get(0).unwrap();
                     let score = fields.get(1).unwrap().parse::<f32>().expect("context rule score should be a floating point value above or below 1.0");
-                    let mut pattern: Vec<PatternMatch> = Vec::new();
-                    for source in sources {
-                        let mut found = false;
-                        if source == "^" {
-                            pattern.push(PatternMatch::NoLexicon)
-                        } else if source.starts_with("@") {
-                            let source = &source[1..];
-                            for (i, lexicon) in self.lexicons.iter().enumerate() {
-                                if source == lexicon {
-                                    pattern.push(PatternMatch::FromLexicon(i as u8));
-                                    found = true;
-                                    break;
-                                }
-                            }
-                            if !found {
-                                eprintln!("WARNING: Context rule references lexicon or variant list '{}' but this source was not loaded", source);
-                            }
-                        } else if source.starts_with("^") {
-                            let source = &source[1..];
-                            for (i, lexicon) in self.lexicons.iter().enumerate() {
-                                if source == lexicon {
-                                    pattern.push(PatternMatch::NotFromLexicon(i as u8));
-                                    found = true;
-                                    break;
-                                }
-                            }
-                            if !found {
-                                eprintln!("WARNING: Context rule references lexicon or variant list '{}' but this source was not loaded", source);
-                            }
-                        } else {
-                            let words: Vec<&str> = source.split("|").collect();
-                            let mut words_encoded: Vec<VocabId> = Vec::new();
-                            for word in words.into_iter() {
-                                if let Some(vocab_id) = self.encoder.get(word) {
-                                    words_encoded.push(*vocab_id);
-                                } else {
-                                    eprintln!("WARNING: Context rule references word '{}' but this word does not occur in any lexicon", word);
-                                }
-                            }
-                            pattern.push(PatternMatch::Exact(words_encoded));
-                        }
-                    }
-                    if !pattern.is_empty() {
-                        self.context_rules.push( ContextRule {
-                            pattern: pattern,
-                            score: score
-                        });
-                    }
+                    self.add_contextrule(pattern, score);
+
                 }
             }
         }
@@ -556,6 +510,58 @@ impl VariantModel {
         self.context_rules.sort_by_key(|x| -1 * x.pattern.len() as i64);
 
         Ok(())
+    }
+
+    pub fn add_contextrule(&mut self, pattern: &str, score: f32) {
+        let sources: Vec<&str> = pattern.split(";").map(|s| s.trim()).collect();
+        let mut pattern: Vec<PatternMatch> = Vec::new();
+        for source in sources {
+            let mut found = false;
+            if source == "^" {
+                pattern.push(PatternMatch::NoLexicon)
+            } else if source.starts_with("@") {
+                let source = &source[1..];
+                for (i, lexicon) in self.lexicons.iter().enumerate() {
+                    if source == lexicon {
+                        pattern.push(PatternMatch::FromLexicon(i as u8));
+                        found = true;
+                        break;
+                    }
+                }
+                if !found {
+                    eprintln!("WARNING: Context rule references lexicon or variant list '{}' but this source was not loaded", source);
+                }
+            } else if source.starts_with("^") {
+                let source = &source[1..];
+                for (i, lexicon) in self.lexicons.iter().enumerate() {
+                    if source == lexicon {
+                        pattern.push(PatternMatch::NotFromLexicon(i as u8));
+                        found = true;
+                        break;
+                    }
+                }
+                if !found {
+                    eprintln!("WARNING: Context rule references lexicon or variant list '{}' but this source was not loaded", source);
+                }
+            } else {
+                let words: Vec<&str> = source.split("|").collect();
+                let mut words_encoded: Vec<VocabId> = Vec::new();
+                for word in words.into_iter() {
+                    if let Some(vocab_id) = self.encoder.get(word) {
+                        words_encoded.push(*vocab_id);
+                    } else {
+                        eprintln!("WARNING: Context rule references word '{}' but this word does not occur in any lexicon", word);
+                    }
+                }
+                pattern.push(PatternMatch::Exact(words_encoded));
+            }
+        }
+        if !pattern.is_empty() {
+            self.context_rules.push( ContextRule {
+                pattern: pattern,
+                score: score
+            });
+        }
     }
 
     ///Read a weighted variant list from a TSV file. Contains a canonical/reference form in the
