@@ -409,7 +409,7 @@ to be either favoured or penalized. The context rules are expressed in a tab sep
 analiticcl using ``--contextrules``. The first column contains a sequence separated by semicolons, and the second a
 score close to 1.0 (lower scores penalize the pattern, higher scores favour it):
 
-```
+```tsv
 hello ; world	1.1
 ```
 
@@ -420,14 +420,14 @@ independent component in the final score function and its weight can be set usin
 Note that the words also need to be in a lexicon you provide for a rule to work. You can express disjunctions using the
 pipe character, as follows:
 
-```
+```tsv
 hello|hi ; world|planet	1.1
 ```
 
 This will match all four possible combinations. Rather than match the text, you can match specific lexicons you loaded
 using the `@` prefix. This makes sense mainly if you use different lexicons and could be used as a form of elementary tagging:
 
-```
+```tsv
 @greetings.tsv ; world	1.1
 ```
 
@@ -438,6 +438,42 @@ etc. A standalone ``^`` may also be used and matches only if there are *no* matc
 The rules are applied in a greedy manner where longer rules are applied before shorter rules, words will only match with
 one rule, but multiple non-overlapping patterns may be found in the a text.
 
+### Tagging
+
+Analiticcl can be uses as a simple tagger using via context rules. Make sure you understand the above section before you
+continue reading.
+
+You may pass two additional tab-separaed columns to the context rules file, the third column specifies a tag to assign
+to any matches, and an *optional* fourth column specifies an offset for tagging (more about this later). For example:
+
+
+```tsv
+hello ; world	1.1	greeting
+```
+
+Any instances of "hello world" will be assigned the tag "greeting", more specifically "hello" will be assigned the tag
+"greeting" and gets sequence number 0, "world" gets the same tag and sequence number 1.
+
+If you want to tag only a subset and leave certain left or right context untagged, then you can do so by specifying an
+offset (in matches aka words, not characters). Such an offset takes the form ``offset:length``. For example:
+
+
+```tsv
+hello ; world	1.1	greeting	1:1
+```
+
+In this case only the word "world" will get the tag greeting (and sequence number 0).
+
+As context rules prohibit overlap, there can be only one tag per word/ngram.
+
+This mechanism can also be used to assign tags based on lexicons whilst allowing some form of lexicon weighting, even if
+no further context is included:
+
+```tsv
+@greetings.tsv	1.0	greeting
+in|to|from ; @city.tsv	1.1	location	1:1
+@firstname.tsv ; @lastname.tsv	1.0	person
+```
 
 ## Theoretical Background
 
