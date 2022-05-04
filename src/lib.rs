@@ -545,8 +545,7 @@ impl VariantModel {
                     if !sequence.is_empty() {
                         self.context_rules.push( ContextRule {
                             sequence: sequence,
-                            score: score,
-                            subsumed_by: vec!()
+                            score: score
                         });
                     }
                 }
@@ -555,9 +554,6 @@ impl VariantModel {
 
         //sort context rules by length (descending)
         self.context_rules.sort_by_key(|x| -1 * x.sequence.len() as i64);
-
-
-        //TODO: compute which context rules subsume others
 
         Ok(())
     }
@@ -1891,9 +1887,7 @@ impl VariantModel {
         //build a prefix trie of what lexicons items in the sequence are from
         let mut cost = 1.0;
 
-        let mut match_history: Vec<usize> = Vec::new(); //refers to indices of self.context_rules
-
-        let sequence_lexicons: Vec<(VocabId,u32)> = sequence.output_symbols.iter().map(|output_symbol|
+        let sequence: Vec<(VocabId,u32)> = sequence.output_symbols.iter().map(|output_symbol|
             if output_symbol.vocab_id == 0 {
                 (output_symbol.vocab_id, 0)
             } else {
@@ -1904,23 +1898,13 @@ impl VariantModel {
                 }
             }).collect();
 
+        //The mask will flag which items in the sequence have been covered by matches
+        let mut sequence_mask: Vec<bool> = vec![false; sequence.len()];
 
-        for (i, context_rule) in self.context_rules.iter().enumerate() {
-            let matchcount = context_rule.find_matches(&sequence_lexicons);
+        for context_rule in self.context_rules.iter() {
+            let matchcount = context_rule.find_matches(&sequence, &mut sequence_mask);
             if matchcount > 0 {
-                //skip this match if we already had a larger match before that subsumes this one
-                let mut skip = false;
-                for j in  context_rule.subsumed_by.iter() {
-                    if match_history.contains(&(*j as usize)) {
-                        skip = true;
-                        break;
-                    }
-                }
-                if !skip {
-                    //valid match
-                    cost *= (matchcount as f32) * context_rule.invert_score();
-                    match_history.push(i);
-                }
+                cost *= (matchcount as f32) * context_rule.invert_score();
             }
         }
 

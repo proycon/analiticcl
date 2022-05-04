@@ -306,9 +306,7 @@ pub struct ContextRule {
     /// Lexicon index
     pub sequence: Vec<ContextMatch>,
     /// Score (> 1.0) for bonus, (< 1.0) for penalty
-    pub score: f32,
-    /// Point to indices of context rules that subsume this one
-    pub subsumed_by: Vec<u8>
+    pub score: f32
 }
 
 impl ContextRule {
@@ -322,11 +320,16 @@ impl ContextRule {
 
     ///Checks if the sequence of the contextrole is present in larger sequence
     ///provided as parameter. Returns the number of matches
-    pub fn find_matches(&self, sequence: &[(VocabId,u32)]) -> usize {
+    pub fn find_matches(&self, sequence: &[(VocabId,u32)], sequence_mask: &mut Vec<bool>) -> usize {
+        assert_eq!(sequence.len(), sequence_mask.len());
         let mut matches = 0;
         for begin in 0..(sequence.len() - self.sequence.len()) {
             let mut found = true;
             for (cursor, contextmatch) in self.sequence.iter().enumerate() {
+                if !sequence_mask[begin+cursor] {
+                    found = false;
+                    break;
+                }
                 match contextmatch {
                     ContextMatch::Exact(vocabids) => {
                         if let Some((vocabid, _lexindex)) = sequence.get(begin+cursor) {
@@ -363,6 +366,9 @@ impl ContextRule {
                 };
             }
             if found {
+                for cursor in 0..self.sequence.len() {
+                    sequence_mask[begin+cursor] = true;
+                }
                 matches += 1
             }
         }
