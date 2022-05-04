@@ -326,7 +326,7 @@ impl ContextRule {
         for begin in 0..(sequence.len() - self.sequence.len()) {
             let mut found = true;
             for (cursor, contextmatch) in self.sequence.iter().enumerate() {
-                if !sequence_mask[begin+cursor] {
+                if sequence_mask[begin+cursor] {
                     found = false;
                     break;
                 }
