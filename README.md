@@ -443,7 +443,7 @@ one rule, but multiple non-overlapping patterns may be found in the a text.
 Analiticcl can be uses as a simple entity tagger using via its context rules. Make sure you understand the above section before you
 continue reading.
 
-You may pass two additional tab-separaed columns to the context rules file, the third column specifies a tag to assign
+You may pass two additional tab-separated columns to the context rules file, the third column specifies a tag to assign
 to any matches, and an *optional* fourth column specifies an offset for tagging (more about this later). For example:
 
 
