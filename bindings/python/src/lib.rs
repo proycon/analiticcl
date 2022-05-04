@@ -449,6 +449,16 @@ impl PyVariantModel {
         }
     }
 
+    fn add_contextrule(&mut self, pattern: &str, score: f32) -> PyResult<()> {
+        self.model.add_contextrule( pattern, score);
+        Ok(())
+    }
+
+    fn finish_contextrules(&mut self) -> PyResult<()> {
+        self.model.finish_contextrules();
+        Ok(())
+    }
+
     /// Higher order function to load a lexicon and make it available to the model.
     /// Wraps around read_vocabulary() with default parameters.
     fn read_lexicon(&mut self, filename: &str) -> PyResult<()> {

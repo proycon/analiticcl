@@ -513,7 +513,7 @@ impl VariantModel {
 
     /// Function that needs to be called after all context rules have been added. It will sort them
     /// properly.
-    pub fn finish_contextrules(&mut self);
+    pub fn finish_contextrules(&mut self) {
         //sort context rules by length (descending)
         self.context_rules.sort_by_key(|x| -1 * x.pattern.len() as i64);
     }
