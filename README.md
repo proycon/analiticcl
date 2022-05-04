@@ -413,6 +413,8 @@ score close to 1.0 (lower scores penalize the pattern, higher scores favour it):
 hello ; world	1.1
 ```
 
+This means that if the words "hello world" appear as a solution a text/sentence, its total variant score will be boosted by 1.1, effectively preferring this solution over others.
+
 Note that the words also need to be in a lexicon you provide for a rule to work. You can express disjunctions using the
 pipe character, as follows:
 
@@ -421,7 +423,7 @@ hello|hi ; world|planet	1.1
 ```
 
 This will match all four possible combinations. Rather than match the text, you can match specific lexicons you loaded
-using the `@` prefix. This makes sense mainly if you use different lexicons and could be used a form of elementary tagging:
+using the `@` prefix. This makes sense mainly if you use different lexicons and could be used as a form of elementary tagging:
 
 ```
 @greetings.tsv ; world	1.1
@@ -429,6 +431,9 @@ using the `@` prefix. This makes sense mainly if you use different lexicons and 
 
 Instead of ``@`` you can use the prefix ``^`` to match anything *except* the words in the lexicon. Note that you'll still need to explicitly load the lexicons (or variants lists) using ``--lexicon``, ``--variants``,
 etc. A standalone ``^`` may also be used and matches only if there are *no* matches against *any* lexicon.
+
+The rules are applied in a greedy manner where longer rules are applied before shorter rules, words will only match with one rule, but multiple non-overlapping patterns may be found in the a text.
+
 
 ## Theoretical Background
 
