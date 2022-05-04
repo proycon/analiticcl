@@ -527,8 +527,9 @@ impl VariantModel {
                 pattern.push(PatternMatch::NoLexicon)
             } else if source.starts_with("@") {
                 let source = &source[1..];
+                let relsource = format!("/{}", source);
                 for (i, lexicon) in self.lexicons.iter().enumerate() {
-                    if source == lexicon {
+                    if source == lexicon || lexicon.ends_with(&relsource) {
                         pattern.push(PatternMatch::FromLexicon(i as u8));
                         found = true;
                         break;
@@ -539,8 +540,9 @@ impl VariantModel {
                 }
             } else if source.starts_with("^") {
                 let source = &source[1..];
+                let relsource = format!("/{}", source);
                 for (i, lexicon) in self.lexicons.iter().enumerate() {
-                    if source == lexicon {
+                    if source == lexicon || lexicon.ends_with(&relsource) {
                         pattern.push(PatternMatch::NotFromLexicon(i as u8));
                         found = true;
                         break;
