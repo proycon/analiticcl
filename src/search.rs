@@ -323,6 +323,9 @@ impl ContextRule {
     pub fn find_matches(&self, sequence: &[(VocabId,u32)], sequence_mask: &mut Vec<bool>) -> usize {
         assert_eq!(sequence.len(), sequence_mask.len());
         let mut matches = 0;
+        if self.pattern.len() > sequence.len() {
+            return 0;
+        }
         for begin in 0..(sequence.len() - self.pattern.len()) {
             let mut found = true;
             for (cursor, contextmatch) in self.pattern.iter().enumerate() {
