@@ -134,7 +134,8 @@ pub struct Sequence {
     pub variant_cost: f32,
     pub lm_logprob: f32,
     pub perplexity: f64,
-    pub context_score: f64
+    pub context_score: f64,
+    pub tags: Vec<Option<(u16,u8)>> //tag + sequence number
 }
 
 impl Sequence {
@@ -145,6 +146,7 @@ impl Sequence {
             lm_logprob: 0.0,
             perplexity: 0.0,
             context_score: 1.0,
+            tags: Vec::new()
         }
     }
 
@@ -299,6 +301,7 @@ pub fn redundant_match<'a>(candidate: &Match<'a>, matches: &[Match<'a>]) -> bool
     true
 }
 
+#[derive(Clone)]
 pub enum PatternMatch {
     /// Exact match with any of the specified vocabulary IDs
     Exact(Vec<VocabId>),
@@ -310,6 +313,7 @@ pub enum PatternMatch {
     NotFromLexicon(u8)
 }
 
+#[derive(Clone)]
 pub struct ContextRule {
     /// Lexicon index
     pub pattern: Vec<PatternMatch>,
@@ -318,6 +322,14 @@ pub struct ContextRule {
     pub tag: Option<u16>,
     pub tagoffset: Option<(u8,u8)> //begin,length
 }
+
+#[derive(Clone)]
+pub struct PatternMatchResult {
+    pub score: f32,
+    pub tag: Option<u16>,
+    pub seqnr: u8,
+}
+
 
 impl ContextRule {
     pub fn invert_score(&self) -> f32 {
@@ -330,8 +342,8 @@ impl ContextRule {
 
     ///Checks if the sequence of the contextrole is present in larger sequence
     ///provided as parameter. Returns the number of matches
-    pub fn find_matches(&self, sequence: &[(VocabId,u32)], sequence_score: &mut Vec<Option<f32>>) -> usize {
-        assert_eq!(sequence.len(), sequence_score.len());
+    pub fn find_matches(&self, sequence: &[(VocabId,u32)], sequence_result: &mut Vec<Option<PatternMatchResult>>) -> usize {
+        assert_eq!(sequence.len(), sequence_result.len());
         let mut matches = 0;
         if self.pattern.len() > sequence.len() {
             return 0;
@@ -339,7 +351,7 @@ impl ContextRule {
         for begin in 0..(sequence.len() - self.pattern.len()) {
             let mut found = true;
             for (cursor, contextmatch) in self.pattern.iter().enumerate() {
-                if sequence_score[begin+cursor].is_some() {
+                if sequence_result[begin+cursor].is_some() {
                     found = false;
                     break;
                 }
@@ -380,7 +392,22 @@ impl ContextRule {
             }
             if found {
                 for cursor in 0..self.pattern.len() {
-                    sequence_score[begin+cursor] = Some(self.score);
+                    sequence_result[begin+cursor] =
+                        Some(PatternMatchResult {
+                            score: self.score,
+                            tag: if self.tagoffset.is_none() {
+                                self.tag
+                            } else if cursor as u8 >= self.tagoffset.unwrap().0 && (cursor as u8) < self.tagoffset.unwrap().0 + self.tagoffset.unwrap().1 {
+                                self.tag
+                            } else {
+                                None
+                            },
+                            seqnr: if let Some(tagoffset) = self.tagoffset {
+                                cursor as u8 - tagoffset.0
+                            } else {
+                                cursor as u8
+                            }
+                        });
                 }
                 matches += 1
             }

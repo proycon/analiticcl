@@ -1047,7 +1047,9 @@ fn test0902_find_all_match_context_rules_bonus() {
     model.add_to_vocabulary("right",Some(2),&VocabParams::default());
     model.build();
 
-    model.add_contextrule("I; think", 1.1); //bonus!
+
+    model.add_contextrule("I; think", 1.1, Some("testtag"), None); //bonus!
+    //                                      ^-- tag the whole entity with 'testtag'
 
     let mut params = get_test_searchparams();
     params.lm_weight = 0.0; //disable normal language model
@@ -1055,8 +1057,12 @@ fn test0902_find_all_match_context_rules_bonus() {
     let matches = model.find_all_matches("I tink you are rihgt", &params);
     assert!( !matches.is_empty() );
     assert_eq!( matches.get(0).unwrap().text , "I" );
+    assert_eq!( matches.get(0).unwrap().tag , Some(0) );
+    assert_eq!( matches.get(0).unwrap().seqnr , Some(0) );
     assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
     assert_eq!( matches.get(1).unwrap().text , "tink" );
+    assert_eq!( matches.get(1).unwrap().tag , Some(0) );
+    assert_eq!( matches.get(1).unwrap().seqnr , Some(1) );
     assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
     assert_eq!( matches.get(2).unwrap().text , "you" );
     assert_eq!( model.match_to_str(matches.get(2).unwrap()) , "you" );
@@ -1078,7 +1084,7 @@ fn test0903_find_all_match_context_rules_penalty() {
     model.add_to_vocabulary("right",Some(2),&VocabParams::default());
     model.build();
 
-    model.add_contextrule("I; think", 0.9); //penalty!
+    model.add_contextrule("I; think", 0.9, None, None); //penalty!
 
     let mut params = get_test_searchparams();
     params.lm_weight = 0.0; //disable normal language model

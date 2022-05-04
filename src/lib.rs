@@ -1864,8 +1864,17 @@ impl VariantModel {
                 }
             }
             if !self.context_rules.is_empty() {
-                //Apply context rules, considers context
-                sequence.context_score = self.test_context_rules(&sequence);
+                //Apply context rules and apply tags (if any), considers context
+                let (context_score, sequence_results) = self.test_context_rules(&sequence);
+                sequence.context_score = context_score;
+                sequence.tags = sequence_results.into_iter().map(|x| match x {
+                    Some(y) => if let (Some(tag), seqnr) = (y.tag,y.seqnr) {
+                        Some((tag,seqnr))
+                    } else {
+                        None
+                    },
+                    None => None
+                }).collect();
                 if self.debug >= 3 && sequence.context_score != 1.0 {
                     eprintln!("   (context_score: {})", sequence.context_score);
                 }
@@ -1935,10 +1944,17 @@ impl VariantModel {
         }
 
         //return matches corresponding to best sequence
-        best_sequence.expect("there must be a best sequence").output_symbols.into_iter().map(|osym| {
+        let best_sequence = best_sequence.expect("there must be a best sequence");
+        best_sequence.output_symbols.iter().enumerate().map(|(i,osym)| {
             let m = matches.get(osym.match_index).expect("match should be in bounds");
             let mut m = m.clone();
             m.selected = osym.variant_index;
+            if !best_sequence.tags.is_empty() {
+                if let Some(Some((tag, seqnr))) = best_sequence.tags.get(i) {
+                    m.tag = Some(*tag);
+                    m.seqnr = Some(*seqnr);
+                }
+            }
             m
         }).collect()
     }
@@ -1947,7 +1963,7 @@ impl VariantModel {
     /// respectively with lexicons A and B might be favoured over other combinations.
     /// This returns either a bonus or penalty (number slightly above/below 1.0) score/
     /// for the sequence as a whole.
-    pub fn test_context_rules<'a>(&self, sequence: &Sequence) -> f64 {
+    pub fn test_context_rules<'a>(&self, sequence: &Sequence) -> (f64, Vec<Option<PatternMatchResult>>) {
         let sequence: Vec<(VocabId,u32)> = sequence.output_symbols.iter().map(|output_symbol|
             if output_symbol.vocab_id == 0 {
                 (output_symbol.vocab_id, 0)
@@ -1962,19 +1978,27 @@ impl VariantModel {
         //The sequence will flag which items in the sequence have been covered by matches (Some),
         //and if so, what context rule scores apply to that match. It's later used to compute
         //the final score
-        let mut sequence_scores: Vec<Option<f32>> = vec![None; sequence.len()];
+        //                             score --v    v--- tag
+        let mut sequence_results: Vec<Option<PatternMatchResult>> = vec![None; sequence.len()];
 
         let mut found = false;
         for context_rule in self.context_rules.iter() {
-            if context_rule.find_matches(&sequence, &mut sequence_scores) > 0 {
+            if context_rule.find_matches(&sequence, &mut sequence_results) > 0 {
                 found = true;
             }
         }
 
         if !found {
-            1.0 //just a shortcut to prevent unnecessary computation
+            (1.0, sequence_results) //just a shortcut to prevent unnecessary computation
         } else {
-            sequence_scores.into_iter().map(|x| x.unwrap_or(1.0)).sum::<f32>() as f64 / sequence.len() as f64
+            (
+                sequence_results.iter().map(|x| match x {
+                Some(x) => x.score,
+                None => 1.0
+                }).sum::<f32>() as f64 / sequence.len() as f64
+                ,
+                sequence_results
+            )
         }
     }
 
