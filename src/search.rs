@@ -377,6 +377,7 @@ impl PatternMatch {
     }
 
     pub fn parse(s: &str, lexicons: &Vec<String>, encoder: &VocabEncoder) -> Result<Self,std::io::Error> {
+        let s = s.trim();
         if s == "?" {
             Ok(Self::Any)
         } else if s == "^" {
