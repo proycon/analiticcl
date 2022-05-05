@@ -560,6 +560,12 @@ impl PyVariantModel {
             offsetdict.set_item("begin", m.offset.begin)?;
             offsetdict.set_item("end", m.offset.end)?;
             odict.set_item("offset", offsetdict)?;
+            if let Some(tagindex) = m.tag {
+                odict.set_item("tag", self.model.tags.get(tagindex as usize).expect("Tag must exist") )?;
+                if let Some(seqnr) = m.seqnr {
+                    odict.set_item("seqnr", seqnr )?;
+                }
+            }
             let olist = PyList::empty(py);
             if let Some(variants) = m.variants {
                 if let Some(selected) = m.selected {
