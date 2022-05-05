@@ -511,62 +511,17 @@ impl VariantModel {
             }
         }
 
-        self.finish_contextrules();
-
         Ok(())
     }
 
-    /// Function that needs to be called after all context rules have been added. It will sort them
-    /// properly.
-    pub fn finish_contextrules(&mut self) {
-        //sort context rules by length (descending)
-        self.context_rules.sort_by_key(|x| -1 * x.pattern.len() as i64);
-    }
 
     pub fn add_contextrule(&mut self, pattern: &str, score: f32, tag: Option<&str>, tagoffset: Option<&str>) {
-        let sources: Vec<&str> = pattern.split(";").map(|s| s.trim()).collect();
+        let expressions: Vec<&str> = pattern.split(";").map(|s| s.trim()).collect();
         let mut pattern: Vec<PatternMatch> = Vec::new();
-        for source in sources {
-            let mut found = false;
-            if source == "^" {
-                pattern.push(PatternMatch::NoLexicon)
-            } else if source.starts_with("@") {
-                let source = &source[1..];
-                let relsource = format!("/{}", source);
-                for (i, lexicon) in self.lexicons.iter().enumerate() {
-                    if source == lexicon || lexicon.ends_with(&relsource) {
-                        pattern.push(PatternMatch::FromLexicon(i as u8));
-                        found = true;
-                        break;
-                    }
-                }
-                if !found {
-                    eprintln!("WARNING: Context rule references lexicon or variant list '{}' but this source was not loaded", source);
-                }
-            } else if source.starts_with("^") {
-                let source = &source[1..];
-                let relsource = format!("/{}", source);
-                for (i, lexicon) in self.lexicons.iter().enumerate() {
-                    if source == lexicon || lexicon.ends_with(&relsource) {
-                        pattern.push(PatternMatch::NotFromLexicon(i as u8));
-                        found = true;
-                        break;
-                    }
-                }
-                if !found {
-                    eprintln!("WARNING: Context rule references lexicon or variant list '{}' but this source was not loaded", source);
-                }
-            } else {
-                let words: Vec<&str> = source.split("|").collect();
-                let mut words_encoded: Vec<VocabId> = Vec::new();
-                for word in words.into_iter() {
-                    if let Some(vocab_id) = self.encoder.get(word) {
-                        words_encoded.push(*vocab_id);
-                    } else {
-                        eprintln!("WARNING: Context rule references word '{}' but this word does not occur in any lexicon", word);
-                    }
-                }
-                pattern.push(PatternMatch::Exact(words_encoded));
+        for expr in expressions {
+            match PatternMatch::parse(expr, &self.lexicons, &self.encoder) {
+                Ok(pm) => pattern.push(pm),
+                Err(err) => eprintln!("Error parsing context rule: {}", err)
             }
         }
 

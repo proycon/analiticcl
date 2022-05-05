@@ -418,7 +418,7 @@ This means that if the words "hello world" appear as a solution a text/sentence,
 independent component in the final score function and its weight can be set using ``--contextrules-weight``.
 
 Note that the words also need to be in a lexicon you provide for a rule to work. You can express disjunctions using the
-pipe character, as follows:
+pipe character (``|``), as follows:
 
 ```tsv
 hello|hi ; world|planet	1.1
@@ -431,12 +431,32 @@ using the `@` prefix. This makes sense mainly if you use different lexicons and 
 @greetings.tsv ; world	1.1
 ```
 
-Instead of ``@`` you can use the prefix ``^`` to match anything *except* the words in the lexicon. Note that you'll
-still need to explicitly load the lexicons (or variants lists) using ``--lexicon``, ``--variants``,
-etc. A standalone ``^`` may also be used and matches only if there are *no* matches against *any* lexicon.
+Here too you can create disjunctions using the pipe character:
 
-The rules are applied in a greedy manner where longer rules are applied before shorter rules, words will only match with
-one rule, but multiple non-overlapping patterns may be found in the a text.
+
+```tsv
+@greetings.tsv|@curses.tsv ; world	1.1
+```
+
+If you want to negate a match, just add ``!`` as a prefix. This also works in combination with ``@``, allowing you to match anything *except* the words from a particular the lexicon. If you want to negate an entire disjunction, use parenthesis like ``!(a|b|c|)``.
+
+There are two standalone characters you may use in matching:
+
+* ``?`` - Matches anything
+* ``^`` - Matches anything that does not match with *any* lexicon (i.e. out of vocabulary words)
+
+Note that in all cases,  you'll still need to explicitly load the lexicons (or variants lists) using ``--lexicon``, ``--variants``,
+etc...
+
+The rules are applied in the exact order you specify them. Note that a certain words in a text may only match against
+one pattern (the first that is found). When defining context rules, you'll generally want to specify longer rules before
+shorter ones, as otherwise the longer rules might never be considered. For example, in the following example, the second
+pattern would never apply because the first one already matches:
+
+```tsv
+hello	1.1
+hello ; world	1.1
+```
 
 ### Entity Tagging
 

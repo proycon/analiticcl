@@ -1,5 +1,5 @@
 use crate::types::*;
-
+use crate::vocab::*;
 
 pub const TRANSITION_SMOOTHING_LOGPROB: f32 = -13.815510557964274;
 
@@ -303,15 +303,20 @@ pub fn redundant_match<'a>(candidate: &Match<'a>, matches: &[Match<'a>]) -> bool
 
 #[derive(Clone)]
 pub enum PatternMatch {
-    /// Exact match with any of the specified vocabulary IDs
-    Exact(Vec<VocabId>),
-    /// Match with no lexicon
+    /// Exact match with specific vocabulary
+    Vocab(VocabId),
+    /// Match with anything (?)
+    Any,
+    /// Match only if not found in any lexicon (^)
     NoLexicon,
-    /// Match with a specific lexicon
+    /// Match with a specific lexicon (@)
     FromLexicon(u8),
-    /// No match or match against a lexicon other than the one specified
-    NotFromLexicon(u8)
+    /// Negation (^)
+    Not(Box<PatternMatch>),
+    /// Disjunction (|)
+    Disjunction(Box<Vec<PatternMatch>>)
 }
+
 
 #[derive(Clone)]
 pub struct ContextRule {
@@ -328,6 +333,90 @@ pub struct PatternMatchResult {
     pub score: f32,
     pub tag: Option<u16>,
     pub seqnr: u8,
+}
+
+impl PatternMatch {
+    pub fn matches(&self, sequence: &[(VocabId,u32)], index: usize) -> bool {
+        match self {
+            PatternMatch::Any => {
+                return true;
+            },
+            PatternMatch::NoLexicon =>  {
+                if let Some((vocabid, lexindex)) = sequence.get(index) {
+                    if *lexindex == 0 || *vocabid == 0 {
+                        return true;
+                    }
+                }
+            },
+            PatternMatch::Vocab(testvocabid) => {
+                if let Some((vocabid, _lexindex)) = sequence.get(index) {
+                    if testvocabid == vocabid {
+                        return true;
+                    }
+                }
+            },
+            PatternMatch::FromLexicon(lextest) =>  {
+                if let Some((_vocabid, lexindex)) = sequence.get(index) {
+                    if lexindex & (1 << lextest) == 1 << lextest {
+                        return true;
+                    }
+                }
+            },
+            PatternMatch::Not(pm) => {
+                return !pm.matches(sequence, index);
+            },
+            PatternMatch::Disjunction(pms) => {
+                for pm in pms.iter() {
+                    if pm.matches(sequence, index) {
+                        return true;
+                    }
+                }
+            },
+        };
+        false
+    }
+
+    pub fn parse(s: &str, lexicons: &Vec<String>, encoder: &VocabEncoder) -> Result<Self,std::io::Error> {
+        if s == "?" {
+            Ok(Self::Any)
+        } else if s == "^" {
+            Ok(Self::NoLexicon)
+        } else if s.starts_with("!(") && s.ends_with(")") {
+            //negation over a disjunction
+            let s = &s[2..s.len() - 1];
+            let pm = Self::parse(s, lexicons, encoder)?;
+            Ok(Self::Not(Box::new(pm)))
+        } else if s.find("|").is_some() {
+            let items_in: Vec<&str> = s.split("|").collect();
+            let mut items_out: Vec<Self> = Vec::new();
+            for item in items_in {
+                match Self::parse(item, lexicons, encoder) {
+                    Ok(pm) => items_out.push(pm),
+                    Err(err) => return Err(err)
+                };
+            }
+            Ok(Self::Disjunction(Box::new(items_out)))
+        } else if s.starts_with("!") {
+            //negation
+            let s = &s[1..];
+            let pm = Self::parse(s, lexicons, encoder)?;
+            Ok(Self::Not(Box::new(pm)))
+        } else if s.starts_with("@") {
+            let source = &s[1..];
+            let relsource = format!("/{}", source);
+            for (i, lexicon) in lexicons.iter().enumerate() {
+                if source == lexicon || lexicon.ends_with(&relsource) {
+                    return Ok(Self::FromLexicon(i as u8));
+                }
+            }
+            Err(std::io::Error::new(std::io::ErrorKind::Other, format!("WARNING: Context rule references lexicon or variant list '{}' but this source was not loaded", source)))
+        } else {
+            if let Some(vocab_id) = encoder.get(s) {
+                return Ok(Self::Vocab(*vocab_id));
+            }
+            Err(std::io::Error::new(std::io::ErrorKind::Other, format!("WARNING: Context rule references word '{}' but this word does not occur in any lexicon", s)))
+        }
+    }
 }
 
 
@@ -351,44 +440,10 @@ impl ContextRule {
         for begin in 0..(sequence.len() - self.pattern.len()) {
             let mut found = true;
             for (cursor, contextmatch) in self.pattern.iter().enumerate() {
-                if sequence_result[begin+cursor].is_some() {
-                    found = false;
-                    break;
+                if sequence_result[begin+cursor].is_some() || !contextmatch.matches(sequence, begin+cursor) {
+                     found = false;
+                     break;
                 }
-                match contextmatch {
-                    PatternMatch::Exact(vocabids) => {
-                        if let Some((vocabid, _lexindex)) = sequence.get(begin+cursor) {
-                            if !vocabids.contains(vocabid) {
-                                found = false;
-                                break;
-                            }
-                        }
-                    },
-                    PatternMatch::FromLexicon(lextest) =>  {
-                        if let Some((_vocabid, lexindex)) = sequence.get(begin+cursor) {
-                            if !(lexindex & (1 << lextest) == 1 << lextest) {
-                                found = false;
-                                break;
-                            }
-                        }
-                    },
-                    PatternMatch::NotFromLexicon(lextest) =>  {
-                        if let Some((_vocabid, lexindex)) = sequence.get(begin+cursor) {
-                            if lexindex & (1 << lextest) == 1 << lextest {
-                                found = false;
-                                break;
-                            }
-                        }
-                    },
-                    PatternMatch::NoLexicon => {
-                        if let Some((_vocabid, lexindex)) = sequence.get(begin+cursor) {
-                            if *lexindex != 0 {
-                                found = false;
-                                break;
-                            }
-                        }
-                    },
-                };
             }
             if found {
                 for cursor in 0..self.pattern.len() {
