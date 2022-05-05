@@ -496,7 +496,7 @@ impl VariantModel {
         let f_buffer = BufReader::new(f);
         for line in f_buffer.lines() {
             if let Ok(line) = line {
-                if !line.is_empty() {
+                if !line.is_empty() && !line.starts_with('#') {
                     let fields: Vec<&str> = line.split("\t").collect();
                     if fields.len() < 2 {
                         return Err(std::io::Error::new(std::io::ErrorKind::Other, "Expected at least two columns in context rules file"));
