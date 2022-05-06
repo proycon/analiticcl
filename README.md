@@ -188,7 +188,7 @@ aspect. This is where *search mode* comes in. In search mode you can provide run
 automatically attempt to detect the parts of your input that can corrected, and give the suggestions for correction.
 
 In the output, Analiticcl will return UTF-8 byte offsets for fragments in your data that it finds variants for. You can
-set want ``--unicode-offsets`` if you want unicode codepoint offsets instead. Both types of offsets are zero-indexed and
+set ``--unicode-offsets`` if you want unicode codepoint offsets instead. Both types of offsets are zero-indexed and
 the end offset is always non-inclusive.
 
 Your input does not have to be tokenised, because tokenisation errors in the
