@@ -166,37 +166,42 @@ impl PySearchParameters {
                          },
                         "single_thread" => match value.extract() {
                             Ok(Some(value)) => instance.data.single_thread = value,
-                            Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
+                            Ok(None) => eprintln!("No value specified for single_thread parameter"),
+                            Err(v) => eprintln!("{}", v)
+                         },
+                        "unicodeoffsets" => match value.extract() {
+                            Ok(Some(value)) => instance.data.unicodeoffsets = value,
+                            Ok(None) => eprintln!("No value specified for unicodeoffsets parameter"),
                             Err(v) => eprintln!("{}", v)
                          },
                         "freq_weight" => match value.extract() {
                             Ok(Some(value)) => instance.data.freq_weight = value,
-                            Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
+                            Ok(None) => eprintln!("No value specified for freq_weight parameter"),
                             Err(v) => eprintln!("{}", v)
                          },
                         "lm_weight" => match value.extract() {
                             Ok(Some(value)) => instance.data.lm_weight = value,
-                            Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
+                            Ok(None) => eprintln!("No value specified for lm_weight parameter"),
                             Err(v) => eprintln!("{}", v)
                          },
                         "contextrules_weight" => match value.extract() {
                             Ok(Some(value)) => instance.data.contextrules_weight = value,
-                            Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
+                            Ok(None) => eprintln!("No value specified for contextrules_weight parameter"),
                             Err(v) => eprintln!("{}", v)
                          },
                         "variantmodel_weight" => match value.extract() {
                             Ok(Some(value)) => instance.data.variantmodel_weight = value,
-                            Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
+                            Ok(None) => eprintln!("No value specified for variantmodel_weight parameter"),
                             Err(v) => eprintln!("{}", v)
                          },
                         "context_weight" => match value.extract() {
                             Ok(Some(value)) => instance.data.context_weight = value,
-                            Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
+                            Ok(None) => eprintln!("No value specified for context_weight parameter"),
                             Err(v) => eprintln!("{}", v)
                          },
                         "consolidate_matches" => match value.extract() {
                             Ok(Some(value)) => instance.data.consolidate_matches = value,
-                            Ok(None) => eprintln!("No value specified for cutoff_threshold parameter"),
+                            Ok(None) => eprintln!("No value specified for consolidate_matches parameter"),
                             Err(v) => eprintln!("{}", v)
                          },
                         _ => eprintln!("Ignored unknown kwargs option {}", key),
@@ -265,6 +270,8 @@ impl PySearchParameters {
     fn get_contextrules_weight(&self) -> PyResult<f32> { Ok(self.data.contextrules_weight) }
     #[getter]
     fn get_consolidate_matches(&self) -> PyResult<bool> { Ok(self.data.consolidate_matches) }
+    #[getter]
+    fn get_unicodeoffsets(&self) -> PyResult<bool> { Ok(self.data.unicodeoffsets) }
 
     #[setter]
     fn set_max_anagram_distance(&mut self, value: &PyAny) -> PyResult<()> {
@@ -301,6 +308,9 @@ impl PySearchParameters {
     fn set_consolidate_matches(&mut self, value: bool) -> PyResult<()> { self.data.consolidate_matches = value; Ok(()) }
 
     #[setter]
+    fn set_unicodeoffsets(&mut self, value: bool) -> PyResult<()> { self.data.unicodeoffsets = value; Ok(()) }
+
+    #[setter]
     fn set_stop_at_exact_match(&mut self, value: bool) -> PyResult<()> { if value { self.data.stop_criterion = libanaliticcl::StopCriterion::StopAtExactMatch; } else { self.data.stop_criterion = libanaliticcl::StopCriterion::Exhaustive; }; Ok(()) }
 
     fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<&'py PyDict> {
@@ -319,6 +329,7 @@ impl PySearchParameters {
         dict.set_item("contextrules_weight", self.get_contextrules_weight()?)?;
         dict.set_item("variantmodel_weight", self.get_variantmodel_weight()?)?;
         dict.set_item("consolidate_matches", self.get_consolidate_matches()?)?;
+        dict.set_item("unicodeoffsets", self.get_unicodeoffsets()()?)?;
         Ok(dict)
     }
 }

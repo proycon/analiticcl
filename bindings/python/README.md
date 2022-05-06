@@ -55,7 +55,9 @@ results = model.find_all_matches("I do not udnerstand the probleem", SearchParam
 print(json.dumps(results, ensure_ascii=False, indent=4))
 ```
 
-**Note:** all offsets reported by analiticcl are utf-8 byte-offsets, not character offsets!
+**Note:** all offsets reported by analiticcl are utf-8 byte-offsets, not character offsets! If you want proper unicode character
+offsets, pass the keyword argument `unicodeoffset=True` to `SearchParameters`. You will want to set this if you intend to do
+any kind of slicing in Python (which uses unicode points by default).
 
 
 Output:

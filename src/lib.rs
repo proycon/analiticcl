@@ -1498,8 +1498,17 @@ impl VariantModel {
                 eprintln!(" (MATCHES={:?})", matches);
             }
         }
-        matches
+        if params.unicodeoffsets {
+            if self.debug >= 1 {
+                eprintln!("(remapping UTF-8 offsets to unicodepoints)");
+            }
+            remap_offsets_to_unicodepoints(text, matches)
+        } else {
+            matches
+        }
     }
+
+
 
 
     /*

@@ -12,6 +12,13 @@ pub struct Offset {
     pub end: usize,
 }
 
+impl Offset {
+    pub fn convert(&mut self, map: &Vec<Option<usize>>) {
+        self.begin = map.get(self.begin).expect(format!("Offset {} must exist in map",self.begin).as_str()).expect("Offset in map may not be None");
+        self.end = map.get(self.end).expect(format!("Offset {} must exist in map",self.end).as_str()).expect("Offset in map may not be None");
+    }
+}
+
 /// Represents a match between the input text and the lexicon.
 #[derive(Clone,Debug)]
 pub struct Match<'a> {
@@ -473,3 +480,21 @@ impl ContextRule {
 }
 
 
+/// Remap all UTF-8 offsets to unicode codepoint offsets
+pub(crate) fn remap_offsets_to_unicodepoints<'a>(text: &'a str, mut matches: Vec<Match<'a>>) -> Vec<Match<'a>> {
+    let mut bytes2unicodepoints: Vec<Option<usize>> = Vec::new();
+    let mut end = 0;
+    for (unicodeoffset, (byteoffset, _char)) in text.char_indices().enumerate() {
+        for _ in bytes2unicodepoints.len()..byteoffset {
+            bytes2unicodepoints.push(None);
+        }
+        bytes2unicodepoints.push(Some(unicodeoffset));
+        end = unicodeoffset+1;
+    }
+    //add an end offset
+    bytes2unicodepoints.push(Some(end));
+    for m in matches.iter_mut() {
+        m.offset.convert(&bytes2unicodepoints);
+    }
+    matches
+}

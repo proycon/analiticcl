@@ -144,7 +144,11 @@ pub struct SearchParameters {
 
     /// Consolidate matches and extract a single most likely sequence, if set
     /// to false, all possible matches (including overlapping ones) are returned.
-    pub consolidate_matches: bool
+    pub consolidate_matches: bool,
+
+
+    /// Output text offsets in unicode points rather than UTF-8 byte offsets
+    pub unicodeoffsets: bool
 }
 
 impl Default for SearchParameters {
@@ -166,6 +170,7 @@ impl Default for SearchParameters {
             lm_weight: 1.0,
             contextrules_weight: 1.0,
             consolidate_matches: true,
+            unicodeoffsets: false,
         }
     }
 }
@@ -182,9 +187,11 @@ impl fmt::Display for SearchParameters {
         writeln!(f," single_thread={}",self.single_thread)?;
         writeln!(f," max_seq={}",self.max_seq)?;
         writeln!(f," freq_weight={}",self.freq_weight)?;
-        writeln!(f," lm_weight={}",self.lm_weight)?;
         writeln!(f," variantmodel_weight={}",self.variantmodel_weight)?;
-        writeln!(f," consolidate_matches={}",self.consolidate_matches)
+        writeln!(f," lm_weight={}",self.lm_weight)?;
+        writeln!(f," contextrules_weight={}",self.contextrules_weight)?;
+        writeln!(f," consolidate_matches={}",self.consolidate_matches)?;
+        writeln!(f," unicodeoffsets={}",self.unicodeoffsets)
     }
 }
 
@@ -225,6 +232,14 @@ impl SearchParameters {
         self.single_thread = true;
         self
     }
+    pub fn with_unicodeoffsets(mut self) -> Self {
+        self.unicodeoffsets = true;
+        self
+    }
+    pub fn with_utf8offsets(mut self) -> Self {
+        self.unicodeoffsets = false;
+        self
+    }
     pub fn with_context_weight(mut self, weight: f32) -> Self {
         self.context_weight = weight;
         self
@@ -237,8 +252,16 @@ impl SearchParameters {
         self.lm_order = order;
         self
     }
+    pub fn with_freq_weight(mut self, weight: f32) -> Self {
+        self.freq_weight = weight;
+        self
+    }
     pub fn with_variantmodel_weight(mut self, weight: f32) -> Self {
         self.variantmodel_weight = weight;
+        self
+    }
+    pub fn with_contextrules_weight(mut self, weight: f32) -> Self {
+        self.contextrules_weight = weight;
         self
     }
     pub fn with_consolidate_matches(mut self, value: bool) -> Self {

@@ -64,5 +64,6 @@ pub fn get_test_searchparams() -> SearchParameters {
         contextrules_weight: 1.0,
         max_seq: 250,
         consolidate_matches: true,
+        unicodeoffsets: false,
     }
 }

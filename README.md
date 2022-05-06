@@ -187,12 +187,15 @@ effectively implements the *correction* part of a spelling-correction system, bu
 aspect. This is where *search mode* comes in. In search mode you can provide running text as input and the system will
 automatically attempt to detect the parts of your input that can corrected, and give the suggestions for correction.
 
-In the output, Analiticcl will return UTF-8 byte offsets for fragments in your data that it finds variants for. Your
-input does not have to be tokenised, because tokenisation errors in the input may in itself account for variation which
-the system will attempt to resolve. Search mode can look at n-grams to this end, which effectively makes Analiticcl
-context-aware. You can use the ``--max-ngram-order`` parameter to set the maximum n-gram order you want to consider. Any
-setting above 1 enables a language modelling component in Analiticcl, which requires a frequency list of n-grams as
-input (using ``--lm``).
+In the output, Analiticcl will return UTF-8 byte offsets for fragments in your data that it finds variants for. You can
+set want ``--unicode-offsets`` if you want unicode codepoint offsets instead. Both types of offsets are zero-indexed and
+the end offset is always non-inclusive.
+
+Your input does not have to be tokenised, because tokenisation errors in the
+input may in itself account for variation which the system will attempt to resolve. Search mode can look at n-grams to
+this end, which effectively makes Analiticcl context-aware. You can use the ``--max-ngram-order`` parameter to set the
+maximum n-gram order you want to consider. Any setting above 1 enables a language modelling component in Analiticcl,
+which requires a frequency list of n-grams as input (using ``--lm``).
 
 ### Index Mode
 

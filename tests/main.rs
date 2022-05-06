@@ -868,6 +868,8 @@ fn test0702_find_all_matches() {
     assert_eq!( matches.get(0).unwrap().text , "I" );
     assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
     assert_eq!( matches.get(1).unwrap().text , "tink" );
+    assert_eq!( matches.get(1).unwrap().offset.begin, 2 );
+    assert_eq!( matches.get(1).unwrap().offset.end, 6 );
     assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
     assert_eq!( matches.get(2).unwrap().text , "you" );
     assert_eq!( model.match_to_str(matches.get(2).unwrap()) , "you" );
@@ -978,6 +980,49 @@ fn test0705_find_all_matches_context_only() {
 }
 
 
+#[test]
+fn test0706_find_all_matches_unicodeoffsets() {
+    let (alphabet, _alphabet_size) = get_test_alphabet();
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
+    let lexicon: &[&str] = &["I","think","you","are","right"];
+    for text in lexicon.iter() {
+        model.add_to_vocabulary(text,None,&VocabParams::default());
+    }
+    model.build();
+    let matches = model.find_all_matches("I thиnk you are rihgt", &get_test_searchparams().with_max_ngram(1).with_unicodeoffsets());
+    assert!( !matches.is_empty() );
+    assert_eq!( matches.get(0).unwrap().text , "I" );
+    assert_eq!( matches.get(1).unwrap().text , "thиnk" );
+    assert_eq!( matches.get(1).unwrap().offset.begin, 2 );
+    assert_eq!( matches.get(1).unwrap().offset.end, 7 );
+    assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
+    assert_eq!( matches.get(2).unwrap().text , "you" );
+    assert_eq!( matches.get(3).unwrap().text , "are" );
+    assert_eq!( matches.get(4).unwrap().text , "rihgt" );
+    assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "right" );
+}
+
+#[test]
+fn test0707_find_all_matches_utf8offsets() {
+    let (alphabet, _alphabet_size) = get_test_alphabet();
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
+    let lexicon: &[&str] = &["I","think","you","are","right"];
+    for text in lexicon.iter() {
+        model.add_to_vocabulary(text,None,&VocabParams::default());
+    }
+    model.build();
+    let matches = model.find_all_matches("I thиnk you are rihgt", &get_test_searchparams().with_max_ngram(1));
+    assert!( !matches.is_empty() );
+    assert_eq!( matches.get(0).unwrap().text , "I" );
+    assert_eq!( matches.get(1).unwrap().text , "thиnk" );
+    assert_eq!( matches.get(1).unwrap().offset.begin, 2 );
+    assert_eq!( matches.get(1).unwrap().offset.end, 8 );
+    assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
+    assert_eq!( matches.get(2).unwrap().text , "you" );
+    assert_eq!( matches.get(3).unwrap().text , "are" );
+    assert_eq!( matches.get(4).unwrap().text , "rihgt" );
+    assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "right" );
+}
 
 
 #[test]

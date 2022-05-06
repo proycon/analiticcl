@@ -563,6 +563,10 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .help("Number of matches to return per input (set to 0 for unlimited if you want to exhaustively return every possibility within the specified anagram and edit distance)")
         .takes_value(true)
         .default_value("10"));
+    args.push(Arg::with_name("unicodeoffsets")
+        .long("unicode-offsets")
+        .short("u")
+        .help("Output all text offsets in unicode points rather than UTF-8 byte offsets"));
     args.push(Arg::with_name("files")
         .help("Input files")
         .takes_value(true)
@@ -830,6 +834,7 @@ fn main() {
         } else {
             250
         },
+        unicodeoffsets: args.is_present("unicode-offsets")
     };
 
 
