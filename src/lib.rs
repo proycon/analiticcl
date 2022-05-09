@@ -510,6 +510,9 @@ impl VariantModel {
                 }
             }
         }
+        if self.debug >= 1 {
+            eprintln!(" -- Read {} context rules", self.context_rules.len());
+        }
 
         Ok(())
     }
@@ -1938,7 +1941,7 @@ impl VariantModel {
     /// This returns either a bonus or penalty (number slightly above/below 1.0) score/
     /// for the sequence as a whole.
     pub fn test_context_rules<'a>(&self, sequence: &Sequence) -> (f64, Vec<Option<PatternMatchResult>>) {
-        let sequence: Vec<(VocabId,u32)> = sequence.output_symbols.iter().map(|output_symbol|
+        let sequence: Vec<(VocabId, u32)> = sequence.output_symbols.iter().map(|output_symbol|
             if output_symbol.vocab_id == 0 {
                 (output_symbol.vocab_id, 0)
             } else {
@@ -1952,13 +1955,27 @@ impl VariantModel {
         //The sequence will flag which items in the sequence have been covered by matches (Some),
         //and if so, what context rule scores apply to that match. It's later used to compute
         //the final score
-        //                             score --v    v--- tag
         let mut sequence_results: Vec<Option<PatternMatchResult>> = vec![None; sequence.len()];
 
         let mut found = false;
-        for context_rule in self.context_rules.iter() {
-            if context_rule.find_matches(&sequence, &mut sequence_results) > 0 {
-                found = true;
+        for begin in 0..sequence.len() {
+            for context_rule in self.context_rules.iter() {
+                if context_rule.matches(&sequence, begin, &mut sequence_results) {
+                    found = true;
+                    if self.debug >= 2 {
+                        let text: Vec<&str> = sequence.iter().map(|(vocab_id,_)| {
+                            if *vocab_id == 0 {
+                                "<UNK>"
+                            } else {
+                                if let Some(vocabvalue) = self.decoder.get(*vocab_id as usize) {
+                                    vocabvalue.text.as_ref()
+                                } else {
+                                    "<UNK>"
+                                }
+                            }}).collect();
+                        eprintln!("    Context rule matches: {:?} <-- \"{}\" --> {:?}", context_rule, text.join(" | "), sequence_results);
+                    }
+                }
             }
         }
 

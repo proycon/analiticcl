@@ -308,7 +308,7 @@ pub fn redundant_match<'a>(candidate: &Match<'a>, matches: &[Match<'a>]) -> bool
     true
 }
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub enum PatternMatch {
     /// Exact match with specific vocabulary
     Vocab(VocabId),
@@ -325,7 +325,7 @@ pub enum PatternMatch {
 }
 
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct ContextRule {
     /// Lexicon index
     pub pattern: Vec<PatternMatch>,
@@ -335,7 +335,7 @@ pub struct ContextRule {
     pub tagoffset: Option<(u8,u8)> //begin,length
 }
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct PatternMatchResult {
     pub score: f32,
     pub tag: Option<u16>,
@@ -439,43 +439,41 @@ impl ContextRule {
 
     ///Checks if the sequence of the contextrole is present in larger sequence
     ///provided as parameter. Returns the number of matches
-    pub fn find_matches(&self, sequence: &[(VocabId,u32)], sequence_result: &mut Vec<Option<PatternMatchResult>>) -> usize {
+    pub fn matches(&self, sequence: &[(VocabId,u32)], begin: usize, sequence_result: &mut Vec<Option<PatternMatchResult>>) -> bool {
         assert_eq!(sequence.len(), sequence_result.len());
-        let mut matches = 0;
-        if self.pattern.len() > sequence.len() {
-            return 0;
+        if begin + self.pattern.len() > sequence.len() {
+            return false;
         }
-        for begin in 0..(sequence.len() - self.pattern.len()) {
-            let mut found = true;
-            for (cursor, contextmatch) in self.pattern.iter().enumerate() {
-                if sequence_result[begin+cursor].is_some() || !contextmatch.matches(sequence, begin+cursor) {
-                     found = false;
-                     break;
-                }
-            }
-            if found {
-                for cursor in 0..self.pattern.len() {
-                    sequence_result[begin+cursor] =
-                        Some(PatternMatchResult {
-                            score: self.score,
-                            tag: if self.tagoffset.is_none() {
-                                self.tag
-                            } else if cursor as u8 >= self.tagoffset.unwrap().0 && (cursor as u8) < self.tagoffset.unwrap().0 + self.tagoffset.unwrap().1 {
-                                self.tag
-                            } else {
-                                None
-                            },
-                            seqnr: if let Some(tagoffset) = self.tagoffset {
-                                cursor as u8 - tagoffset.0
-                            } else {
-                                cursor as u8
-                            }
-                        });
-                }
-                matches += 1
+        let mut found = true;
+        for (cursor, contextmatch) in self.pattern.iter().enumerate() {
+            if sequence_result[begin+cursor].is_some() || !contextmatch.matches(sequence, begin+cursor) {
+                 found = false;
+                 break;
             }
         }
-        matches
+        if found {
+            for cursor in 0..self.pattern.len() {
+                sequence_result[begin+cursor] =
+                    Some(PatternMatchResult {
+                        score: self.score,
+                        tag: if self.tagoffset.is_none() {
+                            self.tag
+                        } else if cursor as u8 >= self.tagoffset.unwrap().0 && (cursor as u8) < self.tagoffset.unwrap().0 + self.tagoffset.unwrap().1 {
+                            self.tag
+                        } else {
+                            None
+                        },
+                        seqnr: if let Some(tagoffset) = self.tagoffset {
+                            cursor as u8 - tagoffset.0
+                        } else {
+                            cursor as u8
+                        }
+                    });
+            }
+            true
+        } else {
+            false
+        }
     }
 }
 
