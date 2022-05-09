@@ -1894,12 +1894,18 @@ impl VariantModel {
             for (i, (sequence, norm_lm_score, norm_variant_score, norm_context_score, score)) in debug_ranked.unwrap().into_iter().enumerate() {
                 eprintln!("  (#{}, final_score={}, norm_lm_score={} (perplexity={}, logprob={}, weight={}), norm_variant_score={} (variant_cost={}, weight={}), norm_context_score={} (context_score={}, weight={})", i+1, score.exp(), norm_lm_score.exp(), sequence.perplexity, sequence.lm_logprob, params.lm_weight,  norm_variant_score.exp(), sequence.variant_cost, params.variantmodel_weight, norm_context_score.exp(), sequence.context_score, params.contextrules_weight);
                 let mut text: String = String::new();
-                for output_symbol in sequence.output_symbols.iter() {
+                for (j, output_symbol) in sequence.output_symbols.iter().enumerate() {
+                    let m = matches.get(output_symbol.match_index).expect("match index must exist");
                     if output_symbol.vocab_id > 0{
                         text += self.decoder.get(output_symbol.vocab_id as usize).expect("vocab").text.as_str();
                     } else {
-                        let m = matches.get(output_symbol.match_index).expect("match index must exist");
                         text += m.text;
+                    }
+                    if !sequence.tags.is_empty() {
+                        if let Some(Some((tagindex, seqnr))) = sequence.tags.get(j) {
+                            text += format!("[#{}:{}]", self.tags.get(*tagindex as usize).expect("Tag must exist"), seqnr).as_str();
+
+                        }
                     }
                     text += " | ";
                 }
