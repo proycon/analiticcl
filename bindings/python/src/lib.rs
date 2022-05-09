@@ -329,7 +329,7 @@ impl PySearchParameters {
         dict.set_item("contextrules_weight", self.get_contextrules_weight()?)?;
         dict.set_item("variantmodel_weight", self.get_variantmodel_weight()?)?;
         dict.set_item("consolidate_matches", self.get_consolidate_matches()?)?;
-        dict.set_item("unicodeoffsets", self.get_unicodeoffsets()()?)?;
+        dict.set_item("unicodeoffsets", self.get_unicodeoffsets()?)?;
         Ok(dict)
     }
 }
