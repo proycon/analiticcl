@@ -1893,9 +1893,11 @@ impl VariantModel {
             debug_ranked.as_mut().unwrap().sort_by(|a,b| b.4.partial_cmp(&a.4).unwrap_or(Ordering::Equal) ); //sort by score
             for (i, (sequence, norm_lm_score, norm_variant_score, norm_context_score, score)) in debug_ranked.unwrap().into_iter().enumerate() {
                 eprintln!("  (#{}, final_score={}, norm_lm_score={} (perplexity={}, logprob={}, weight={}), norm_variant_score={} (variant_cost={}, weight={}), norm_context_score={} (context_score={}, weight={})", i+1, score.exp(), norm_lm_score.exp(), sequence.perplexity, sequence.lm_logprob, params.lm_weight,  norm_variant_score.exp(), sequence.variant_cost, params.variantmodel_weight, norm_context_score.exp(), sequence.context_score, params.contextrules_weight);
+                let mut inputtext: String = String::new();
                 let mut text: String = String::new();
                 for (j, output_symbol) in sequence.output_symbols.iter().enumerate() {
                     let m = matches.get(output_symbol.match_index).expect("match index must exist");
+                    inputtext += m.text;
                     if output_symbol.vocab_id > 0{
                         text += self.decoder.get(output_symbol.vocab_id as usize).expect("vocab").text.as_str();
                     } else {
@@ -1907,9 +1909,11 @@ impl VariantModel {
 
                         }
                     }
+                    inputtext += " | ";
                     text += " | ";
                 }
-                eprintln!("    (text={})", text);
+                eprintln!("    (text_out={})", text);
+                eprintln!("    (text_in={})", inputtext);
             }
         }
 
