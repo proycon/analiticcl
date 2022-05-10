@@ -989,7 +989,7 @@ fn test0706_find_all_matches_unicodeoffsets() {
         model.add_to_vocabulary(text,None,&VocabParams::default());
     }
     model.build();
-    let matches = model.find_all_matches("I thиnk you are rihgt", &get_test_searchparams().with_max_ngram(1).with_unicodeoffsets());
+    let matches = model.find_all_matches("I thиnk you are righт", &get_test_searchparams().with_max_ngram(1).with_unicodeoffsets());
     assert!( !matches.is_empty() );
     assert_eq!( matches.get(0).unwrap().text , "I" );
     assert_eq!( matches.get(1).unwrap().text , "thиnk" );
@@ -998,7 +998,7 @@ fn test0706_find_all_matches_unicodeoffsets() {
     assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
     assert_eq!( matches.get(2).unwrap().text , "you" );
     assert_eq!( matches.get(3).unwrap().text , "are" );
-    assert_eq!( matches.get(4).unwrap().text , "rihgt" );
+    assert_eq!( matches.get(4).unwrap().text , "righт" );
     assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "right" );
 }
 

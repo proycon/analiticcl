@@ -482,12 +482,12 @@ impl ContextRule {
 pub(crate) fn remap_offsets_to_unicodepoints<'a>(text: &'a str, mut matches: Vec<Match<'a>>) -> Vec<Match<'a>> {
     let mut bytes2unicodepoints: Vec<Option<usize>> = Vec::new();
     let mut end = 0;
-    for (unicodeoffset, (byteoffset, _char)) in text.char_indices().enumerate() {
-        for _ in bytes2unicodepoints.len()..byteoffset {
+    for (unicodeoffset, c) in text.chars().enumerate() {
+        bytes2unicodepoints.push(Some(unicodeoffset));
+        for _ in 0..c.len_utf8()-1 {
             bytes2unicodepoints.push(None);
         }
-        bytes2unicodepoints.push(Some(unicodeoffset));
-        end = byteoffset+1;
+        end = unicodeoffset+1;
     }
     //add an end offset
     bytes2unicodepoints.push(Some(end));
