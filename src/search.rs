@@ -14,8 +14,8 @@ pub struct Offset {
 
 impl Offset {
     pub fn convert(&mut self, map: &Vec<Option<usize>>) {
-        self.begin = map.get(self.begin).expect(format!("Offset {} must exist in map",self.begin).as_str()).expect("Offset in map may not be None");
-        self.end = map.get(self.end).expect(format!("Offset {} must exist in map",self.end).as_str()).expect("Offset in map may not be None");
+        self.begin = map.get(self.begin).expect(format!("Bytes to unicode: Begin offset {} must exist in map",self.begin).as_str()).expect("Offset in map may not be None");
+        self.end = map.get(self.end).expect(format!("Bytes to unicode: End offset {} must exist in map",self.end).as_str()).expect("Offset in map may not be None");
     }
 }
 
@@ -487,7 +487,7 @@ pub(crate) fn remap_offsets_to_unicodepoints<'a>(text: &'a str, mut matches: Vec
             bytes2unicodepoints.push(None);
         }
         bytes2unicodepoints.push(Some(unicodeoffset));
-        end = unicodeoffset+1;
+        end = byteoffset+1;
     }
     //add an end offset
     bytes2unicodepoints.push(Some(end));
