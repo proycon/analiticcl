@@ -220,10 +220,10 @@ impl VariantModel {
 
         eprintln!("Sorting secondary index...");
         let mut sizes: Vec<u16> = self.sortedindex.keys().map(|x| *x).collect();
-        sizes.sort_unstable();
+        sizes.sort();
         for size in sizes {
             let keys = self.sortedindex.get_mut(&size).expect("getting sorted index (2)");
-            keys.sort_unstable();
+            keys.sort();
             eprintln!(" - Found {} anagrams of length {}", keys.len(), size );
         }
 
@@ -1274,7 +1274,7 @@ impl VariantModel {
     /// Sorts a result vector of (VocabId, distance_score, freq_score)
     /// in decreasing order (best result first)
     pub fn rank_results(&self, results: &mut Vec<VariantResult>, freq_weight: f32) {
-        results.sort_unstable_by(|a, b| {
+        results.sort_by(|a, b| {
             a.rank_cmp(&b, freq_weight).expect("ordering")
         });
     }

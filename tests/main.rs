@@ -658,10 +658,10 @@ fn test0404_score_test() {
     }
     model.build();
     let results = model.find_variants("huys", &get_test_searchparams());
-    //results are a bit indeterministic due to sort_unstable
-    //(order of equal-scoring elements is not fixed)
-    //we just check if we get two results with the same score
     assert_eq!( results.len(), 2);
+    //results are tied so order is arbitrary BUT deterministic
+    assert_eq!( model.decoder.get(results.get(0).unwrap().vocab_id as usize).unwrap().text, "huis");
+    assert_eq!( model.decoder.get(results.get(1).unwrap().vocab_id as usize).unwrap().text, "huls");
     assert_ne!( results.get(0).unwrap().vocab_id, results.get(1).unwrap().vocab_id );
     assert_eq!( results.get(0).unwrap().dist_score, results.get(1).unwrap().dist_score );
     assert_eq!( results.get(0).unwrap().freq_score, results.get(1).unwrap().freq_score );
