@@ -7,7 +7,7 @@ extern crate simple_error;
 
 use std::fs::File;
 use std::io::{BufReader,BufRead};
-use std::collections::{HashMap,HashSet,BTreeMap};
+use std::collections::{HashMap,BTreeMap,BTreeSet};
 use std::cmp::min;
 use sesdiff::shortest_edit_script;
 use std::time::SystemTime;
@@ -876,8 +876,8 @@ impl VariantModel {
 
     /// Find the nearest anahashes that exists in the model (computing anahashes in the
     /// neigbhourhood if needed).
-    pub(crate) fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, max_distance: u8,  stop_criterion: StopCriterion) -> HashSet<&'a AnaValue> {
-        let mut nearest: HashSet<&AnaValue> = HashSet::new();
+    pub(crate) fn find_nearest_anahashes<'a>(&'a self, focus: &AnaValue, max_distance: u8,  stop_criterion: StopCriterion) -> BTreeSet<&'a AnaValue> {
+        let mut nearest: BTreeSet<&AnaValue> = BTreeSet::new();
 
         let begintime = if self.debug >= 2 {
             eprintln!("(finding nearest anagram matches for focus anavalue {}, max_distance={}, stop_criterion={:?})", focus, max_distance, stop_criterion);
@@ -1018,7 +1018,7 @@ impl VariantModel {
 
 
     /// Gather instances with their edit distances and frequency, given a search string (normalised to the alphabet) and anagram hashes
-    pub(crate) fn gather_instances(&self, nearest_anagrams: &HashSet<&AnaValue>, querystring: &[u8], query: &str, max_edit_distance: u8) -> Vec<(VocabId,Distance)> {
+    pub(crate) fn gather_instances(&self, nearest_anagrams: &BTreeSet<&AnaValue>, querystring: &[u8], query: &str, max_edit_distance: u8) -> Vec<(VocabId,Distance)> {
         let mut found_instances = Vec::new();
         let mut pruned_instances = 0;
 

@@ -651,7 +651,7 @@ fn test0403_model_anagrams() {
 #[test]
 fn test0404_score_test() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 4);
     let lexicon: &[&str] = &["huis","huls"];
     for text in lexicon.iter() {
         model.add_to_vocabulary(text,None,&VocabParams::default());
