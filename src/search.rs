@@ -35,10 +35,10 @@ pub struct Match<'a> {
     pub selected: Option<usize>,
 
 
-    /// The tag that was assigned to this match (if any)
-    pub tag: Option<u16>,
-    /// The sequence number in a tagged sequence
-    pub seqnr: Option<u8>,
+    /// The tags that was assigned to this match (if any)
+    pub tag: Vec<u16>,
+    /// The sequence number in a tagged sequence (indices correspond with 'tag')
+    pub seqnr: Vec<u8>,
 
     /// the index of the previous boundary, None if at start position
     pub prevboundary: Option<usize>,
@@ -59,8 +59,8 @@ impl<'a> Match<'a> {
             selected: None,
             prevboundary: None,
             nextboundary: None,
-            tag: None,
-            seqnr: None,
+            tag: vec!(),
+            seqnr: vec!(),
             n: 0
         }
     }
@@ -142,7 +142,7 @@ pub struct Sequence {
     pub lm_logprob: f32,
     pub perplexity: f64,
     pub context_score: f64,
-    pub tags: Vec<Option<(u16,u8)>> //tag + sequence number
+    pub tags: Vec<Vec<(u16,u8)>> //tag + sequence number, primary index corresponds to the sequence index, secondary for multiple tags
 }
 
 impl Sequence {
@@ -331,8 +331,9 @@ pub struct ContextRule {
     pub pattern: Vec<PatternMatch>,
     /// Score (> 1.0) for bonus, (< 1.0) for penalty
     pub score: f32,
-    pub tag: Option<u16>,
-    pub tagoffset: Option<(u8,u8)> //begin,length
+    ///A single context rule can assign multiple tags
+    pub tag: Vec<u16>,
+    pub tagoffset: Vec<(u8,u8)> //begin,length
 }
 
 #[derive(Clone,Debug)]
@@ -438,37 +439,40 @@ impl ContextRule {
     }
 
     ///Checks if the sequence of the contextrole is present in larger sequence
-    ///provided as parameter. Returns the number of matches
-    pub fn matches(&self, sequence: &[(VocabId,u32)], begin: usize, sequence_result: &mut Vec<Option<PatternMatchResult>>) -> bool {
+    ///provided as parameter. Returns the matches in `sequence_result`
+    pub fn matches(&self, sequence: &[(VocabId,u32)], begin: usize, sequence_result: &mut Vec<Vec<PatternMatchResult>>) -> bool {
         assert_eq!(sequence.len(), sequence_result.len());
         if begin + self.pattern.len() > sequence.len() {
             return false;
         }
         let mut found = true;
         for (cursor, contextmatch) in self.pattern.iter().enumerate() {
-            if sequence_result[begin+cursor].is_some() || !contextmatch.matches(sequence, begin+cursor) {
+            if !sequence_result[begin+cursor].is_empty() || !contextmatch.matches(sequence, begin+cursor) {
                  found = false;
                  break;
             }
         }
         if found {
             for cursor in 0..self.pattern.len() {
-                sequence_result[begin+cursor] =
-                    Some(PatternMatchResult {
+                sequence_result[begin+cursor] = if self.tag.is_empty() {
+                    vec!(PatternMatchResult {
                         score: self.score,
-                        tag: if self.tagoffset.is_none() {
-                            self.tag
-                        } else if cursor as u8 >= self.tagoffset.unwrap().0 && (cursor as u8) < self.tagoffset.unwrap().0 + self.tagoffset.unwrap().1 {
-                            self.tag
+                        tag: None,
+                        seqnr: cursor as u8
+                    })
+                } else {
+                    self.tag.iter().zip(self.tagoffset.iter()).filter_map(|(tag,tagoffset)| {
+                        if cursor as u8 >= tagoffset.0 && (cursor as u8) < tagoffset.0 + tagoffset.1  {
+                            Some(PatternMatchResult {
+                                score: self.score,
+                                tag: Some(*tag),
+                                seqnr: cursor as u8 - tagoffset.0
+                            })
                         } else {
                             None
-                        },
-                        seqnr: if let Some(tagoffset) = self.tagoffset {
-                            cursor as u8 - tagoffset.0
-                        } else {
-                            cursor as u8
                         }
-                    });
+                    }).collect()
+                };
             }
             true
         } else {

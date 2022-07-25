@@ -470,7 +470,7 @@ impl PyVariantModel {
         }
     }
 
-    fn add_contextrule(&mut self, pattern: &str, score: f32, tag: Option<&str>, tagoffset: Option<&str>) -> PyResult<()> {
+    fn add_contextrule(&mut self, pattern: &str, score: f32, tag: Vec<&str>, tagoffset: Vec<&str>) -> PyResult<()> {
         self.model.add_contextrule( pattern, score, tag, tagoffset);
         Ok(())
     }
@@ -571,11 +571,15 @@ impl PyVariantModel {
             offsetdict.set_item("begin", m.offset.begin)?;
             offsetdict.set_item("end", m.offset.end)?;
             odict.set_item("offset", offsetdict)?;
-            if let Some(tagindex) = m.tag {
-                odict.set_item("tag", self.model.tags.get(tagindex as usize).expect("Tag must exist") )?;
-                if let Some(seqnr) = m.seqnr {
-                    odict.set_item("seqnr", seqnr )?;
+            if !m.tag.is_empty() {
+                let taglist = PyList::empty(py);
+                let seqnrlist = PyList::empty(py);
+                for (tagindex,seqnr) in m.tag.iter().zip(m.seqnr.iter()) {
+                    taglist.append( self.model.tags.get(*tagindex as usize).expect("Tag must exist") )?;
+                    seqnrlist.append( seqnr )?;
                 }
+                odict.set_item("tag", taglist)?;
+                odict.set_item("seqnr", seqnrlist)?;
             }
             let olist = PyList::empty(py);
             if let Some(variants) = m.variants {

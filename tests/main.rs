@@ -1093,7 +1093,7 @@ fn test0902_find_all_match_context_rules_bonus() {
     model.build();
 
 
-    model.add_contextrule("I; think", 1.1, Some("testtag"), None); //bonus!
+    model.add_contextrule("I; think", 1.1, vec!("testtag"), vec!()); //bonus!
     //                                      ^-- tag the whole entity with 'testtag'
 
     let mut params = get_test_searchparams();
@@ -1102,12 +1102,12 @@ fn test0902_find_all_match_context_rules_bonus() {
     let matches = model.find_all_matches("I tink you are rihgt", &params);
     assert!( !matches.is_empty() );
     assert_eq!( matches.get(0).unwrap().text , "I" );
-    assert_eq!( matches.get(0).unwrap().tag , Some(0) );
-    assert_eq!( matches.get(0).unwrap().seqnr , Some(0) );
+    assert_eq!( matches.get(0).unwrap().tag , vec!(0) );
+    assert_eq!( matches.get(0).unwrap().seqnr , vec!(0) );
     assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
     assert_eq!( matches.get(1).unwrap().text , "tink" );
-    assert_eq!( matches.get(1).unwrap().tag , Some(0) );
-    assert_eq!( matches.get(1).unwrap().seqnr , Some(1) );
+    assert_eq!( matches.get(1).unwrap().tag , vec!(0) );
+    assert_eq!( matches.get(1).unwrap().seqnr , vec!(1) );
     assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
     assert_eq!( matches.get(2).unwrap().text , "you" );
     assert_eq!( model.match_to_str(matches.get(2).unwrap()) , "you" );
@@ -1129,7 +1129,7 @@ fn test0903_find_all_match_context_rules_penalty() {
     model.add_to_vocabulary("right",Some(2),&VocabParams::default());
     model.build();
 
-    model.add_contextrule("I; think", 0.9, None, None); //penalty!
+    model.add_contextrule("I; think", 0.9, vec!(), vec!()); //penalty!
 
     let mut params = get_test_searchparams();
     params.lm_weight = 0.0; //disable normal language model
@@ -1161,10 +1161,10 @@ fn test0904_find_all_match_context_rules2() {
     model.build();
 
 
-    model.add_contextrule("think", 1.0, Some("testtag"), None); //bonus!
-    model.add_contextrule("are", 1.0, Some("testtag"), None); //bonus!
+    model.add_contextrule("think", 1.0, vec!("testtag"), vec!()); //bonus!
+    model.add_contextrule("are", 1.0, vec!("testtag"), vec!()); //bonus!
     //                                      ^-- tag the whole entity with 'testtag'
-    model.add_contextrule("right", 1.0, Some("testtag"), None); //bonus!
+    model.add_contextrule("right", 1.0, vec!("testtag"), vec!()); //bonus!
 
     let mut params = get_test_searchparams();
     params.lm_weight = 0.0; //disable normal language model
@@ -1172,20 +1172,20 @@ fn test0904_find_all_match_context_rules2() {
     let matches = model.find_all_matches("I tink you are rihgt", &params);
     assert!( !matches.is_empty() );
     assert_eq!( matches.get(0).unwrap().text , "I" );
-    assert_eq!( matches.get(0).unwrap().tag , None );
+    assert_eq!( matches.get(0).unwrap().tag , vec!() );
     assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
     assert_eq!( matches.get(1).unwrap().text , "tink" );
-    assert_eq!( matches.get(1).unwrap().tag , Some(0) );
-    assert_eq!( matches.get(1).unwrap().seqnr , Some(0) );
+    assert_eq!( matches.get(1).unwrap().tag , vec!(0) );
+    assert_eq!( matches.get(1).unwrap().seqnr , vec!(0) );
     assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
     assert_eq!( matches.get(2).unwrap().text , "you" );
     assert_eq!( model.match_to_str(matches.get(2).unwrap()) , "you" );
     assert_eq!( matches.get(3).unwrap().text , "are" );
-    assert_eq!( matches.get(3).unwrap().tag , Some(0) );
-    assert_eq!( matches.get(3).unwrap().seqnr , Some(0) );
+    assert_eq!( matches.get(3).unwrap().tag , vec!(0) );
+    assert_eq!( matches.get(3).unwrap().seqnr , vec!(0) );
     assert_eq!( model.match_to_str(matches.get(3).unwrap()) , "are" );
     assert_eq!( matches.get(4).unwrap().text , "rihgt" );
-    assert_eq!( matches.get(4).unwrap().tag , Some(0) );
-    assert_eq!( matches.get(4).unwrap().seqnr , Some(0) );
+    assert_eq!( matches.get(4).unwrap().tag , vec!(0) );
+    assert_eq!( matches.get(4).unwrap().seqnr , vec!(0) );
     assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "right" );
 }

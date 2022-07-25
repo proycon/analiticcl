@@ -55,7 +55,7 @@ fn output_result_as_tsv(model: &VariantModel, result: &VariantResult, output_lex
     }
 }
 
-fn output_matches_as_json(model: &VariantModel, input: &str, variants: Option<&Vec<VariantResult>>, selected: Option<usize>, offset: Option<Offset>, output_lexmatch: bool, freq_weight: f32, seqnr: usize, tag: Option<u16>, tag_seqnr: Option<u8>) {
+fn output_matches_as_json(model: &VariantModel, input: &str, variants: Option<&Vec<VariantResult>>, selected: Option<usize>, offset: Option<Offset>, output_lexmatch: bool, freq_weight: f32, seqnr: usize, tag: Vec<u16>, tag_seqnr: Vec<u8>) {
     if seqnr > 1 {
         print!("    ,")
     } else {
@@ -65,11 +65,22 @@ fn output_matches_as_json(model: &VariantModel, input: &str, variants: Option<&V
     if let Some(offset) = offset {
         print!(", \"begin\": {}, \"end\": {}", offset.begin, offset.end);
     }
-    if let Some(tag) = tag {
-        print!(", \"tag\": \"{}\"", model.tags.get(tag as usize).expect("tag must exist in model") );
-        if let Some(tag_seqnr) = tag_seqnr {
-            print!(", \"seqnr\": {}",tag_seqnr);
+    if !tag.is_empty() {
+        print!(", \"tag\": [");
+        for (i, (tag, _tag_seqnr)) in tag.iter().zip(tag_seqnr.iter()).enumerate() {
+            if i > 0 {
+                print!(",")
+            }
+            print!("\"{}\"", model.tags.get(*tag as usize).expect("tag must exist in model"));
         }
+        print!("], \"seqnr\": [ ");
+        for (i, (_tag, tag_seqnr)) in tag.iter().zip(tag_seqnr.iter()).enumerate() {
+            if i > 0 {
+                print!(",")
+            }
+            print!("{}", tag_seqnr);
+        }
+        print!("]");
     }
     if let Some(variants) = variants {
         println!(", \"variants\": [ ");
@@ -243,7 +254,7 @@ fn process(model: &VariantModel, inputstream: impl Read, searchparams: &SearchPa
             }
             let variants = model.find_variants(&input, searchparams);
             if json {
-                output_matches_as_json(model, &input, Some(&variants), Some(0), None, output_lexmatch, searchparams.freq_weight, seqnr, None, None);
+                output_matches_as_json(model, &input, Some(&variants), Some(0), None, output_lexmatch, searchparams.freq_weight, seqnr, vec!(), vec!());
             } else {
                 //Normal output mode
                 output_matches_as_tsv(model, &input, Some(&variants), Some(0), None,  output_lexmatch, searchparams.freq_weight);
@@ -282,7 +293,7 @@ fn process_par(model: &VariantModel, inputstream: impl Read, searchparams: &Sear
         for (input, variants) in output {
             seqnr += 1;
             if json {
-                output_matches_as_json(model, &input, Some(&variants), Some(0), None, output_lexmatch, searchparams.freq_weight, seqnr, None, None);
+                output_matches_as_json(model, &input, Some(&variants), Some(0), None, output_lexmatch, searchparams.freq_weight, seqnr, vec!(), vec!());
             } else {
                 //Normal output mode
                 output_matches_as_tsv(model, &input, Some(&variants), Some(0), None, output_lexmatch, searchparams.freq_weight);

@@ -505,7 +505,23 @@ impl VariantModel {
                     let pattern: &str = fields.get(0).unwrap();
                     let score = fields.get(1).unwrap().parse::<f32>().expect("context rule score should be a floating point value above or below 1.0");
 
-                    self.add_contextrule(pattern, score, fields.get(2).map(|s| *s), fields.get(3).map(|s| *s));
+                    let tag: Vec<&str> = match fields.get(2) {
+                        Some(s) => s.split(";").map(|w| w.trim()).collect(),
+                        None => Vec::new()
+                    };
+
+                    let mut tagoffset: Vec<&str> = match fields.get(3) {
+                        Some(s) => s.split(";").map(|w| w.trim()).collect(),
+                        None => Vec::new()
+                    };
+
+                    if tag.len() == 1  && tagoffset.len() == 0 {
+                        tagoffset.push("0:");
+                    } else if tag.len() != tagoffset.len() {
+                        return Err(std::io::Error::new(std::io::ErrorKind::Other, "Multiple tags are specified, expected the same number of tag offsets! (semicolon separated)"));
+                    }
+
+                    self.add_contextrule(pattern, score, tag, tagoffset);
 
                 }
             }
@@ -518,7 +534,7 @@ impl VariantModel {
     }
 
 
-    pub fn add_contextrule(&mut self, pattern: &str, score: f32, tag: Option<&str>, tagoffset: Option<&str>) {
+    pub fn add_contextrule(&mut self, pattern: &str, score: f32, tag: Vec<&str>, tagoffset: Vec<&str>) {
         let expressions: Vec<&str> = pattern.split(";").map(|s| s.trim()).collect();
         let mut pattern: Vec<PatternMatch> = Vec::new();
         for expr in expressions {
@@ -528,7 +544,7 @@ impl VariantModel {
             }
         }
 
-        let tag: Option<u16> = tag.map(|tag| {
+        let tag: Vec<u16> = tag.iter().map(|tag| {
             let mut pos = None;
             for (i, t) in self.tags.iter().enumerate() {
                 if t == tag {
@@ -542,9 +558,10 @@ impl VariantModel {
             } else {
                 pos.unwrap()
             }
-        });
+        }).collect();
 
-        let tagoffset: Option<(u8,u8)> = tagoffset.map(|s| {
+
+        let mut tagoffset: Vec<(u8,u8)> = tagoffset.iter().map(|s| {
             let fields: Vec<&str> = s.split(":").collect();
             let tagbegin: u8 = if let Some(tagbegin) = fields.get(0) {
                 if tagbegin.is_empty() {
@@ -566,15 +583,18 @@ impl VariantModel {
             };
 
             (tagbegin,taglength)
-        });
+        }).collect();
 
+        while tagoffset.len() < tag.len() {
+            tagoffset.push((0,pattern.len() as u8));
+        }
 
         if !pattern.is_empty() {
             self.context_rules.push( ContextRule {
-                pattern: pattern,
-                score: score,
-                tag: tag,
-                tagoffset: tagoffset
+                pattern,
+                score,
+                tag,
+                tagoffset
             });
         }
     }
@@ -1834,13 +1854,14 @@ impl VariantModel {
                 //Apply context rules and apply tags (if any), considers context
                 let (context_score, sequence_results) = self.test_context_rules(&sequence);
                 sequence.context_score = context_score;
-                sequence.tags = sequence_results.into_iter().map(|x| match x {
-                    Some(y) => if let (Some(tag), seqnr) = (y.tag,y.seqnr) {
-                        Some((tag,seqnr))
-                    } else {
-                        None
-                    },
-                    None => None
+                sequence.tags = sequence_results.into_iter().map(|vecpm| {
+                    vecpm.into_iter().filter_map(|pm| 
+                        if pm.tag.is_some() {
+                            Some((pm.tag.unwrap(), pm.seqnr))
+                        } else {
+                            None
+                        }
+                    ).collect()
                 }).collect();
                 if self.debug >= 3 && sequence.context_score != 1.0 {
                     eprintln!("   (context_score: {})", sequence.context_score);
@@ -1907,9 +1928,10 @@ impl VariantModel {
                         text += m.text;
                     }
                     if !sequence.tags.is_empty() {
-                        if let Some(Some((tagindex, seqnr))) = sequence.tags.get(j) {
-                            text += format!("[#{}:{}]", self.tags.get(*tagindex as usize).expect("Tag must exist"), seqnr).as_str();
-
+                        if let Some(tags) = sequence.tags.get(j) {
+                            for (tagindex, seqnr) in tags.iter() {
+                                text += format!("[#{}:{}]", self.tags.get(*tagindex as usize).expect("Tag must exist"), seqnr).as_str();
+                            }
                         }
                     }
                     inputtext += " | ";
@@ -1927,9 +1949,9 @@ impl VariantModel {
             let mut m = m.clone();
             m.selected = osym.variant_index;
             if !best_sequence.tags.is_empty() {
-                if let Some(Some((tag, seqnr))) = best_sequence.tags.get(i) {
-                    m.tag = Some(*tag);
-                    m.seqnr = Some(*seqnr);
+                if let Some(tags) = best_sequence.tags.get(i) {
+                    m.tag = tags.iter().map(|x| x.0).collect();
+                    m.seqnr = tags.iter().map(|x| x.1).collect();
                 }
             }
             m
@@ -1940,7 +1962,7 @@ impl VariantModel {
     /// respectively with lexicons A and B might be favoured over other combinations.
     /// This returns either a bonus or penalty (number slightly above/below 1.0) score/
     /// for the sequence as a whole.
-    pub fn test_context_rules<'a>(&self, sequence: &Sequence) -> (f64, Vec<Option<PatternMatchResult>>) {
+    pub fn test_context_rules<'a>(&self, sequence: &Sequence) -> (f64, Vec<Vec<PatternMatchResult>>) {
         let sequence: Vec<(VocabId, u32)> = sequence.output_symbols.iter().map(|output_symbol|
             if output_symbol.vocab_id == 0 {
                 (output_symbol.vocab_id, 0)
@@ -1952,10 +1974,10 @@ impl VariantModel {
                 }
             }).collect();
 
-        //The sequence will flag which items in the sequence have been covered by matches (Some),
-        //and if so, what context rule scores apply to that match. It's later used to compute
+        //The sequence will flag which items in the sequence have been covered by matches (non-empty vec)
+        //and if so, what context rule scores and tags (inner vec) apply to that match. It's later used to compute
         //the final score
-        let mut sequence_results: Vec<Option<PatternMatchResult>> = vec![None; sequence.len()];
+        let mut sequence_results: Vec<Vec<PatternMatchResult>> = vec![vec!(); sequence.len()];
 
         let mut found = false;
         for begin in 0..sequence.len() {
@@ -1983,9 +2005,11 @@ impl VariantModel {
             (1.0, sequence_results) //just a shortcut to prevent unnecessary computation
         } else {
             (
-                sequence_results.iter().map(|x| match x {
-                Some(x) => x.score,
-                None => 1.0
+                //compute sum score
+                sequence_results.iter().map(|x| if !x.is_empty() {
+                    x[0].score //score is equal for all subelements (only tags differ), just grab first one
+                } else {
+                    1.0
                 }).sum::<f32>() as f64 / sequence.len() as f64
                 ,
                 sequence_results

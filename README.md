@@ -487,7 +487,11 @@ hello ; world	1.1	greeting	1:1
 
 In this case only the word "world" will get the tag greeting (and sequence number 0).
 
-As context rules prohibit overlap, there can be only one tag per word/ngram.
+It is also possible to assign multiple (even overlapping) tags with a single context rule. Use a semicolon to separate multiple tags and multiplet tag offsets (must be equal amount). However, it is not possible to apply multiple context rules once one has matched:
+
+```tsv
+@firstname.tsv ; @lastname.tsv	1.0	person;firstname;lastname 0:2;0:1;1:2
+```
 
 This mechanism can also be used to assign tags based on lexicons whilst allowing some form of lexicon weighting, even if
 no further context is included:
