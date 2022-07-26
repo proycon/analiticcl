@@ -15,7 +15,6 @@ use std::sync::Arc;
 use std::cmp::Ordering;
 use std::str::FromStr;
 use std::error::Error;
-use std::convert::TryInto;
 use rayon::prelude::*;
 use rustfst::prelude::*;
 
@@ -1751,7 +1750,7 @@ impl VariantModel {
                         variant_text += format!(" ({})", output_symbol).as_str(); //we encode the output symbol in the text otherwise the symbol table returns the old match
                         eprintln!("   (transition state {}->{}: {} ({}) -> {} and variant score {})", prevstate, nextstate, m.text, input_symbol, variant_text, -1.0 * variantresult.score(params.freq_weight).ln() as f32);
                         let osym = symtab_out.add_symbol(variant_text);
-                        assert!(osym == output_symbol.try_into().unwrap());
+                        assert!(osym == output_symbol);
                     }
 
                     //each transition gets a base cost of n (the number of input tokens it covers)
