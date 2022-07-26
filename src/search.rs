@@ -129,7 +129,7 @@ pub struct OutputSymbol {
     pub boundary_index: usize,
     /// ID of this symbol (each symbol is unlike, but multiple symbols can refers to the same vocab_id).
     /// The 0 symbol is reserved for epsilon in the underlying FST implementation
-    pub symbol: usize,
+    pub symbol: u32,
 }
 
 

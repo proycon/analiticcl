@@ -15,6 +15,7 @@ use std::sync::Arc;
 use std::cmp::Ordering;
 use std::str::FromStr;
 use std::error::Error;
+use std::convert::TryInto;
 use rayon::prelude::*;
 use rustfst::prelude::*;
 
@@ -1682,7 +1683,7 @@ impl VariantModel {
 
         //adds states for all boundaries
         let mut final_found = false;
-        let states: Vec<usize> = boundaries.iter().map(|boundary| {
+        let states: Vec<u32> = boundaries.iter().map(|boundary| {
             let state = fst.add_state();
             if boundary.offset.begin == end_offset || boundary.offset.end == end_offset {
                 final_found = true;
@@ -1713,7 +1714,7 @@ impl VariantModel {
             let mut prevboundary: Option<usize> = None;
             let mut nextboundary: Option<usize> = None;
 
-            let input_symbol = match_index + 1;
+            let input_symbol = (match_index + 1) as u32;
 
             for (i, boundary) in boundaries.iter().enumerate() {
                 if m.offset.begin == boundary.offset.end  {
@@ -1735,7 +1736,7 @@ impl VariantModel {
 
             if m.variants.is_some() && !m.variants.as_ref().unwrap().is_empty() {
                 for (variant_index, variantresult) in m.variants.as_ref().unwrap().iter().enumerate() {
-                    let output_symbol = output_symbols.len();
+                    let output_symbol = output_symbols.len() as u32;
                     output_symbols.push( OutputSymbol {
                         vocab_id: variantresult.vocab_id,
                         symbol: output_symbol,
@@ -1750,7 +1751,7 @@ impl VariantModel {
                         variant_text += format!(" ({})", output_symbol).as_str(); //we encode the output symbol in the text otherwise the symbol table returns the old match
                         eprintln!("   (transition state {}->{}: {} ({}) -> {} and variant score {})", prevstate, nextstate, m.text, input_symbol, variant_text, -1.0 * variantresult.score(params.freq_weight).ln() as f32);
                         let osym = symtab_out.add_symbol(variant_text);
-                        assert!(osym == output_symbol);
+                        assert!(osym == output_symbol.try_into().unwrap());
                     }
 
                     //each transition gets a base cost of n (the number of input tokens it covers)
@@ -1760,7 +1761,7 @@ impl VariantModel {
                     fst.add_tr(prevstate, Tr::new(input_symbol, output_symbol, cost, nextstate)).expect("adding transition");
                 }
             } else if n == 1 { //only for unigrams
-                let output_symbol = output_symbols.len();
+                let output_symbol = output_symbols.len() as u32;
                 output_symbols.push( OutputSymbol {
                     vocab_id: 0, //0 vocab_id means we have an Out-of-Vocabulary word to copy from input
                     symbol: output_symbol,
@@ -1838,7 +1839,7 @@ impl VariantModel {
                 eprintln!("  (#{}, path: {:?})", i+1, path);
             }
             for output_symbol in path.olabels.iter() {
-                let output_symbol = output_symbols.get(*output_symbol).expect("expected valid output symbol");
+                let output_symbol = output_symbols.get(*output_symbol as usize).expect("expected valid output symbol");
                 sequence.output_symbols.push(output_symbol.clone());
             }
             if self.have_lm && params.lm_weight > 0.0 {
