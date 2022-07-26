@@ -1189,3 +1189,40 @@ fn test0904_find_all_match_context_rules2() {
     assert_eq!( matches.get(4).unwrap().seqnr , vec!(0) );
     assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "right" );
 }
+
+#[test]
+fn test0905_find_all_match_context_rules_multitag() {
+    let (alphabet, _alphabet_size) = get_test_alphabet();
+    let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 2);
+    model.add_to_vocabulary("I",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("think",Some(2), &VocabParams::default());
+    model.add_to_vocabulary("sink",Some(2), &VocabParams::default()); //context rule will decide between think/sink
+    model.add_to_vocabulary("you",Some(2), &VocabParams::default());
+    model.add_to_vocabulary("are",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("right",Some(2),&VocabParams::default());
+    model.build();
+
+
+    model.add_contextrule("I; think", 1.1, vec!("testtag", "testtag2"), vec!()); //bonus!
+    //                                      ^-- tag the whole entity with 'testtag'
+
+    let mut params = get_test_searchparams();
+    params.lm_weight = 0.0; //disable normal language model
+    params.max_ngram = 1;
+    let matches = model.find_all_matches("I tink you are rihgt", &params);
+    assert!( !matches.is_empty() );
+    assert_eq!( matches.get(0).unwrap().text , "I" );
+    assert_eq!( matches.get(0).unwrap().tag , vec!(0,1) );
+    assert_eq!( matches.get(0).unwrap().seqnr , vec!(0,0) );
+    assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
+    assert_eq!( matches.get(1).unwrap().text , "tink" );
+    assert_eq!( matches.get(1).unwrap().tag , vec!(0,1) );
+    assert_eq!( matches.get(1).unwrap().seqnr , vec!(1,1) );
+    assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
+    assert_eq!( matches.get(2).unwrap().text , "you" );
+    assert_eq!( model.match_to_str(matches.get(2).unwrap()) , "you" );
+    assert_eq!( matches.get(3).unwrap().text , "are" );
+    assert_eq!( model.match_to_str(matches.get(3).unwrap()) , "are" );
+    assert_eq!( matches.get(4).unwrap().text , "rihgt" );
+    assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "right" );
+}
