@@ -478,6 +478,13 @@ pub fn common_arguments<'a,'b>() -> Vec<clap::Arg<'a,'b>> {
         .long("early-confusables")
         .help("Process the confusables before pruning rather than after, may lead to more accurate results but has a performance impact")
         .required(false));
+    args.push(Arg::with_name("contextrules")
+        .long("contextrules")
+        .short("R")
+        .help("TSV file containing a list of context rules. Context rules define certain patterns that are to be either favoured or penalized and also allows for an elementary form of tagging. See https://github.com/proycon/analiticcl#context-rules")
+        .number_of_values(1)
+        .multiple(true)
+        .takes_value(true));
     args.push(Arg::with_name("output-lexmatch")
         .long("output-lexmatch")
         .help("Output the matching lexicon name for each variant match")
@@ -778,6 +785,13 @@ fn main() {
         eprintln!("Loading confusable lists...");
         for filename in args.values_of("confusables").unwrap().collect::<Vec<&str>>() {
             model.read_confusablelist(filename).expect(&format!("Error reading confusable list {}", filename));
+        }
+    }
+
+    if args.is_present("contextrules") {
+        eprintln!("Loading context rules...");
+        for filename in args.values_of("contextrules").unwrap().collect::<Vec<&str>>() {
+            model.read_contextrules(filename).expect(&format!("Error reading confusable context rules {}", filename));
         }
     }
 
