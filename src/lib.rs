@@ -494,16 +494,22 @@ impl VariantModel {
         }
         let f = File::open(filename)?;
         let f_buffer = BufReader::new(f);
+        let mut linenr = 0;
         for line in f_buffer.lines() {
+            linenr += 1;
             if let Ok(line) = line {
                 if !line.is_empty() && !line.starts_with('#') {
                     let fields: Vec<&str> = line.split("\t").collect();
                     if fields.len() < 2 {
-                        return Err(std::io::Error::new(std::io::ErrorKind::Other, "Expected at least two columns in context rules file"));
+                        return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("Expected at least two columns in context rules file {}, line {}",filename,linenr)));
                     }
 
                     let pattern: &str = fields.get(0).unwrap();
-                    let score = fields.get(1).unwrap().parse::<f32>().expect("context rule score should be a floating point value above or below 1.0");
+                    let score = fields.get(1).unwrap().parse::<f32>();
+                    if let Err(_) = score {
+                        return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("context rule score should be a floating point value above or below 1.0 ({}, line {})", filename,linenr)));
+                    }
+                    let score = score.unwrap();
 
                     let tag: Vec<&str> = match fields.get(2) {
                         Some(s) => s.split(";").map(|w| w.trim()).collect(),
@@ -518,10 +524,12 @@ impl VariantModel {
                     if tag.len() == 1  && tagoffset.len() == 0 {
                         tagoffset.push("0:");
                     } else if tag.len() != tagoffset.len() {
-                        return Err(std::io::Error::new(std::io::ErrorKind::Other, "Multiple tags are specified, expected the same number of tag offsets! (semicolon separated)"));
+                        return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("Multiple tags are specified for a context rule, expected the same number of tag offsets! (semicolon separated) ({}, line {}", filename, linenr)));
                     }
 
-                    self.add_contextrule(pattern, score, tag, tagoffset);
+                    if let Err(error) = self.add_contextrule(pattern, score, tag, tagoffset) {
+                        return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("Error adding context rule: {} ({}, line {}", error, filename, linenr)));
+                    }
 
                 }
             }
@@ -534,13 +542,13 @@ impl VariantModel {
     }
 
 
-    pub fn add_contextrule(&mut self, pattern: &str, score: f32, tag: Vec<&str>, tagoffset: Vec<&str>) {
+    pub fn add_contextrule(&mut self, pattern: &str, score: f32, tag: Vec<&str>, tagoffset: Vec<&str>) -> Result<(), std::io::Error> {
         let expressions: Vec<&str> = pattern.split(";").map(|s| s.trim()).collect();
         let mut pattern: Vec<PatternMatch> = Vec::new();
         for expr in expressions {
             match PatternMatch::parse(expr, &self.lexicons, &self.encoder) {
                 Ok(pm) => pattern.push(pm),
-                Err(err) => eprintln!("Error parsing context rule: {}", err)
+                Err(err) => return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("Error parsing context rule: {}", err)))
             }
         }
 
@@ -560,14 +568,20 @@ impl VariantModel {
             }
         }).collect();
 
-
+        let mut error: Option<&str> = None;
         let mut tagoffset: Vec<(u8,u8)> = tagoffset.iter().map(|s| {
             let fields: Vec<&str> = s.split(":").collect();
             let tagbegin: u8 = if let Some(tagbegin) = fields.get(0) {
                 if tagbegin.is_empty() {
                     0
                 } else {
-                    tagbegin.parse::<u8>().expect("tag offset should be an integer")
+                    match tagbegin.parse::<u8>() {
+                        Ok(x) => x,
+                        Err(_) => {
+                            error = Some("tag offset should be an integer");
+                            0
+                        }
+                    }
                 }
             } else {
                 0
@@ -576,7 +590,13 @@ impl VariantModel {
                 if taglength.is_empty() {
                     pattern.len() as u8 - tagbegin
                 } else {
-                    taglength.parse::<u8>().expect("tag length should be an integer")
+                    match taglength.parse::<u8>() {
+                        Ok(x) => x,
+                        Err(_) => {
+                            error = Some("tag length should be an integer");
+                            0
+                        }
+                    }
                 }
             } else {
                 pattern.len() as u8 - tagbegin
@@ -584,6 +604,10 @@ impl VariantModel {
 
             (tagbegin,taglength)
         }).collect();
+
+        if let Some(error) = error {
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, error));
+        }
 
         while tagoffset.len() < tag.len() {
             tagoffset.push((0,pattern.len() as u8));
@@ -597,6 +621,8 @@ impl VariantModel {
                 tagoffset
             });
         }
+
+        Ok(())
     }
 
     ///Read a weighted variant list from a TSV file. Contains a canonical/reference form in the
