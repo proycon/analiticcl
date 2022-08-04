@@ -496,8 +496,8 @@ impl VariantModel {
         let f_buffer = BufReader::new(f);
         let mut linenr = 0;
         for line in f_buffer.lines() {
-            linenr += 1;
             if let Ok(line) = line {
+                linenr += 1;
                 if !line.is_empty() && !line.starts_with('#') {
                     let fields: Vec<&str> = line.split("\t").collect();
                     if fields.len() < 2 {
@@ -505,9 +505,13 @@ impl VariantModel {
                     }
 
                     let pattern: &str = fields.get(0).unwrap();
+                    if pattern.is_empty() {
+                        continue;
+                    }
+
                     let score = fields.get(1).unwrap().parse::<f32>();
                     if let Err(_) = score {
-                        return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("context rule score should be a floating point value above or below 1.0 ({}, line {})", filename,linenr)));
+                        return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("context rule score should be a floating point value above or below 1.0, got {} ({}, line {})", fields.get(1).unwrap(), filename,linenr)));
                     }
                     let score = score.unwrap();
 
@@ -524,11 +528,11 @@ impl VariantModel {
                     if tag.len() == 1  && tagoffset.len() == 0 {
                         tagoffset.push("0:");
                     } else if tag.len() != tagoffset.len() {
-                        return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("Multiple tags are specified for a context rule, expected the same number of tag offsets! (semicolon separated) ({}, line {}", filename, linenr)));
+                        return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("Multiple tags are specified for a context rule, expected the same number of tag offsets! (semicolon separated) ({}, line {})", filename, linenr)));
                     }
 
                     if let Err(error) = self.add_contextrule(pattern, score, tag, tagoffset) {
-                        return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("Error adding context rule: {} ({}, line {}", error, filename, linenr)));
+                        return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("Error adding context rule: {} ({}, line {})", error, filename, linenr)));
                     }
 
                 }

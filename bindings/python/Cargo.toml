@@ -9,7 +9,7 @@ license = "GPL-3.0+"
 name = "analiticcl-python"
 readme = "README.md"
 repository = "https://github.com/proycon/analiticcl"
-version = "0.4.3" #also change version in dependencies below
+version = "0.4.2" #also change version in dependencies below
 
 [lib]
 name = "analiticcl"
