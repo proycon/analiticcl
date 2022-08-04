@@ -9,7 +9,7 @@ license = "GPL-3.0+"
 name = "analiticcl-python"
 readme = "README.md"
 repository = "https://github.com/proycon/analiticcl"
-version = "0.4.2" #also change version in dependencies below
+version = "0.4.3" #also change version in dependencies below
 
 [lib]
 name = "analiticcl"
@@ -18,7 +18,7 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3 = "0.13.2"
 rayon = "1.5.0"
-analiticcl = "0.4.2"
+analiticcl = "0.4.3"
 
 #compile against version in same repo: (doesn't work when building with maturin for pypi)
 #[dependencies.analiticcl]

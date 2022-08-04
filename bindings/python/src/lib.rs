@@ -471,8 +471,10 @@ impl PyVariantModel {
     }
 
     fn add_contextrule(&mut self, pattern: &str, score: f32, tag: Vec<&str>, tagoffset: Vec<&str>) -> PyResult<()> {
-        self.model.add_contextrule( pattern, score, tag, tagoffset);
-        Ok(())
+        match self.model.add_contextrule( pattern, score, tag, tagoffset) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(PyRuntimeError::new_err(format!("{}", e)))
+        }
     }
 
     /// Higher order function to load a lexicon and make it available to the model.
