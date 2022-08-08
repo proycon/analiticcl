@@ -1093,7 +1093,7 @@ fn test0902_find_all_match_context_rules_bonus() {
     model.build();
 
 
-    model.add_contextrule("I; think", 1.1, vec!("testtag"), vec!()); //bonus!
+    model.add_contextrule("I; think", 1.1, vec!("testtag"), vec!()).expect("Adding context rule"); //bonus!
     //                                      ^-- tag the whole entity with 'testtag'
 
     let mut params = get_test_searchparams();
@@ -1129,7 +1129,7 @@ fn test0903_find_all_match_context_rules_penalty() {
     model.add_to_vocabulary("right",Some(2),&VocabParams::default());
     model.build();
 
-    model.add_contextrule("I; think", 0.9, vec!(), vec!()); //penalty!
+    model.add_contextrule("I; think", 0.9, vec!(), vec!()).expect("Adding context rule"); //penalty!
 
     let mut params = get_test_searchparams();
     params.lm_weight = 0.0; //disable normal language model
@@ -1161,10 +1161,10 @@ fn test0904_find_all_match_context_rules2() {
     model.build();
 
 
-    model.add_contextrule("think", 1.0, vec!("testtag"), vec!()); //bonus!
-    model.add_contextrule("are", 1.0, vec!("testtag"), vec!()); //bonus!
+    model.add_contextrule("think", 1.0, vec!("testtag"), vec!()).expect("Adding context rule"); //bonus!
+    model.add_contextrule("are", 1.0, vec!("testtag"), vec!()).expect("Adding context rule"); //bonus!
     //                                      ^-- tag the whole entity with 'testtag'
-    model.add_contextrule("right", 1.0, vec!("testtag"), vec!()); //bonus!
+    model.add_contextrule("right", 1.0, vec!("testtag"), vec!()).expect("Adding context rule"); //bonus!
 
     let mut params = get_test_searchparams();
     params.lm_weight = 0.0; //disable normal language model
@@ -1203,7 +1203,7 @@ fn test0905_find_all_match_context_rules_multitag() {
     model.build();
 
 
-    model.add_contextrule("I; think", 1.1, vec!("testtag", "testtag2"), vec!()); //bonus!
+    model.add_contextrule("I; think", 1.1, vec!("testtag", "testtag2"), vec!()).expect("Adding context rule"); //bonus!
     //                                      ^-- tag the whole entity with 'testtag'
 
     let mut params = get_test_searchparams();
