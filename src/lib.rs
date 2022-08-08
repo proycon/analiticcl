@@ -516,12 +516,26 @@ impl VariantModel {
                     let score = score.unwrap();
 
                     let tag: Vec<&str> = match fields.get(2) {
-                        Some(s) => s.split(";").map(|w| w.trim()).collect(),
+                        Some(s) => s.split(";").filter_map(|w| {
+                            let w = w.trim();
+                            if w.is_empty() {
+                                None
+                            } else {
+                                Some(w)
+                            }
+                        }).collect(),
                         None => Vec::new()
                     };
 
                     let mut tagoffset: Vec<&str> = match fields.get(3) {
-                        Some(s) => s.split(";").map(|w| w.trim()).collect(),
+                        Some(s) => s.split(";").filter_map(|w| {
+                            let w = w.trim();
+                            if w.is_empty() {
+                                None
+                            } else {
+                                Some(w)
+                            }
+                        }).collect(),
                         None => Vec::new()
                     };
 
@@ -556,7 +570,11 @@ impl VariantModel {
             }
         }
 
+        let mut errmsg: Option<&str> = None;
         let tag: Vec<u16> = tag.iter().map(|tag| {
+            if tag.is_empty() { 
+                errmsg = Some("tag is empty");
+            }
             let mut pos = None;
             for (i, t) in self.tags.iter().enumerate() {
                 if t == tag {
@@ -571,6 +589,10 @@ impl VariantModel {
                 pos.unwrap()
             }
         }).collect();
+        
+        if let Some(errmsg) = errmsg {
+           return Err(std::io::Error::new(std::io::ErrorKind::Other, errmsg));
+        }
 
         let mut error: Option<&str> = None;
         let mut tagoffset: Vec<(u8,u8)> = tagoffset.iter().map(|s| {
