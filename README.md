@@ -394,7 +394,7 @@ can be found in the [sesdiff](https://github.com/proycon/sesdiff) documentation.
 
 ### Language Model
 
-In order to consider context information, analiticcl can construct a simple language model. The input for this language
+In order to consider context information, analiticcl can construct and apply a simple n-gram language model. The input for this language
 model is an n-gram frequency list, provided through the ``--lm`` parameter. It is used in analiticcl's *search mode*.
 
 This should be a corpus-derived list of unigrams and bigrams, optionally also trigrams (and even all up to quintgrams if
@@ -463,7 +463,7 @@ hello ; world	1.1
 
 ### Entity Tagging
 
-Analiticcl can be uses as a simple entity tagger using via its context rules. Make sure you understand the above section before you
+Analiticcl can be used as a simple entity tagger using its context rules. Make sure you understand the above section before you
 continue reading.
 
 You may pass two additional tab-separated columns to the context rules file, the third column specifies a tag to assign
