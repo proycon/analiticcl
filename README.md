@@ -22,6 +22,8 @@ implementation written in [Rust](https://www.rust-lang.org).
 Aside from reading this documentation, you can also view an in-depth [presentation
 video](https://diode.zone/w/kkrqA4MocGwxyC3s68Zsq7) that was presented at the KNAW Humanities Cluster in January 2022.
 
+If you plan to use analiticcl from Python, then we recommend you to also follow [this tutorial][tutorial.ipynb] in the form of a jupyter notebook.
+
 ## Features
 
 * Quick retrieval of spelling variants given an input word due to smart anagram hashing lookup. This is the main feature
@@ -566,4 +568,3 @@ Analiticcl is open-source software licenced under the GNU Public Licence v3.
 ## Acknowledgement
 
 Analiticcl was developed at the [KNAW Humanities Cluster](https://huc.knaw.nl/). Its development was funded in the scope of the [Golden Agents](https://www.goldenagents.org/) project.
-
