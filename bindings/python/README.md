@@ -7,7 +7,7 @@ Analiticcl is an approximate string matching or fuzzy-matching system that can b
 correction or text normalisation (such as post-OCR correction or post-HTR correction). Texts can be checked against a
 validated or corpus-derived lexicon (with or without frequency information) and spelling variants will be returned.
 
-Please see the [main README.md](../../README.md) for a further introduction.
+Please see the [main README.md](../../README.md) for a further introduction, it also links to a Python tutorial.
 
 Analiticcl is written in Rust, this is the Python binding, allowing you to use analiticcl from Python as a module.
 
