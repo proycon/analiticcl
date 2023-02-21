@@ -912,6 +912,11 @@ fn main() {
                             .args(&common_arguments())
                     )
                     .subcommand(
+                        SubCommand::with_name("testinput")
+                            .about("Test whether the input can be encoded with the given alphabet")
+                            .args(&common_arguments())
+                    )
+                    .subcommand(
                         SubCommand::with_name("search")
                             .about("Search entire text input and find and output all possible matches")
                             .args(&common_arguments())
@@ -953,6 +958,8 @@ fn main() {
     } else if let Some(args) = rootargs.subcommand_matches("index") {
         args
     } else if let Some(args) = rootargs.subcommand_matches("search") {
+        args
+    } else if let Some(args) = rootargs.subcommand_matches("testinput") {
         args
     } else {
         eprintln!("No command specified, please see analiticcl --help");
@@ -996,6 +1003,24 @@ fn main() {
             .parse::<u8>()
             .expect("Debug level should be integer in range 0-4"),
     );
+
+    if rootargs.subcommand_matches("testinput").is_some() {
+        eprintln!("Testing whether input can be fully encoded...");
+        let stdin = io::stdin();
+        let f_buffer = BufReader::new(stdin);
+        for line in f_buffer.lines() {
+            if let Ok(input) = line {
+                let av: AnaValue = input.anahash(&model.alphabet);
+                let normstring: NormString = input.normalize_to_alphabet(&model.alphabet);
+                if av.contains(&AnaValue::character(model.alphabet_size() - 1)) {
+                    eprintln!("UNKNOWN: {}\t{}\t{:?}", input, av, normstring);
+                } else {
+                    println!("OK: {}\t{}\t{:?}", input, av, normstring);
+                }
+            }
+        }
+        exit(0);
+    }
 
     eprintln!("Loading lexicons...");
 

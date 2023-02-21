@@ -16,7 +16,7 @@ impl Anahashable for str {
     fn anahash(&self, alphabet: &Alphabet) -> AnaValue {
         let mut hash: AnaValue = AnaValue::empty();
         let mut skip = 0;
-        for (pos, _) in self.char_indices() {
+        for (bytepos, _c) in self.char_indices() {
             if skip > 0 {
                 skip -= 1;
                 continue;
@@ -24,13 +24,14 @@ impl Anahashable for str {
             let mut matched = false;
             'abciter: for (seqnr, chars) in alphabet.iter().enumerate() {
                 for element in chars.iter() {
-                    let l = element.chars().count();
-                    if let Some(slice) = self.get(pos..pos + l) {
+                    let charlen = element.chars().count();
+                    let bytelen = element.len();
+                    if let Some(slice) = self.get(bytepos..bytepos + bytelen) {
                         if slice == element {
                             let charvalue = AnaValue::character(seqnr as CharIndexType);
                             hash = hash.insert(&charvalue);
                             matched = true;
-                            skip = l - 1;
+                            skip = charlen - 1;
                             break 'abciter;
                         }
                     }
@@ -49,21 +50,22 @@ impl Anahashable for str {
     fn normalize_to_alphabet(&self, alphabet: &Alphabet) -> NormString {
         let mut result = Vec::with_capacity(self.chars().count());
         let mut skip = 0;
-        for (pos, _) in self.char_indices() {
+        for (bytepos, _c) in self.char_indices() {
             if skip > 0 {
                 skip -= 1;
                 continue;
             }
             //does greedy matching in order of appearance in the alphabet file
             let mut matched = false;
-            'abciter: for (i, chars) in alphabet.iter().enumerate() {
+            'abciter: for (seqnr, chars) in alphabet.iter().enumerate() {
                 for element in chars.iter() {
-                    let l = element.chars().count();
-                    if let Some(slice) = self.get(pos..pos + l) {
+                    let charlen = element.chars().count();
+                    let bytelen = element.len();
+                    if let Some(slice) = self.get(bytepos..bytepos + bytelen) {
                         if slice == element {
-                            result.push(i as CharIndexType);
+                            result.push(seqnr as CharIndexType);
                             matched = true;
-                            skip = l - 1;
+                            skip = charlen - 1;
                             break 'abciter;
                         }
                     }
