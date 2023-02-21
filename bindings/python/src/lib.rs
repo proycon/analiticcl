@@ -16,7 +16,7 @@ pub struct PyWeights {
 #[pymethods]
 impl PyWeights {
     #[new]
-    #[args(kwargs = "**")]
+    #[pyo3(signature = (**kwargs))]
     fn new(kwargs: Option<&PyDict>) -> Self {
         let mut instance = Self::default();
         if let Some(kwargs) = kwargs {
@@ -142,7 +142,7 @@ pub struct PySearchParameters {
 #[pymethods]
 impl PySearchParameters {
     #[new]
-    #[args(kwargs = "**")]
+    #[pyo3(signature = (**kwargs))]
     fn new(kwargs: Option<&PyDict>) -> Self {
         let mut instance = Self::default();
         if let Some(kwargs) = kwargs {
@@ -448,7 +448,7 @@ pub struct PyVocabParams {
 #[pymethods]
 impl PyVocabParams {
     #[new]
-    #[args(kwargs = "**")]
+    #[pyo3(signature = (**kwargs))]
     fn new(kwargs: Option<&PyDict>) -> Self {
         let mut instance = Self::default();
         if let Some(kwargs) = kwargs {
@@ -578,7 +578,7 @@ impl PyVariantModel {
 #[pymethods]
 impl PyVariantModel {
     #[new]
-    #[args(alphabet_file, weights, debug = 0)]
+    #[pyo3(signature = (alphabet_file, weights, debug = 0))]
     fn new(alphabet_file: &str, weights: PyRef<PyWeights>, debug: u8) -> Self {
         Self {
             model: libanaliticcl::VariantModel::new(alphabet_file, weights.weights.clone(), debug),
@@ -593,6 +593,7 @@ impl PyVariantModel {
     }
 
     /// Add an item to the vocabulary. This is a lower-level interface.
+    #[pyo3(signature = (text,frequency,params))]
     pub fn add_to_vocabulary(
         &mut self,
         text: &str,
