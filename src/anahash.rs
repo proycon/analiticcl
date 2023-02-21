@@ -1,9 +1,9 @@
 use ibig::UBig;
-use num_traits::{Zero, One};
+use num_traits::{One, Zero};
 use std::collections::HashSet;
 
-use crate::types::*;
 use crate::iterators::*;
+use crate::types::*;
 
 ///Trait for objects that can be anahashed (string-like)
 pub trait Anahashable {
@@ -25,12 +25,12 @@ impl Anahashable for str {
             'abciter: for (seqnr, chars) in alphabet.iter().enumerate() {
                 for element in chars.iter() {
                     let l = element.chars().count();
-                    if let Some(slice) = self.get(pos..pos+l) {
+                    if let Some(slice) = self.get(pos..pos + l) {
                         if slice == element {
                             let charvalue = AnaValue::character(seqnr as CharIndexType);
                             hash = hash.insert(&charvalue);
                             matched = true;
-                            skip = l-1;
+                            skip = l - 1;
                             break 'abciter;
                         }
                     }
@@ -44,7 +44,6 @@ impl Anahashable for str {
         }
         hash
     }
-
 
     ///Normalize a string via the alphabet
     fn normalize_to_alphabet(&self, alphabet: &Alphabet) -> NormString {
@@ -60,11 +59,11 @@ impl Anahashable for str {
             'abciter: for (i, chars) in alphabet.iter().enumerate() {
                 for element in chars.iter() {
                     let l = element.chars().count();
-                    if let Some(slice) = self.get(pos..pos+l) {
+                    if let Some(slice) = self.get(pos..pos + l) {
                         if slice == element {
                             result.push(i as CharIndexType);
                             matched = true;
-                            skip = l-1;
+                            skip = l - 1;
                             break 'abciter;
                         }
                     }
@@ -77,9 +76,7 @@ impl Anahashable for str {
         }
         result
     }
-
 }
-
 
 /// This trait can be applied to types
 /// that can function as anahashes.
@@ -93,14 +90,22 @@ pub trait Anahash: One + Zero {
     fn contains(&self, value: &AnaValue) -> bool;
     fn iter(&self, alphabet_size: CharIndexType) -> RecurseDeletionIterator;
     fn iter_parents(&self, alphabet_size: CharIndexType) -> DeletionIterator;
-    fn iter_recursive(&self, alphabet_size: CharIndexType, params: &SearchParams) -> RecurseDeletionIterator;
-    fn iter_recursive_external_cache<'a>(&self, alphabet_size: CharIndexType, params: &SearchParams, cache: &'a mut HashSet<AnaValue>) -> RecurseDeletionIterator<'a>;
+    fn iter_recursive(
+        &self,
+        alphabet_size: CharIndexType,
+        params: &SearchParams,
+    ) -> RecurseDeletionIterator;
+    fn iter_recursive_external_cache<'a>(
+        &self,
+        alphabet_size: CharIndexType,
+        params: &SearchParams,
+        cache: &'a mut HashSet<AnaValue>,
+    ) -> RecurseDeletionIterator<'a>;
 
     /// Computes the number of characters in this anagram
     fn char_count(&self, alphabet_size: CharIndexType) -> u16 {
         self.iter(alphabet_size).count() as u16
     }
-
 
     /// Count how many times an anagram value occurs in this anagram
     fn count_matches(&self, value: &AnaValue) -> usize {
@@ -183,7 +188,17 @@ impl Anahash for AnaValue {
     /// }
     /// ```
     fn iter(&self, alphabet_size: CharIndexType) -> RecurseDeletionIterator {
-        RecurseDeletionIterator::new(self.clone(), alphabet_size, true, None, None, false,false,true, None)
+        RecurseDeletionIterator::new(
+            self.clone(),
+            alphabet_size,
+            true,
+            None,
+            None,
+            false,
+            false,
+            true,
+            None,
+        )
     }
 
     /// Iterator over all the parents that are generated when applying all deletions within edit distance 1
@@ -192,13 +207,42 @@ impl Anahash for AnaValue {
     }
 
     /// Iterator over all the possible deletions within the specified anagram distance
-    fn iter_recursive(&self, alphabet_size: CharIndexType, params: &SearchParams) -> RecurseDeletionIterator {
-        RecurseDeletionIterator::new(self.clone(), alphabet_size, false, params.min_distance, params.max_distance, params.breadthfirst, !params.allow_duplicates, params.allow_empty_leaves, None )
+    fn iter_recursive(
+        &self,
+        alphabet_size: CharIndexType,
+        params: &SearchParams,
+    ) -> RecurseDeletionIterator {
+        RecurseDeletionIterator::new(
+            self.clone(),
+            alphabet_size,
+            false,
+            params.min_distance,
+            params.max_distance,
+            params.breadthfirst,
+            !params.allow_duplicates,
+            params.allow_empty_leaves,
+            None,
+        )
     }
 
     /// Iterator over all the possible deletions within the specified anagram distance
-    fn iter_recursive_external_cache<'a>(&self, alphabet_size: CharIndexType, params: &SearchParams, cache: &'a mut HashSet<AnaValue>) -> RecurseDeletionIterator<'a> {
-        RecurseDeletionIterator::new(self.clone(), alphabet_size, false, params.min_distance, params.max_distance, params.breadthfirst, !params.allow_duplicates, params.allow_empty_leaves, Some(cache) )
+    fn iter_recursive_external_cache<'a>(
+        &self,
+        alphabet_size: CharIndexType,
+        params: &SearchParams,
+        cache: &'a mut HashSet<AnaValue>,
+    ) -> RecurseDeletionIterator<'a> {
+        RecurseDeletionIterator::new(
+            self.clone(),
+            alphabet_size,
+            false,
+            params.min_distance,
+            params.max_distance,
+            params.breadthfirst,
+            !params.allow_duplicates,
+            params.allow_empty_leaves,
+            Some(cache),
+        )
     }
 
     /// The value of an empty anahash
@@ -212,12 +256,7 @@ impl Anahash for AnaValue {
     fn is_empty(&self) -> bool {
         self == &AnaValue::empty() || self == &AnaValue::zero()
     }
-
-
-
 }
-
-
 
 /// Search parameters used to pass to the Anahash::iter_recursive() function
 pub struct SearchParams {
@@ -239,4 +278,3 @@ impl Default for SearchParams {
         }
     }
 }
-

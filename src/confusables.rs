@@ -1,6 +1,6 @@
-use sesdiff::{EditScript,EditInstruction};
+use sesdiff::{EditInstruction, EditScript};
+use std::io::{Error, ErrorKind};
 use std::str::FromStr;
-use std::io::{Error,ErrorKind};
 
 #[derive(Debug)]
 pub struct Confusable {
@@ -11,30 +11,30 @@ pub struct Confusable {
 }
 
 impl Confusable {
-    pub fn new(editscript: &str, weight: f64) -> Result<Confusable,std::io::Error> {
+    pub fn new(editscript: &str, weight: f64) -> Result<Confusable, std::io::Error> {
         let strictbegin = editscript.get(0..1).expect("Checking first character") == "^";
         let l = editscript.len();
         let strictend = editscript.get((l - 1)..).expect("Checking last character") == "$";
         Ok(Confusable {
             editscript: if strictbegin && strictend {
-                match EditScript::from_str(&editscript[1..l-1]) {
+                match EditScript::from_str(&editscript[1..l - 1]) {
                     Ok(editscript) => editscript,
-                    Err(err) => return Err(Error::new(ErrorKind::Other, format!("{:?}",err)))
+                    Err(err) => return Err(Error::new(ErrorKind::Other, format!("{:?}", err))),
                 }
             } else if strictbegin {
                 match EditScript::from_str(&editscript[1..]) {
                     Ok(editscript) => editscript,
-                    Err(err) => return Err(Error::new(ErrorKind::Other, format!("{:?}",err)))
+                    Err(err) => return Err(Error::new(ErrorKind::Other, format!("{:?}", err))),
                 }
             } else if strictend {
-                match EditScript::from_str(&editscript[..l-1]) {
+                match EditScript::from_str(&editscript[..l - 1]) {
                     Ok(editscript) => editscript,
-                    Err(err) => return Err(Error::new(ErrorKind::Other, format!("{:?}",err)))
+                    Err(err) => return Err(Error::new(ErrorKind::Other, format!("{:?}", err))),
                 }
             } else {
                 match EditScript::from_str(editscript) {
                     Ok(editscript) => editscript,
-                    Err(err) => return Err(Error::new(ErrorKind::Other, format!("{:?}",err)))
+                    Err(err) => return Err(Error::new(ErrorKind::Other, format!("{:?}", err))),
                 }
             },
             weight: weight,
@@ -50,11 +50,12 @@ impl Confusable {
         for (i, refinstruction) in refscript.instructions.iter().enumerate() {
             if let Some(instruction) = self.editscript.instructions.get(matches) {
                 let foundinstruction = match (instruction, refinstruction) {
-                    (EditInstruction::Insertion(s), EditInstruction::Insertion(sref)) |  (EditInstruction::Deletion(s), EditInstruction::Deletion(sref)) => {
+                    (EditInstruction::Insertion(s), EditInstruction::Insertion(sref))
+                    | (EditInstruction::Deletion(s), EditInstruction::Deletion(sref)) => {
                         sref.ends_with(s)
-                    },
+                    }
                     (EditInstruction::Identity(s), EditInstruction::Identity(sref)) => {
-                        if matches == 0 && matches == l -1 {
+                        if matches == 0 && matches == l - 1 {
                             s == sref
                         } else if matches == 0 {
                             sref.ends_with(s)
@@ -63,30 +64,46 @@ impl Confusable {
                         } else {
                             s == sref
                         }
-                    },
-                    (EditInstruction::InsertionOptions(v), EditInstruction::Insertion(sref)) | (EditInstruction::DeletionOptions(v), EditInstruction::Deletion(sref)) => {
+                    }
+                    (EditInstruction::InsertionOptions(v), EditInstruction::Insertion(sref))
+                    | (EditInstruction::DeletionOptions(v), EditInstruction::Deletion(sref)) => {
                         let mut foundoption = false;
                         for s in v.iter() {
-                            if sref.ends_with(s) { foundoption = true; break; }
-                        }
-                        foundoption
-                    },
-                    (EditInstruction::IdentityOptions(v), EditInstruction::Identity(sref)) => {
-                        let mut foundoption = false;
-                        for s in v.iter() {
-                            if matches == 0 && matches == l -1 {
-                                if s == sref { foundoption = true; break; }
-                            } else if matches == 0 {
-                                if sref.ends_with(s) { foundoption = true; break; }
-                            } else if matches == l - 1 {
-                                if sref.starts_with(s) { foundoption = true; break; }
-                            } else {
-                                if s == sref { foundoption = true; break; }
+                            if sref.ends_with(s) {
+                                foundoption = true;
+                                break;
                             }
                         }
                         foundoption
-                    },
-                    _ => { false }
+                    }
+                    (EditInstruction::IdentityOptions(v), EditInstruction::Identity(sref)) => {
+                        let mut foundoption = false;
+                        for s in v.iter() {
+                            if matches == 0 && matches == l - 1 {
+                                if s == sref {
+                                    foundoption = true;
+                                    break;
+                                }
+                            } else if matches == 0 {
+                                if sref.ends_with(s) {
+                                    foundoption = true;
+                                    break;
+                                }
+                            } else if matches == l - 1 {
+                                if sref.starts_with(s) {
+                                    foundoption = true;
+                                    break;
+                                }
+                            } else {
+                                if s == sref {
+                                    foundoption = true;
+                                    break;
+                                }
+                            }
+                        }
+                        foundoption
+                    }
+                    _ => false,
                 };
                 if !foundinstruction {
                     matches = 0;
@@ -110,5 +127,3 @@ impl Confusable {
         false
     }
 }
-
-

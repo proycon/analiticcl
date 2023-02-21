@@ -1,15 +1,18 @@
-use std::collections::HashMap;
-use std::cmp::min;
 use crate::types::*;
+use std::cmp::min;
+use std::collections::HashMap;
 
 ///Compute levenshtein distance between two normalised strings
 ///Returns None if the maximum distance is exceeded
-pub fn levenshtein(a: &[CharIndexType], b: &[CharIndexType], max_distance: CharIndexType) -> Option<CharIndexType> {
+pub fn levenshtein(
+    a: &[CharIndexType],
+    b: &[CharIndexType],
+    max_distance: CharIndexType,
+) -> Option<CharIndexType> {
     //Freely adapted from levenshtein-rs (MIT licensed, 2016 Titus Wormer <tituswormer@gmail.com>)
     if a == b {
         return Some(0);
     }
-
 
     let length_a = a.len();
     let length_b = b.len();
@@ -78,7 +81,6 @@ pub fn levenshtein(a: &[CharIndexType], b: &[CharIndexType], max_distance: CharI
     }
 }
 
-
 /// Calculates the Damerau-Levenshtein distance between two strings.
 ///
 /// This implementation was adapted from the one in the distance crate by Marcus Brummer (Apache 2 License)
@@ -96,10 +98,13 @@ pub fn levenshtein(a: &[CharIndexType], b: &[CharIndexType], max_distance: CharI
 ///
 /// Time complexity:   O(mn)
 /// Space complexity:  O(mn + m)
-pub fn damerau_levenshtein(s: &[CharIndexType], t: &[CharIndexType], max_distance: CharIndexType) -> Option<CharIndexType> {
+pub fn damerau_levenshtein(
+    s: &[CharIndexType],
+    t: &[CharIndexType],
+    max_distance: CharIndexType,
+) -> Option<CharIndexType> {
     let len_s = s.len();
     let len_t = t.len();
-
 
     if len_s == 0 {
         if len_t > max_distance as usize {
@@ -130,12 +135,12 @@ pub fn damerau_levenshtein(s: &[CharIndexType], t: &[CharIndexType], max_distanc
     let mut mat: Vec<Vec<usize>> = vec![vec![0; len_t + 2]; len_s + 2];
     mat[0][0] = distance_upper_bound;
     for i in 0..(len_s + 1) {
-        mat[i+1][0] = distance_upper_bound;
-        mat[i+1][1] = i;
+        mat[i + 1][0] = distance_upper_bound;
+        mat[i + 1][1] = i;
     }
     for i in 0..(len_t + 1) {
-        mat[0][i+1] = distance_upper_bound;
-        mat[1][i+1] = i;
+        mat[0][i + 1] = distance_upper_bound;
+        mat[1][i + 1] = i;
     }
 
     let mut char_map: HashMap<CharIndexType, CharIndexType> = HashMap::new();
@@ -149,11 +154,11 @@ pub fn damerau_levenshtein(s: &[CharIndexType], t: &[CharIndexType], max_distanc
             let last: usize = *char_map.get(&t_char).unwrap_or(&0) as usize;
 
             let cost = if s_char == t_char { 0 } else { 1 };
-            mat[i+1][j+1] = min4(
-                mat[i+1][j] + 1,     // deletion
-                mat[i][j+1] + 1,     // insertion
-                mat[i][j] + cost,    // substitution
-                mat[last][db] + (i - last - 1) + 1 + (j - db - 1) // transposition
+            mat[i + 1][j + 1] = min4(
+                mat[i + 1][j] + 1,                                 // deletion
+                mat[i][j + 1] + 1,                                 // insertion
+                mat[i][j] + cost,                                  // substitution
+                mat[last][db] + (i - last - 1) + 1 + (j - db - 1), // transposition
             );
 
             // that's like s_char == t_char but more efficient
@@ -202,7 +207,7 @@ pub fn longest_common_substring_length(s1: &[CharIndexType], s2: &[CharIndexType
 ///Computes if the strings share a common prefix, and if so, how long it is
 pub fn common_prefix_length(s1: &[CharIndexType], s2: &[CharIndexType]) -> u16 {
     let mut prefixlen = 0;
-    for i in 0..min(s1.len(),s2.len()) {
+    for i in 0..min(s1.len(), s2.len()) {
         if s1[i] == s2[i] {
             prefixlen += 1;
         } else {
@@ -215,7 +220,7 @@ pub fn common_prefix_length(s1: &[CharIndexType], s2: &[CharIndexType]) -> u16 {
 ///Computes if the strings share a common suffix, and if so, how long it is
 pub fn common_suffix_length(s1: &[CharIndexType], s2: &[CharIndexType]) -> u16 {
     let mut suffixlen = 0;
-    for i in 0..min(s1.len(),s2.len()) {
+    for i in 0..min(s1.len(), s2.len()) {
         if s1[s1.len() - i - 1] == s2[s2.len() - i - 1] {
             suffixlen += 1;
         } else {
@@ -225,8 +230,7 @@ pub fn common_suffix_length(s1: &[CharIndexType], s2: &[CharIndexType]) -> u16 {
     suffixlen
 }
 
-
 #[inline(always)]
 pub fn min4(a: usize, b: usize, c: usize, d: usize) -> usize {
-   return min(min(min(a, b), c), d);
+    return min(min(min(a, b), c), d);
 }

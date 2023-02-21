@@ -3,8 +3,8 @@
 
 extern crate sesdiff;
 
-use analiticcl::*;
 use analiticcl::test::*;
+use analiticcl::*;
 
 const LEXICON_AMPHIBIANS: &str = "bindings/python/tests/amphibians.tsv";
 const LEXICON_REPTILES: &str = "bindings/python/tests/reptiles.tsv";
@@ -41,11 +41,17 @@ fn test0103_hash_basic() {
     assert_eq!("a".anahash(&alphabet), AnaValue::from(2 as usize));
     assert_eq!("b".anahash(&alphabet), AnaValue::from(3 as usize));
     assert_eq!("c".anahash(&alphabet), AnaValue::from(5 as usize));
-    assert_eq!("ab".anahash(&alphabet), AnaValue::from((2*3) as usize));
-    assert_eq!("ba".anahash(&alphabet), AnaValue::from((3*2) as usize));
+    assert_eq!("ab".anahash(&alphabet), AnaValue::from((2 * 3) as usize));
+    assert_eq!("ba".anahash(&alphabet), AnaValue::from((3 * 2) as usize));
     assert_eq!("ab".anahash(&alphabet), "ba".anahash(&alphabet));
-    assert_eq!("abc".anahash(&alphabet), AnaValue::from((2*3*5) as usize));
-    assert_eq!("abcabcabc".anahash(&alphabet), AnaValue::from((2*3*5*2*3*5*2*3*5) as usize));
+    assert_eq!(
+        "abc".anahash(&alphabet),
+        AnaValue::from((2 * 3 * 5) as usize)
+    );
+    assert_eq!(
+        "abcabcabc".anahash(&alphabet),
+        AnaValue::from((2 * 3 * 5 * 2 * 3 * 5 * 2 * 3 * 5) as usize)
+    );
 }
 
 #[test]
@@ -66,16 +72,22 @@ fn test0104_hash_big() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
 
     //this is a hash that would overflow any normal 64-bit int, but it should hash fine
-    assert!("xyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyz".anahash(&alphabet) > AnaValue::empty());
+    assert!(
+        "xyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyzxyz"
+            .anahash(&alphabet)
+            > AnaValue::empty()
+    );
 }
-
 
 #[test]
 fn test0105_hash_anagram() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    assert_eq!("stressed".anahash(&alphabet),"desserts".anahash(&alphabet) );
-    assert_eq!("dormitory".anahash(&alphabet),"dirtyroom".anahash(&alphabet) );
-    assert_eq!("presents".anahash(&alphabet),"serpents".anahash(&alphabet) );
+    assert_eq!("stressed".anahash(&alphabet), "desserts".anahash(&alphabet));
+    assert_eq!(
+        "dormitory".anahash(&alphabet),
+        "dirtyroom".anahash(&alphabet)
+    );
+    assert_eq!("presents".anahash(&alphabet), "serpents".anahash(&alphabet));
 }
 
 #[test]
@@ -127,7 +139,6 @@ fn test0108_hash_deletion() {
     assert_eq!(abc.delete(&x), None);
 }
 
-
 #[test]
 fn test0108_hash_upper_bound() {
     let (alphabet, alphabet_size) = get_test_alphabet();
@@ -136,12 +147,10 @@ fn test0108_hash_upper_bound() {
     let abc = "abc".anahash(&alphabet);
     let x = "x".anahash(&alphabet);
 
-    assert_eq!(abc.alphabet_upper_bound(alphabet_size), (2,3)); //indices 0,1,2 -> a,b,c   3 -> 3 characters
-    assert_eq!(ab.alphabet_upper_bound(alphabet_size), (1,2));
-    assert_eq!(x.alphabet_upper_bound(alphabet_size), (23,1));
+    assert_eq!(abc.alphabet_upper_bound(alphabet_size), (2, 3)); //indices 0,1,2 -> a,b,c   3 -> 3 characters
+    assert_eq!(ab.alphabet_upper_bound(alphabet_size), (1, 2));
+    assert_eq!(x.alphabet_upper_bound(alphabet_size), (23, 1));
 }
-
-
 
 #[test]
 fn test0201_iterator_parents() {
@@ -150,8 +159,8 @@ fn test0201_iterator_parents() {
     let mut chars: Vec<AnaValue> = Vec::new();
     let mut deletions: Vec<AnaValue> = Vec::new();
     for deletion in anavalue.iter_parents(alphabet_size) {
-       chars.push(AnaValue::character(deletion.charindex));
-       deletions.push(deletion.value.clone());
+        chars.push(AnaValue::character(deletion.charindex));
+        deletions.push(deletion.value.clone());
     }
     assert_eq!(chars.len(), 5, "Checking length of results",);
     assert_eq!(chars.get(0).unwrap(), &"u".anahash(&alphabet));
@@ -176,10 +185,10 @@ fn test0202_iterator_parents_dup() {
     let mut chars: Vec<AnaValue> = Vec::new();
     let mut deletions: Vec<AnaValue> = Vec::new();
     for deletion in anavalue.iter_parents(alphabet_size) {
-       chars.push(AnaValue::character(deletion.charindex));
-       deletions.push(deletion.value.clone());
+        chars.push(AnaValue::character(deletion.charindex));
+        deletions.push(deletion.value.clone());
     }
-    assert_eq!(chars.len(),3, "Checking length of results",);
+    assert_eq!(chars.len(), 3, "Checking length of results",);
     assert_eq!(chars.get(0).unwrap(), &"s".anahash(&alphabet));
     assert_eq!(chars.get(1).unwrap(), &"p".anahash(&alphabet));
     assert_eq!(chars.get(2).unwrap(), &"a".anahash(&alphabet));
@@ -196,9 +205,9 @@ fn test0203_iterator_recursive_singlebeam() {
     let mut depths: Vec<_> = Vec::new();
     let mut deletions: Vec<AnaValue> = Vec::new();
     for (deletion, depth) in anavalue.iter(alphabet_size) {
-       chars.push(AnaValue::character(deletion.charindex));
-       deletions.push(deletion.value.clone());
-       depths.push(depth);
+        chars.push(AnaValue::character(deletion.charindex));
+        deletions.push(deletion.value.clone());
+        depths.push(depth);
     }
     assert_eq!(chars.len(), 5, "Checking length of results",);
     assert_eq!(chars.get(0).unwrap(), &"u".anahash(&alphabet));
@@ -211,7 +220,7 @@ fn test0203_iterator_recursive_singlebeam() {
     assert_eq!(deletions.get(2).unwrap(), &"he".anahash(&alphabet));
     assert_eq!(deletions.get(3).unwrap(), &"e".anahash(&alphabet));
     assert_eq!(deletions.get(4).unwrap(), &AnaValue::empty());
-    assert_eq!(depths, &[1,2,3,4,5]);
+    assert_eq!(depths, &[1, 2, 3, 4, 5]);
 }
 
 #[test]
@@ -222,8 +231,8 @@ fn test0203_iterator_recursive() {
     let mut depths: Vec<_> = Vec::new();
     let mut deletions: Vec<AnaValue> = Vec::new();
     for (deletion, depth) in anavalue.iter_recursive(alphabet_size, &SearchParams::default()) {
-       deletions.push(deletion.value.clone());
-       depths.push(depth);
+        deletions.push(deletion.value.clone());
+        depths.push(depth);
     }
     let mut iter = deletions.iter();
     assert_eq!(iter.next().unwrap(), &"abc".anahash(&alphabet));
@@ -255,11 +264,15 @@ fn test0203_iterator_recursive_no_empty_leaves() {
     let anavalue: AnaValue = "abcd".anahash(&alphabet);
     let mut depths: Vec<_> = Vec::new();
     let mut deletions: Vec<AnaValue> = Vec::new();
-    for (deletion, depth) in anavalue.iter_recursive(alphabet_size, &SearchParams {
-        allow_empty_leaves: false,
-        ..Default::default()}) {
-       deletions.push(deletion.value.clone());
-       depths.push(depth);
+    for (deletion, depth) in anavalue.iter_recursive(
+        alphabet_size,
+        &SearchParams {
+            allow_empty_leaves: false,
+            ..Default::default()
+        },
+    ) {
+        deletions.push(deletion.value.clone());
+        depths.push(depth);
     }
     let mut iter = deletions.iter();
     assert_eq!(iter.next().unwrap(), &"abc".anahash(&alphabet));
@@ -285,12 +298,16 @@ fn test0203_iterator_recursive_no_duplicates() {
     let anavalue: AnaValue = "abcd".anahash(&alphabet);
     let mut depths: Vec<_> = Vec::new();
     let mut deletions: Vec<AnaValue> = Vec::new();
-    for (deletion, depth) in anavalue.iter_recursive(alphabet_size, &SearchParams {
-        allow_empty_leaves: false,
-        allow_duplicates: false,
-        ..Default::default()}) {
-       deletions.push(deletion.value.clone());
-       depths.push(depth);
+    for (deletion, depth) in anavalue.iter_recursive(
+        alphabet_size,
+        &SearchParams {
+            allow_empty_leaves: false,
+            allow_duplicates: false,
+            ..Default::default()
+        },
+    ) {
+        deletions.push(deletion.value.clone());
+        depths.push(depth);
     }
     let mut iter = deletions.iter();
     assert_eq!(iter.next().unwrap(), &"abc".anahash(&alphabet));
@@ -311,11 +328,15 @@ fn test0203_iterator_recursive_bfs() {
     let anavalue: AnaValue = "abcd".anahash(&alphabet);
     let mut depths: Vec<_> = Vec::new();
     let mut deletions: Vec<AnaValue> = Vec::new();
-    for (deletion, depth) in anavalue.iter_recursive(alphabet_size, &SearchParams {
-        breadthfirst: true,
-        ..Default::default()}) {
-       deletions.push(deletion.value.clone());
-       depths.push(depth);
+    for (deletion, depth) in anavalue.iter_recursive(
+        alphabet_size,
+        &SearchParams {
+            breadthfirst: true,
+            ..Default::default()
+        },
+    ) {
+        deletions.push(deletion.value.clone());
+        depths.push(depth);
     }
     let mut iter = deletions.iter();
     let mut dpit = depths.iter();
@@ -377,13 +398,17 @@ fn test0203_iterator_recursive_bfs_no_duplicates() {
     let anavalue: AnaValue = "abcd".anahash(&alphabet);
     let mut depths: Vec<_> = Vec::new();
     let mut deletions: Vec<AnaValue> = Vec::new();
-    for (deletion, depth) in anavalue.iter_recursive(alphabet_size, &SearchParams {
-        breadthfirst: true,
-        allow_duplicates: false,
-        allow_empty_leaves: false,
-        ..Default::default()}) {
-       deletions.push(deletion.value.clone());
-       depths.push(depth);
+    for (deletion, depth) in anavalue.iter_recursive(
+        alphabet_size,
+        &SearchParams {
+            breadthfirst: true,
+            allow_duplicates: false,
+            allow_empty_leaves: false,
+            ..Default::default()
+        },
+    ) {
+        deletions.push(deletion.value.clone());
+        depths.push(depth);
     }
     let mut iter = deletions.iter();
     let mut dpit = depths.iter();
@@ -430,14 +455,18 @@ fn test0203_iterator_recursive_bfs_max_dist() {
     let anavalue: AnaValue = "abcd".anahash(&alphabet);
     let mut depths: Vec<_> = Vec::new();
     let mut deletions: Vec<AnaValue> = Vec::new();
-    for (deletion, depth) in anavalue.iter_recursive(alphabet_size, &SearchParams {
-        breadthfirst: true,
-        allow_duplicates: false,
-        allow_empty_leaves: false,
-        max_distance: Some(3),
-        ..Default::default()}) {
-       deletions.push(deletion.value.clone());
-       depths.push(depth);
+    for (deletion, depth) in anavalue.iter_recursive(
+        alphabet_size,
+        &SearchParams {
+            breadthfirst: true,
+            allow_duplicates: false,
+            allow_empty_leaves: false,
+            max_distance: Some(3),
+            ..Default::default()
+        },
+    ) {
+        deletions.push(deletion.value.clone());
+        depths.push(depth);
     }
     let mut iter = deletions.iter();
     let mut dpit = depths.iter();
@@ -484,14 +513,18 @@ fn test0203_iterator_recursive_bfs_max_dist2() {
     let anavalue: AnaValue = "abcd".anahash(&alphabet);
     let mut depths: Vec<_> = Vec::new();
     let mut deletions: Vec<AnaValue> = Vec::new();
-    for (deletion, depth) in anavalue.iter_recursive(alphabet_size, &SearchParams {
-        breadthfirst: true,
-        allow_duplicates: false,
-        allow_empty_leaves: false,
-        max_distance: Some(2),
-        ..Default::default()}) {
-       deletions.push(deletion.value.clone());
-       depths.push(depth);
+    for (deletion, depth) in anavalue.iter_recursive(
+        alphabet_size,
+        &SearchParams {
+            breadthfirst: true,
+            allow_duplicates: false,
+            allow_empty_leaves: false,
+            max_distance: Some(2),
+            ..Default::default()
+        },
+    ) {
+        deletions.push(deletion.value.clone());
+        depths.push(depth);
     }
     let mut iter = deletions.iter();
     let mut dpit = depths.iter();
@@ -532,70 +565,246 @@ fn test0301_normalize_to_alphabet() {
 #[test]
 fn test0302_levenshtein() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    assert_eq!(levenshtein(&"a".normalize_to_alphabet(&alphabet), &"a".normalize_to_alphabet(&alphabet),99), Some(0));
-    assert_eq!(levenshtein(&"a".normalize_to_alphabet(&alphabet), &"b".normalize_to_alphabet(&alphabet),99), Some(1));
+    assert_eq!(
+        levenshtein(
+            &"a".normalize_to_alphabet(&alphabet),
+            &"a".normalize_to_alphabet(&alphabet),
+            99
+        ),
+        Some(0)
+    );
+    assert_eq!(
+        levenshtein(
+            &"a".normalize_to_alphabet(&alphabet),
+            &"b".normalize_to_alphabet(&alphabet),
+            99
+        ),
+        Some(1)
+    );
     //substitution
-    assert_eq!(levenshtein(&"ab".normalize_to_alphabet(&alphabet), &"ac".normalize_to_alphabet(&alphabet),99), Some(1));
+    assert_eq!(
+        levenshtein(
+            &"ab".normalize_to_alphabet(&alphabet),
+            &"ac".normalize_to_alphabet(&alphabet),
+            99
+        ),
+        Some(1)
+    );
     //insertion
-    assert_eq!(levenshtein(&"a".normalize_to_alphabet(&alphabet), &"ab".normalize_to_alphabet(&alphabet),99), Some(1));
+    assert_eq!(
+        levenshtein(
+            &"a".normalize_to_alphabet(&alphabet),
+            &"ab".normalize_to_alphabet(&alphabet),
+            99
+        ),
+        Some(1)
+    );
     //deletion
-    assert_eq!(levenshtein(&"ab".normalize_to_alphabet(&alphabet), &"a".normalize_to_alphabet(&alphabet),99), Some(1));
+    assert_eq!(
+        levenshtein(
+            &"ab".normalize_to_alphabet(&alphabet),
+            &"a".normalize_to_alphabet(&alphabet),
+            99
+        ),
+        Some(1)
+    );
     //transposition
-    assert_eq!(levenshtein(&"ab".normalize_to_alphabet(&alphabet), &"ba".normalize_to_alphabet(&alphabet),99), Some(2));
+    assert_eq!(
+        levenshtein(
+            &"ab".normalize_to_alphabet(&alphabet),
+            &"ba".normalize_to_alphabet(&alphabet),
+            99
+        ),
+        Some(2)
+    );
 
-    assert_eq!(levenshtein(&"abc".normalize_to_alphabet(&alphabet), &"xyz".normalize_to_alphabet(&alphabet),99), Some(3));
+    assert_eq!(
+        levenshtein(
+            &"abc".normalize_to_alphabet(&alphabet),
+            &"xyz".normalize_to_alphabet(&alphabet),
+            99
+        ),
+        Some(3)
+    );
 }
 
 #[test]
 fn test0303_damereau_levenshtein() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    assert_eq!(damerau_levenshtein(&"a".normalize_to_alphabet(&alphabet), &"a".normalize_to_alphabet(&alphabet),99), Some(0));
-    assert_eq!(damerau_levenshtein(&"a".normalize_to_alphabet(&alphabet), &"b".normalize_to_alphabet(&alphabet),99), Some(1));
+    assert_eq!(
+        damerau_levenshtein(
+            &"a".normalize_to_alphabet(&alphabet),
+            &"a".normalize_to_alphabet(&alphabet),
+            99
+        ),
+        Some(0)
+    );
+    assert_eq!(
+        damerau_levenshtein(
+            &"a".normalize_to_alphabet(&alphabet),
+            &"b".normalize_to_alphabet(&alphabet),
+            99
+        ),
+        Some(1)
+    );
     //substitution
-    assert_eq!(damerau_levenshtein(&"ab".normalize_to_alphabet(&alphabet), &"ac".normalize_to_alphabet(&alphabet),99), Some(1));
+    assert_eq!(
+        damerau_levenshtein(
+            &"ab".normalize_to_alphabet(&alphabet),
+            &"ac".normalize_to_alphabet(&alphabet),
+            99
+        ),
+        Some(1)
+    );
     //insertion
-    assert_eq!(damerau_levenshtein(&"a".normalize_to_alphabet(&alphabet), &"ab".normalize_to_alphabet(&alphabet),99), Some(1));
+    assert_eq!(
+        damerau_levenshtein(
+            &"a".normalize_to_alphabet(&alphabet),
+            &"ab".normalize_to_alphabet(&alphabet),
+            99
+        ),
+        Some(1)
+    );
     //deletion
-    assert_eq!(damerau_levenshtein(&"ab".normalize_to_alphabet(&alphabet), &"a".normalize_to_alphabet(&alphabet),99), Some(1));
+    assert_eq!(
+        damerau_levenshtein(
+            &"ab".normalize_to_alphabet(&alphabet),
+            &"a".normalize_to_alphabet(&alphabet),
+            99
+        ),
+        Some(1)
+    );
     //transposition (this is where the difference with normal levenshtein is)
-    assert_eq!(damerau_levenshtein(&"ab".normalize_to_alphabet(&alphabet), &"ba".normalize_to_alphabet(&alphabet),99), Some(1));
+    assert_eq!(
+        damerau_levenshtein(
+            &"ab".normalize_to_alphabet(&alphabet),
+            &"ba".normalize_to_alphabet(&alphabet),
+            99
+        ),
+        Some(1)
+    );
 
-    assert_eq!(damerau_levenshtein(&"abc".normalize_to_alphabet(&alphabet), &"xyz".normalize_to_alphabet(&alphabet),99), Some(3));
+    assert_eq!(
+        damerau_levenshtein(
+            &"abc".normalize_to_alphabet(&alphabet),
+            &"xyz".normalize_to_alphabet(&alphabet),
+            99
+        ),
+        Some(3)
+    );
 }
 
 #[test]
 fn test0303_damereau_levenshtein2() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    assert_eq!(damerau_levenshtein(&"hipotesis".normalize_to_alphabet(&alphabet), &"hypothesis".normalize_to_alphabet(&alphabet),99), Some(2));
+    assert_eq!(
+        damerau_levenshtein(
+            &"hipotesis".normalize_to_alphabet(&alphabet),
+            &"hypothesis".normalize_to_alphabet(&alphabet),
+            99
+        ),
+        Some(2)
+    );
 }
 
 #[test]
 fn test0304_lcslen() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    assert_eq!(longest_common_substring_length(&"test".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 4);
-    assert_eq!(longest_common_substring_length(&"fasttest".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 4);
-    assert_eq!(longest_common_substring_length(&"abcdefhij".normalize_to_alphabet(&alphabet), &"def".normalize_to_alphabet(&alphabet)), 3);
-    assert_eq!(longest_common_substring_length(&"def".normalize_to_alphabet(&alphabet), &"abcdefhij".normalize_to_alphabet(&alphabet)), 3);
+    assert_eq!(
+        longest_common_substring_length(
+            &"test".normalize_to_alphabet(&alphabet),
+            &"testable".normalize_to_alphabet(&alphabet)
+        ),
+        4
+    );
+    assert_eq!(
+        longest_common_substring_length(
+            &"fasttest".normalize_to_alphabet(&alphabet),
+            &"testable".normalize_to_alphabet(&alphabet)
+        ),
+        4
+    );
+    assert_eq!(
+        longest_common_substring_length(
+            &"abcdefhij".normalize_to_alphabet(&alphabet),
+            &"def".normalize_to_alphabet(&alphabet)
+        ),
+        3
+    );
+    assert_eq!(
+        longest_common_substring_length(
+            &"def".normalize_to_alphabet(&alphabet),
+            &"abcdefhij".normalize_to_alphabet(&alphabet)
+        ),
+        3
+    );
 }
 
 #[test]
 fn test0304_prefixlen() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    assert_eq!(common_prefix_length(&"test".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 4);
-    assert_eq!(common_prefix_length(&"testable".normalize_to_alphabet(&alphabet), &"test".normalize_to_alphabet(&alphabet)), 4);
-    assert_eq!(common_prefix_length(&"fasttest".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 0);
-    assert_eq!(common_prefix_length(&"fasttest".normalize_to_alphabet(&alphabet), &"test".normalize_to_alphabet(&alphabet)), 0);
+    assert_eq!(
+        common_prefix_length(
+            &"test".normalize_to_alphabet(&alphabet),
+            &"testable".normalize_to_alphabet(&alphabet)
+        ),
+        4
+    );
+    assert_eq!(
+        common_prefix_length(
+            &"testable".normalize_to_alphabet(&alphabet),
+            &"test".normalize_to_alphabet(&alphabet)
+        ),
+        4
+    );
+    assert_eq!(
+        common_prefix_length(
+            &"fasttest".normalize_to_alphabet(&alphabet),
+            &"testable".normalize_to_alphabet(&alphabet)
+        ),
+        0
+    );
+    assert_eq!(
+        common_prefix_length(
+            &"fasttest".normalize_to_alphabet(&alphabet),
+            &"test".normalize_to_alphabet(&alphabet)
+        ),
+        0
+    );
 }
 
 #[test]
 fn test0304_suffixlen() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
-    assert_eq!(common_suffix_length(&"test".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 0);
-    assert_eq!(common_suffix_length(&"testable".normalize_to_alphabet(&alphabet), &"test".normalize_to_alphabet(&alphabet)), 0);
-    assert_eq!(common_suffix_length(&"fasttest".normalize_to_alphabet(&alphabet), &"testable".normalize_to_alphabet(&alphabet)), 0);
-    assert_eq!(common_suffix_length(&"fasttest".normalize_to_alphabet(&alphabet), &"test".normalize_to_alphabet(&alphabet)), 4);
+    assert_eq!(
+        common_suffix_length(
+            &"test".normalize_to_alphabet(&alphabet),
+            &"testable".normalize_to_alphabet(&alphabet)
+        ),
+        0
+    );
+    assert_eq!(
+        common_suffix_length(
+            &"testable".normalize_to_alphabet(&alphabet),
+            &"test".normalize_to_alphabet(&alphabet)
+        ),
+        0
+    );
+    assert_eq!(
+        common_suffix_length(
+            &"fasttest".normalize_to_alphabet(&alphabet),
+            &"testable".normalize_to_alphabet(&alphabet)
+        ),
+        0
+    );
+    assert_eq!(
+        common_suffix_length(
+            &"fasttest".normalize_to_alphabet(&alphabet),
+            &"test".normalize_to_alphabet(&alphabet)
+        ),
+        4
+    );
 }
-
 
 #[test]
 fn test0400_model_load() {
@@ -607,9 +816,11 @@ fn test0400_model_load() {
 fn test0401_model_build() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
-    let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
+    let lexicon: &[&str] = &[
+        "rites", "tiers", "tires", "tries", "tyres", "rides", "brides", "dire",
+    ];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,&VocabParams::default());
+        model.add_to_vocabulary(text, None, &VocabParams::default());
     }
     model.build();
     assert!(model.has(&"rites"));
@@ -625,14 +836,21 @@ fn test0401_model_build() {
 fn test0402_model_anagrams() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
-    let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
+    let lexicon: &[&str] = &[
+        "rites", "tiers", "tires", "tries", "tyres", "rides", "brides", "dire",
+    ];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,&VocabParams::default());
+        model.add_to_vocabulary(text, None, &VocabParams::default());
     }
     model.build();
     assert!(model.has(&"rites"));
-    assert_eq!(model.get_anagram_instances(&"rites").iter().map(|item| item.text.clone()).collect::<Vec<String>>(),
-             &["rites","tiers","tires","tries"]
+    assert_eq!(
+        model
+            .get_anagram_instances(&"rites")
+            .iter()
+            .map(|item| item.text.clone())
+            .collect::<Vec<String>>(),
+        &["rites", "tiers", "tires", "tries"]
     );
 }
 
@@ -640,9 +858,11 @@ fn test0402_model_anagrams() {
 fn test0403_model_anagrams() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
-    let lexicon: &[&str] = &["rites","tiers", "tires","tries","tyres","rides","brides","dire"];
+    let lexicon: &[&str] = &[
+        "rites", "tiers", "tires", "tries", "tyres", "rides", "brides", "dire",
+    ];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,&VocabParams::default());
+        model.add_to_vocabulary(text, None, &VocabParams::default());
     }
     model.build();
     model.find_variants("rite", &get_test_searchparams());
@@ -652,79 +872,151 @@ fn test0403_model_anagrams() {
 fn test0404_score_test() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 4);
-    let lexicon: &[&str] = &["huis","huls"];
+    let lexicon: &[&str] = &["huis", "huls"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,&VocabParams::default());
+        model.add_to_vocabulary(text, None, &VocabParams::default());
     }
     model.build();
     let results = model.find_variants("huys", &get_test_searchparams());
-    assert_eq!( results.len(), 2);
+    assert_eq!(results.len(), 2);
     //results are tied so order is arbitrary BUT deterministic
-    assert_eq!( model.decoder.get(results.get(0).unwrap().vocab_id as usize).unwrap().text, "huis");
-    assert_eq!( model.decoder.get(results.get(1).unwrap().vocab_id as usize).unwrap().text, "huls");
-    assert_ne!( results.get(0).unwrap().vocab_id, results.get(1).unwrap().vocab_id );
-    assert_eq!( results.get(0).unwrap().dist_score, results.get(1).unwrap().dist_score );
-    assert_eq!( results.get(0).unwrap().freq_score, results.get(1).unwrap().freq_score );
+    assert_eq!(
+        model
+            .decoder
+            .get(results.get(0).unwrap().vocab_id as usize)
+            .unwrap()
+            .text,
+        "huis"
+    );
+    assert_eq!(
+        model
+            .decoder
+            .get(results.get(1).unwrap().vocab_id as usize)
+            .unwrap()
+            .text,
+        "huls"
+    );
+    assert_ne!(
+        results.get(0).unwrap().vocab_id,
+        results.get(1).unwrap().vocab_id
+    );
+    assert_eq!(
+        results.get(0).unwrap().dist_score,
+        results.get(1).unwrap().dist_score
+    );
+    assert_eq!(
+        results.get(0).unwrap().freq_score,
+        results.get(1).unwrap().freq_score
+    );
 }
-
 
 #[test]
 fn test0501_confusable_found_in() {
-    let confusable =  Confusable::new("-[y]+[i]",1.1).expect("valid script");
+    let confusable = Confusable::new("-[y]+[i]", 1.1).expect("valid script");
     eprintln!("confusable: {:?}", confusable);
-    let huis_script = sesdiff::shortest_edit_script("huys","huis", false, false, false);
+    let huis_script = sesdiff::shortest_edit_script("huys", "huis", false, false, false);
     eprintln!("huis_script: {:?}", huis_script);
-    let huls_script = sesdiff::shortest_edit_script("huys","huls", false, false, false);
+    let huls_script = sesdiff::shortest_edit_script("huys", "huls", false, false, false);
     eprintln!("huls_script: {:?}", huls_script);
-    assert!(confusable.found_in(&huis_script), "confusable should be found in huys->huis");
-    assert!(!confusable.found_in(&huls_script),"confusable should not be found in huys->huls");
+    assert!(
+        confusable.found_in(&huis_script),
+        "confusable should be found in huys->huis"
+    );
+    assert!(
+        !confusable.found_in(&huls_script),
+        "confusable should not be found in huys->huls"
+    );
 }
 
 #[test]
 fn test0502_confusable_test() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
-    let lexicon: &[&str] = &["huis","huls"];
+    let lexicon: &[&str] = &["huis", "huls"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,&VocabParams::default());
+        model.add_to_vocabulary(text, None, &VocabParams::default());
     }
-    model.add_to_confusables("-[y]+[i]",1.1).expect("added to confusables");
+    model
+        .add_to_confusables("-[y]+[i]", 1.1)
+        .expect("added to confusables");
     model.build();
     let results = model.find_variants("huys", &get_test_searchparams());
-    assert_eq!( model.decoder.get(results.get(0).unwrap().vocab_id as usize).unwrap().text, "huis");
-    assert_eq!( model.decoder.get(results.get(1).unwrap().vocab_id as usize).unwrap().text, "huls");
-    assert!( results.get(0).unwrap().dist_score > results.get(1).unwrap().dist_score, "score of huis should be greater than that of huls" );
+    assert_eq!(
+        model
+            .decoder
+            .get(results.get(0).unwrap().vocab_id as usize)
+            .unwrap()
+            .text,
+        "huis"
+    );
+    assert_eq!(
+        model
+            .decoder
+            .get(results.get(1).unwrap().vocab_id as usize)
+            .unwrap()
+            .text,
+        "huls"
+    );
+    assert!(
+        results.get(0).unwrap().dist_score > results.get(1).unwrap().dist_score,
+        "score of huis should be greater than that of huls"
+    );
 }
 
 #[test]
 fn test0503_confusable_test2() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
-    let lexicon: &[&str] = &["huis","huls"];
+    let lexicon: &[&str] = &["huis", "huls"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,&VocabParams::default());
+        model.add_to_vocabulary(text, None, &VocabParams::default());
     }
-    model.add_to_confusables("-[y]+[i]",1.1).expect("added to confusables");
+    model
+        .add_to_confusables("-[y]+[i]", 1.1)
+        .expect("added to confusables");
     model.build();
     let results = model.find_variants("Huys", &get_test_searchparams());
-    assert_eq!( model.decoder.get(results.get(0).unwrap().vocab_id as usize).unwrap().text, "huis");
-    assert_eq!( model.decoder.get(results.get(1).unwrap().vocab_id as usize).unwrap().text, "huls");
-    assert!( results.get(0).unwrap().dist_score > results.get(1).unwrap().dist_score, "score of huis should be greater than that of huls" );
+    assert_eq!(
+        model
+            .decoder
+            .get(results.get(0).unwrap().vocab_id as usize)
+            .unwrap()
+            .text,
+        "huis"
+    );
+    assert_eq!(
+        model
+            .decoder
+            .get(results.get(1).unwrap().vocab_id as usize)
+            .unwrap()
+            .text,
+        "huls"
+    );
+    assert!(
+        results.get(0).unwrap().dist_score > results.get(1).unwrap().dist_score,
+        "score of huis should be greater than that of huls"
+    );
 }
 
 #[test]
 fn test0504_confusable_nomatch() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
-    let lexicon: &[&str] = &["huis","huls"];
+    let lexicon: &[&str] = &["huis", "huls"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,&VocabParams::default());
+        model.add_to_vocabulary(text, None, &VocabParams::default());
     }
-    model.add_to_confusables("-[y]+[p]",1.1).expect("added to confusables");
+    model
+        .add_to_confusables("-[y]+[p]", 1.1)
+        .expect("added to confusables");
     model.build();
     let results = model.find_variants("Huys", &get_test_searchparams());
-    assert_eq!( results.len() , 2 );
-    assert_eq!( results.get(0).unwrap().dist_score,results.get(1).unwrap().dist_score, "score of huis should be equal to that of huls" );
+    assert_eq!(results.len(), 2);
+    assert_eq!(
+        results.get(0).unwrap().dist_score,
+        results.get(1).unwrap().dist_score,
+        "score of huis should be equal to that of huls"
+    );
 }
 
 #[test]
@@ -732,18 +1024,18 @@ fn test0601_find_boundaries() {
     let text = "Hallo allemaal, ik zeg: \"Welkom in Aix-les-bains!\".";
     let boundaries = find_boundaries(&text);
     eprintln!("{:?}", boundaries);
-    assert_eq!( boundaries.len() , 9 );
-    assert_eq!( boundaries.get(0).unwrap().offset.begin , 5 );
-    assert_eq!( boundaries.get(0).unwrap().offset.end , 6 );
-    assert_eq!( boundaries.get(0).unwrap().text , " " );
-    assert_eq!( boundaries.get(1).unwrap().text , ", " );
-    assert_eq!( boundaries.get(2).unwrap().text , " " );
-    assert_eq!( boundaries.get(3).unwrap().text , ": \"" );
-    assert_eq!( boundaries.get(4).unwrap().text , " " );
-    assert_eq!( boundaries.get(5).unwrap().text , " " );
-    assert_eq!( boundaries.get(6).unwrap().text , "-" );
-    assert_eq!( boundaries.get(7).unwrap().text , "-" );
-    assert_eq!( boundaries.get(8).unwrap().text , "!\"." );
+    assert_eq!(boundaries.len(), 9);
+    assert_eq!(boundaries.get(0).unwrap().offset.begin, 5);
+    assert_eq!(boundaries.get(0).unwrap().offset.end, 6);
+    assert_eq!(boundaries.get(0).unwrap().text, " ");
+    assert_eq!(boundaries.get(1).unwrap().text, ", ");
+    assert_eq!(boundaries.get(2).unwrap().text, " ");
+    assert_eq!(boundaries.get(3).unwrap().text, ": \"");
+    assert_eq!(boundaries.get(4).unwrap().text, " ");
+    assert_eq!(boundaries.get(5).unwrap().text, " ");
+    assert_eq!(boundaries.get(6).unwrap().text, "-");
+    assert_eq!(boundaries.get(7).unwrap().text, "-");
+    assert_eq!(boundaries.get(8).unwrap().text, "!\".");
 }
 
 #[test]
@@ -751,12 +1043,12 @@ fn test0602_find_ngrams_unigram1() {
     let text = "dit is een mooie test";
     let boundaries = find_boundaries(&text);
     let ngrams = find_match_ngrams(text, &boundaries, 1, 0, None);
-    assert_eq!( ngrams.len() , 5 );
-    assert_eq!( ngrams.get(0).unwrap().text , "dit" );
-    assert_eq!( ngrams.get(1).unwrap().text , "is" );
-    assert_eq!( ngrams.get(2).unwrap().text , "een" );
-    assert_eq!( ngrams.get(3).unwrap().text , "mooie" );
-    assert_eq!( ngrams.get(4).unwrap().text , "test" );
+    assert_eq!(ngrams.len(), 5);
+    assert_eq!(ngrams.get(0).unwrap().text, "dit");
+    assert_eq!(ngrams.get(1).unwrap().text, "is");
+    assert_eq!(ngrams.get(2).unwrap().text, "een");
+    assert_eq!(ngrams.get(3).unwrap().text, "mooie");
+    assert_eq!(ngrams.get(4).unwrap().text, "test");
 }
 
 #[test]
@@ -764,22 +1056,22 @@ fn test0603_find_ngrams_unigram2() {
     let text = "dit is een mooie test.";
     let boundaries = find_boundaries(&text);
     let ngrams = find_match_ngrams(text, &boundaries, 1, 0, None);
-    assert_eq!( ngrams.len() , 5 );
-    assert_eq!( ngrams.get(0).unwrap().text , "dit" );
-    assert_eq!( ngrams.get(1).unwrap().text , "is" );
-    assert_eq!( ngrams.get(2).unwrap().text , "een" );
-    assert_eq!( ngrams.get(3).unwrap().text , "mooie" );
-    assert_eq!( ngrams.get(4).unwrap().text , "test" );
+    assert_eq!(ngrams.len(), 5);
+    assert_eq!(ngrams.get(0).unwrap().text, "dit");
+    assert_eq!(ngrams.get(1).unwrap().text, "is");
+    assert_eq!(ngrams.get(2).unwrap().text, "een");
+    assert_eq!(ngrams.get(3).unwrap().text, "mooie");
+    assert_eq!(ngrams.get(4).unwrap().text, "test");
 }
 
 #[test]
 fn test0604_find_ngrams_unigram3() {
-    let text =  "hello, world!";
+    let text = "hello, world!";
     let boundaries = find_boundaries(&text);
     let ngrams = find_match_ngrams(text, &boundaries, 1, 0, None);
-    assert_eq!( ngrams.len() , 2 );
-    assert_eq!( ngrams.get(0).unwrap().text , "hello" );
-    assert_eq!( ngrams.get(1).unwrap().text , "world" );
+    assert_eq!(ngrams.len(), 2);
+    assert_eq!(ngrams.get(0).unwrap().text, "hello");
+    assert_eq!(ngrams.get(1).unwrap().text, "world");
 }
 
 #[test]
@@ -787,442 +1079,650 @@ fn test0605_find_ngrams_bigrams() {
     let text = "dit is een mooie test.";
     let boundaries = find_boundaries(&text);
     eprintln!("{:?}", boundaries);
-    assert_eq!( boundaries.len() , 5 );
+    assert_eq!(boundaries.len(), 5);
     let ngrams = find_match_ngrams(text, &boundaries, 2, 0, None);
     eprintln!("{:?}", ngrams);
-    assert_eq!( ngrams.len() , 4 );
-    assert_eq!( ngrams.get(0).unwrap().text , "dit is" );
-    assert_eq!( ngrams.get(1).unwrap().text , "is een" );
-    assert_eq!( ngrams.get(2).unwrap().text , "een mooie" );
-    assert_eq!( ngrams.get(3).unwrap().text , "mooie test" );
+    assert_eq!(ngrams.len(), 4);
+    assert_eq!(ngrams.get(0).unwrap().text, "dit is");
+    assert_eq!(ngrams.get(1).unwrap().text, "is een");
+    assert_eq!(ngrams.get(2).unwrap().text, "een mooie");
+    assert_eq!(ngrams.get(3).unwrap().text, "mooie test");
     //note: final punctuation is a hard boundary and not returned
 }
 
 #[test]
 fn test0606_find_ngrams_bigrams2() {
-    let text =  "hello,world!";
+    let text = "hello,world!";
     let boundaries = find_boundaries(&text);
     let ngrams = find_match_ngrams(text, &boundaries, 2, 0, None);
-    assert_eq!( ngrams.len() , 1 );
-    assert_eq!( ngrams.get(0).unwrap().text , "hello,world" ); //this counts as a bigram ("," is a boundary)
+    assert_eq!(ngrams.len(), 1);
+    assert_eq!(ngrams.get(0).unwrap().text, "hello,world"); //this counts as a bigram ("," is a boundary)
 }
 
 #[test]
 fn test0607_find_ngrams_bigrams3() {
-    let text =  "hello, world!";
+    let text = "hello, world!";
     let boundaries = find_boundaries(&text);
     let ngrams = find_match_ngrams(text, &boundaries, 2, 0, None);
-    assert_eq!( ngrams.len() , 1 );
-    assert_eq!( ngrams.get(0).unwrap().text , "hello, world" ); //this counts as a bigram (", " is a boundary)
+    assert_eq!(ngrams.len(), 1);
+    assert_eq!(ngrams.get(0).unwrap().text, "hello, world"); //this counts as a bigram (", " is a boundary)
 }
 
 #[test]
 fn test0608_find_ngrams_bigrams4() {
-    let text =  "hello!";
+    let text = "hello!";
     let boundaries = find_boundaries(&text);
     let ngrams = find_match_ngrams(text, &boundaries, 2, 0, None);
-    assert_eq!( ngrams.len() , 0 ); //no bigrams in this text
+    assert_eq!(ngrams.len(), 0); //no bigrams in this text
 }
-
 
 #[test]
 fn test0701_find_all_matches_unigram_only() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
-    let lexicon: &[&str] = &["I","think","sink","you","are","right"];
+    let lexicon: &[&str] = &["I", "think", "sink", "you", "are", "right"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,&VocabParams::default());
+        model.add_to_vocabulary(text, None, &VocabParams::default());
     }
     model.build();
-    let matches = model.find_all_matches("I tink you are rihgt", &get_test_searchparams().with_max_ngram(1));
-    assert!( !matches.is_empty() );
-    assert_eq!( matches.get(0).unwrap().text , "I" );
-    assert_eq!( matches.get(1).unwrap().text , "tink" );
-    assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
-    assert_eq!( matches.get(2).unwrap().text , "you" );
-    assert_eq!( matches.get(3).unwrap().text , "are" );
-    assert_eq!( matches.get(4).unwrap().text , "rihgt" );
-    assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "right" );
+    let matches = model.find_all_matches(
+        "I tink you are rihgt",
+        &get_test_searchparams().with_max_ngram(1),
+    );
+    assert!(!matches.is_empty());
+    assert_eq!(matches.get(0).unwrap().text, "I");
+    assert_eq!(matches.get(1).unwrap().text, "tink");
+    assert_eq!(model.match_to_str(matches.get(1).unwrap()), "think");
+    assert_eq!(matches.get(2).unwrap().text, "you");
+    assert_eq!(matches.get(3).unwrap().text, "are");
+    assert_eq!(matches.get(4).unwrap().text, "rihgt");
+    assert_eq!(model.match_to_str(matches.get(4).unwrap()), "right");
 }
 
 #[test]
 fn test0702_find_all_matches() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
-    model.add_to_vocabulary("I",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("think",Some(2), &VocabParams::default());
-    model.add_to_vocabulary("sink",Some(2), &VocabParams::default());
-    model.add_to_vocabulary("you",Some(2), &VocabParams::default());
+    model.add_to_vocabulary("I", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("think", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("sink", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("you", Some(2), &VocabParams::default());
 
-    model.add_to_vocabulary("are",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("right",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("are right",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("<bos> I",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
-    model.add_to_vocabulary("I think",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
-    model.add_to_vocabulary("I sink",Some(1),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
-    model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
-    model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("are", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("right", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("are right", Some(2), &VocabParams::default());
+    model.add_to_vocabulary(
+        "<bos> I",
+        Some(2),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
+    model.add_to_vocabulary(
+        "I think",
+        Some(2),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
+    model.add_to_vocabulary(
+        "I sink",
+        Some(1),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
+    model.add_to_vocabulary(
+        "you are",
+        Some(2),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
+    model.add_to_vocabulary(
+        "right <eos>",
+        Some(2),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
     model.build();
     let matches = model.find_all_matches("I tink you are rihgt", &get_test_searchparams());
-    assert!( !matches.is_empty() );
-    assert_eq!( matches.get(0).unwrap().text , "I" );
-    assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
-    assert_eq!( matches.get(1).unwrap().text , "tink" );
-    assert_eq!( matches.get(1).unwrap().offset.begin, 2 );
-    assert_eq!( matches.get(1).unwrap().offset.end, 6 );
-    assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
-    assert_eq!( matches.get(2).unwrap().text , "you" );
-    assert_eq!( model.match_to_str(matches.get(2).unwrap()) , "you" );
-    assert_eq!( matches.get(3).unwrap().text , "are rihgt" ); //system opts for the bigram here
-    assert_eq!( model.match_to_str(matches.get(3).unwrap()) , "are right" );
+    assert!(!matches.is_empty());
+    assert_eq!(matches.get(0).unwrap().text, "I");
+    assert_eq!(model.match_to_str(matches.get(0).unwrap()), "I");
+    assert_eq!(matches.get(1).unwrap().text, "tink");
+    assert_eq!(matches.get(1).unwrap().offset.begin, 2);
+    assert_eq!(matches.get(1).unwrap().offset.end, 6);
+    assert_eq!(model.match_to_str(matches.get(1).unwrap()), "think");
+    assert_eq!(matches.get(2).unwrap().text, "you");
+    assert_eq!(model.match_to_str(matches.get(2).unwrap()), "you");
+    assert_eq!(matches.get(3).unwrap().text, "are rihgt"); //system opts for the bigram here
+    assert_eq!(model.match_to_str(matches.get(3).unwrap()), "are right");
 }
 
 #[test]
 fn test0703_find_all_matches_linebreak() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
-    model.add_to_vocabulary("I",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("think",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("sink",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("you",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("are",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("right",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("are right",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("<bos> I",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
-    model.add_to_vocabulary("I think",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
-    model.add_to_vocabulary("I sink",Some(1),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
-    model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
-    model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("I", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("think", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("sink", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("you", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("are", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("right", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("are right", Some(2), &VocabParams::default());
+    model.add_to_vocabulary(
+        "<bos> I",
+        Some(2),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
+    model.add_to_vocabulary(
+        "I think",
+        Some(2),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
+    model.add_to_vocabulary(
+        "I sink",
+        Some(1),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
+    model.add_to_vocabulary(
+        "you are",
+        Some(2),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
+    model.add_to_vocabulary(
+        "right <eos>",
+        Some(2),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
     model.build();
-    let matches = model.find_all_matches("I tink you are\nrihgt",&get_test_searchparams());
-    assert!( !matches.is_empty() );
-    assert_eq!( matches.get(0).unwrap().text , "I" );
-    assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
-    assert_eq!( matches.get(1).unwrap().text , "tink" );
-    assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
-    assert_eq!( matches.get(2).unwrap().text , "you" );
-    assert_eq!( model.match_to_str(matches.get(2).unwrap()) , "you" );
-    assert_eq!( matches.get(3).unwrap().text , "are\nrihgt" ); //system opts for the bigram here
-    assert_eq!( model.match_to_str(matches.get(3).unwrap()) , "are right" );
+    let matches = model.find_all_matches("I tink you are\nrihgt", &get_test_searchparams());
+    assert!(!matches.is_empty());
+    assert_eq!(matches.get(0).unwrap().text, "I");
+    assert_eq!(model.match_to_str(matches.get(0).unwrap()), "I");
+    assert_eq!(matches.get(1).unwrap().text, "tink");
+    assert_eq!(model.match_to_str(matches.get(1).unwrap()), "think");
+    assert_eq!(matches.get(2).unwrap().text, "you");
+    assert_eq!(model.match_to_str(matches.get(2).unwrap()), "you");
+    assert_eq!(matches.get(3).unwrap().text, "are\nrihgt"); //system opts for the bigram here
+    assert_eq!(model.match_to_str(matches.get(3).unwrap()), "are right");
 }
 
 #[test]
 fn test0704_find_all_matches_two_batches() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
-    model.add_to_vocabulary("I",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("think",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("sink",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("you",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("are",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("right",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("am",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("sure",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("are right",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("<bos> I",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
-    model.add_to_vocabulary("I think",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
-    model.add_to_vocabulary("I sink",Some(1),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
-    model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
-    model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
-    model.add_to_vocabulary("I am",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("I", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("think", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("sink", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("you", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("are", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("right", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("am", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("sure", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("are right", Some(2), &VocabParams::default());
+    model.add_to_vocabulary(
+        "<bos> I",
+        Some(2),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
+    model.add_to_vocabulary(
+        "I think",
+        Some(2),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
+    model.add_to_vocabulary(
+        "I sink",
+        Some(1),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
+    model.add_to_vocabulary(
+        "you are",
+        Some(2),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
+    model.add_to_vocabulary(
+        "right <eos>",
+        Some(2),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
+    model.add_to_vocabulary(
+        "I am",
+        Some(2),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
     // "am sure" -> model has to figure this one out itself using an unknown transition
-    model.add_to_vocabulary("sure <eos>",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary(
+        "sure <eos>",
+        Some(2),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
     model.build();
-    let matches = model.find_all_matches("I tink you are rihgt\n\nI am sur", &get_test_searchparams());
-    assert!( !matches.is_empty() );
-    assert_eq!( matches.get(0).unwrap().text , "I" );
-    assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
-    assert_eq!( matches.get(1).unwrap().text , "tink" );
-    assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
-    assert_eq!( matches.get(2).unwrap().text , "you" );
-    assert_eq!( model.match_to_str(matches.get(2).unwrap()) , "you" );
-    assert_eq!( matches.get(3).unwrap().text , "are rihgt" ); //system opts for the bigram here
-    assert_eq!( model.match_to_str(matches.get(3).unwrap()) , "are right" );
-    assert_eq!( matches.get(4).unwrap().text , "I" );
-    assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "I" );
-    assert_eq!( matches.get(5).unwrap().text , "am" );
-    assert_eq!( model.match_to_str(matches.get(5).unwrap()) , "am" );
-    assert_eq!( matches.get(6).unwrap().text , "sur" );
-    assert_eq!( model.match_to_str(matches.get(6).unwrap()) , "sure" );
+    let matches =
+        model.find_all_matches("I tink you are rihgt\n\nI am sur", &get_test_searchparams());
+    assert!(!matches.is_empty());
+    assert_eq!(matches.get(0).unwrap().text, "I");
+    assert_eq!(model.match_to_str(matches.get(0).unwrap()), "I");
+    assert_eq!(matches.get(1).unwrap().text, "tink");
+    assert_eq!(model.match_to_str(matches.get(1).unwrap()), "think");
+    assert_eq!(matches.get(2).unwrap().text, "you");
+    assert_eq!(model.match_to_str(matches.get(2).unwrap()), "you");
+    assert_eq!(matches.get(3).unwrap().text, "are rihgt"); //system opts for the bigram here
+    assert_eq!(model.match_to_str(matches.get(3).unwrap()), "are right");
+    assert_eq!(matches.get(4).unwrap().text, "I");
+    assert_eq!(model.match_to_str(matches.get(4).unwrap()), "I");
+    assert_eq!(matches.get(5).unwrap().text, "am");
+    assert_eq!(model.match_to_str(matches.get(5).unwrap()), "am");
+    assert_eq!(matches.get(6).unwrap().text, "sur");
+    assert_eq!(model.match_to_str(matches.get(6).unwrap()), "sure");
 }
 
 #[test]
 fn test0705_find_all_matches_context_only() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 3);
-    model.add_to_vocabulary("I",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("think",Some(2), &VocabParams::default());
-    model.add_to_vocabulary("sink",Some(2), &VocabParams::default()); //language model will decide between think/sink
-    model.add_to_vocabulary("you",Some(2), &VocabParams::default());
+    model.add_to_vocabulary("I", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("think", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("sink", Some(2), &VocabParams::default()); //language model will decide between think/sink
+    model.add_to_vocabulary("you", Some(2), &VocabParams::default());
 
-    model.add_to_vocabulary("are",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("right",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("are right",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("<bos> I",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
-    model.add_to_vocabulary("I think",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
-    model.add_to_vocabulary("I sink",Some(1),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
-    model.add_to_vocabulary("you are",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
-    model.add_to_vocabulary("right <eos>",Some(2),&VocabParams { vocab_type: VocabType::LM, ..VocabParams::default() });
+    model.add_to_vocabulary("are", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("right", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("are right", Some(2), &VocabParams::default());
+    model.add_to_vocabulary(
+        "<bos> I",
+        Some(2),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
+    model.add_to_vocabulary(
+        "I think",
+        Some(2),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
+    model.add_to_vocabulary(
+        "I sink",
+        Some(1),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
+    model.add_to_vocabulary(
+        "you are",
+        Some(2),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
+    model.add_to_vocabulary(
+        "right <eos>",
+        Some(2),
+        &VocabParams {
+            vocab_type: VocabType::LM,
+            ..VocabParams::default()
+        },
+    );
     model.build();
     let mut params = get_test_searchparams();
     params.context_weight = 0.5; //half of the variant model
     params.lm_weight = 0.0; //disable normal language model
     let matches = model.find_all_matches("I tink you are rihgt", &params);
-    assert!( !matches.is_empty() );
-    assert_eq!( matches.get(0).unwrap().text , "I" );
-    assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
-    assert_eq!( matches.get(1).unwrap().text , "tink" );
-    assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
-    assert_eq!( matches.get(2).unwrap().text , "you" );
-    assert_eq!( model.match_to_str(matches.get(2).unwrap()) , "you" );
-    assert_eq!( matches.get(3).unwrap().text , "are rihgt" ); //system opts for the bigram here
-    assert_eq!( model.match_to_str(matches.get(3).unwrap()) , "are right" );
+    assert!(!matches.is_empty());
+    assert_eq!(matches.get(0).unwrap().text, "I");
+    assert_eq!(model.match_to_str(matches.get(0).unwrap()), "I");
+    assert_eq!(matches.get(1).unwrap().text, "tink");
+    assert_eq!(model.match_to_str(matches.get(1).unwrap()), "think");
+    assert_eq!(matches.get(2).unwrap().text, "you");
+    assert_eq!(model.match_to_str(matches.get(2).unwrap()), "you");
+    assert_eq!(matches.get(3).unwrap().text, "are rihgt"); //system opts for the bigram here
+    assert_eq!(model.match_to_str(matches.get(3).unwrap()), "are right");
 }
-
 
 #[test]
 fn test0706_find_all_matches_unicodeoffsets() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
-    let lexicon: &[&str] = &["I","think","you","are","right"];
+    let lexicon: &[&str] = &["I", "think", "you", "are", "right"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,&VocabParams::default());
+        model.add_to_vocabulary(text, None, &VocabParams::default());
     }
     model.build();
-    let matches = model.find_all_matches("I thиnk you are righт", &get_test_searchparams().with_max_ngram(1).with_unicodeoffsets());
-    assert!( !matches.is_empty() );
-    assert_eq!( matches.get(0).unwrap().text , "I" );
-    assert_eq!( matches.get(1).unwrap().text , "thиnk" );
-    assert_eq!( matches.get(1).unwrap().offset.begin, 2 );
-    assert_eq!( matches.get(1).unwrap().offset.end, 7 );
-    assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
-    assert_eq!( matches.get(2).unwrap().text , "you" );
-    assert_eq!( matches.get(3).unwrap().text , "are" );
-    assert_eq!( matches.get(4).unwrap().text , "righт" );
-    assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "right" );
+    let matches = model.find_all_matches(
+        "I thиnk you are righт",
+        &get_test_searchparams()
+            .with_max_ngram(1)
+            .with_unicodeoffsets(),
+    );
+    assert!(!matches.is_empty());
+    assert_eq!(matches.get(0).unwrap().text, "I");
+    assert_eq!(matches.get(1).unwrap().text, "thиnk");
+    assert_eq!(matches.get(1).unwrap().offset.begin, 2);
+    assert_eq!(matches.get(1).unwrap().offset.end, 7);
+    assert_eq!(model.match_to_str(matches.get(1).unwrap()), "think");
+    assert_eq!(matches.get(2).unwrap().text, "you");
+    assert_eq!(matches.get(3).unwrap().text, "are");
+    assert_eq!(matches.get(4).unwrap().text, "righт");
+    assert_eq!(model.match_to_str(matches.get(4).unwrap()), "right");
 }
 
 #[test]
 fn test0707_find_all_matches_utf8offsets() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 1);
-    let lexicon: &[&str] = &["I","think","you","are","right"];
+    let lexicon: &[&str] = &["I", "think", "you", "are", "right"];
     for text in lexicon.iter() {
-        model.add_to_vocabulary(text,None,&VocabParams::default());
+        model.add_to_vocabulary(text, None, &VocabParams::default());
     }
     model.build();
-    let matches = model.find_all_matches("I thиnk you are rihgt", &get_test_searchparams().with_max_ngram(1));
-    assert!( !matches.is_empty() );
-    assert_eq!( matches.get(0).unwrap().text , "I" );
-    assert_eq!( matches.get(1).unwrap().text , "thиnk" );
-    assert_eq!( matches.get(1).unwrap().offset.begin, 2 );
-    assert_eq!( matches.get(1).unwrap().offset.end, 8 );
-    assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
-    assert_eq!( matches.get(2).unwrap().text , "you" );
-    assert_eq!( matches.get(3).unwrap().text , "are" );
-    assert_eq!( matches.get(4).unwrap().text , "rihgt" );
-    assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "right" );
+    let matches = model.find_all_matches(
+        "I thиnk you are rihgt",
+        &get_test_searchparams().with_max_ngram(1),
+    );
+    assert!(!matches.is_empty());
+    assert_eq!(matches.get(0).unwrap().text, "I");
+    assert_eq!(matches.get(1).unwrap().text, "thиnk");
+    assert_eq!(matches.get(1).unwrap().offset.begin, 2);
+    assert_eq!(matches.get(1).unwrap().offset.end, 8);
+    assert_eq!(model.match_to_str(matches.get(1).unwrap()), "think");
+    assert_eq!(matches.get(2).unwrap().text, "you");
+    assert_eq!(matches.get(3).unwrap().text, "are");
+    assert_eq!(matches.get(4).unwrap().text, "rihgt");
+    assert_eq!(model.match_to_str(matches.get(4).unwrap()), "right");
 }
-
 
 #[test]
 fn test0801_expand_variants() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 3);
-    let vocab_id = model.add_to_vocabulary("afgescheid",None,&VocabParams::default());
-    model.add_variant(vocab_id, "afghescheydt", 1.0,  None, &VocabParams::default().with_vocab_type(VocabType::INDEXED | VocabType::TRANSPARENT));
+    let vocab_id = model.add_to_vocabulary("afgescheid", None, &VocabParams::default());
+    model.add_variant(
+        vocab_id,
+        "afghescheydt",
+        1.0,
+        None,
+        &VocabParams::default().with_vocab_type(VocabType::INDEXED | VocabType::TRANSPARENT),
+    );
     model.build();
     let mut searchparams = get_test_searchparams();
     //set very strict parameters so the original key can't match but the transparent variant can
     searchparams.max_anagram_distance = DistanceThreshold::Absolute(2);
     searchparams.max_edit_distance = DistanceThreshold::Absolute(2);
     let results = model.find_variants("afgheschaydt", &searchparams);
-    assert_eq!( results.len() , 1 );
-    assert_eq!( model.decoder.get(results.get(0).unwrap().vocab_id as usize).unwrap().text, "afgescheid");
+    assert_eq!(results.len(), 1);
+    assert_eq!(
+        model
+            .decoder
+            .get(results.get(0).unwrap().vocab_id as usize)
+            .unwrap()
+            .text,
+        "afgescheid"
+    );
 }
 
 #[test]
 fn test0901_find_all_matches_with_multiple_lexicons() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 2);
-    assert!(model.read_vocabulary(LEXICON_AMPHIBIANS, &VocabParams::default()).is_ok());
+    assert!(model
+        .read_vocabulary(LEXICON_AMPHIBIANS, &VocabParams::default())
+        .is_ok());
     const LEXICON_AMPHIBIANS_INDEX: u8 = 0;
-    assert!(model.read_vocabulary(LEXICON_REPTILES, &VocabParams::default()).is_ok());
+    assert!(model
+        .read_vocabulary(LEXICON_REPTILES, &VocabParams::default())
+        .is_ok());
     const LEXICON_REPTILES_INDEX: u8 = 1;
     model.build();
-    assert_eq!( model.lexicons.len(), 2);
-    let inputwords = vec!("Salamander", "lizard","frog","snake","toad");
-    let outputrefwords = vec!("salamander", "lizard","frog","snake","toad");
+    assert_eq!(model.lexicons.len(), 2);
+    let inputwords = vec!["Salamander", "lizard", "frog", "snake", "toad"];
+    let outputrefwords = vec!["salamander", "lizard", "frog", "snake", "toad"];
     let inputstring = inputwords.join(" ");
-    let matches = model.find_all_matches(inputstring.as_str(), &get_test_searchparams().with_max_ngram(1).with_single_thread());
-    assert_eq!( matches.len(), inputwords.len());
+    let matches = model.find_all_matches(
+        inputstring.as_str(),
+        &get_test_searchparams()
+            .with_max_ngram(1)
+            .with_single_thread(),
+    );
+    assert_eq!(matches.len(), inputwords.len());
 
     //Checking input
     for (i, inputword) in inputwords.iter().enumerate() {
-        assert_eq!( &matches[i].text, inputword);
+        assert_eq!(&matches[i].text, inputword);
     }
 
     //Checking best variant output
     for (i, outputrefword) in outputrefwords.iter().enumerate() {
-        assert_eq!( &model.match_to_str(&matches[i]), outputrefword);
+        assert_eq!(&model.match_to_str(&matches[i]), outputrefword);
     }
 
     //salamander
-    assert!( model.match_to_vocabvalue(&matches[0]).expect("must exist").in_lexicon(LEXICON_AMPHIBIANS_INDEX) );
+    assert!(model
+        .match_to_vocabvalue(&matches[0])
+        .expect("must exist")
+        .in_lexicon(LEXICON_AMPHIBIANS_INDEX));
     //lizard
-    assert!( model.match_to_vocabvalue(&matches[1]).expect("must exist").in_lexicon(LEXICON_REPTILES_INDEX) );
+    assert!(model
+        .match_to_vocabvalue(&matches[1])
+        .expect("must exist")
+        .in_lexicon(LEXICON_REPTILES_INDEX));
     //frog
-    assert!( model.match_to_vocabvalue(&matches[2]).expect("must exist").in_lexicon(LEXICON_AMPHIBIANS_INDEX) );
+    assert!(model
+        .match_to_vocabvalue(&matches[2])
+        .expect("must exist")
+        .in_lexicon(LEXICON_AMPHIBIANS_INDEX));
     //snake
-    assert!( model.match_to_vocabvalue(&matches[3]).expect("must exist").in_lexicon(LEXICON_REPTILES_INDEX) );
+    assert!(model
+        .match_to_vocabvalue(&matches[3])
+        .expect("must exist")
+        .in_lexicon(LEXICON_REPTILES_INDEX));
     //toad
-    assert!( model.match_to_vocabvalue(&matches[4]).expect("must exist").in_lexicon(LEXICON_AMPHIBIANS_INDEX) );
-
+    assert!(model
+        .match_to_vocabvalue(&matches[4])
+        .expect("must exist")
+        .in_lexicon(LEXICON_AMPHIBIANS_INDEX));
 }
 
 #[test]
 fn test0902_find_all_match_context_rules_bonus() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 2);
-    model.add_to_vocabulary("I",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("think",Some(2), &VocabParams::default());
-    model.add_to_vocabulary("sink",Some(2), &VocabParams::default()); //context rule will decide between think/sink
-    model.add_to_vocabulary("you",Some(2), &VocabParams::default());
-    model.add_to_vocabulary("are",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("right",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("I", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("think", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("sink", Some(2), &VocabParams::default()); //context rule will decide between think/sink
+    model.add_to_vocabulary("you", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("are", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("right", Some(2), &VocabParams::default());
     model.build();
 
-
-    model.add_contextrule("I; think", 1.1, vec!("testtag"), vec!()).expect("Adding context rule"); //bonus!
-    //                                      ^-- tag the whole entity with 'testtag'
+    model
+        .add_contextrule("I; think", 1.1, vec!["testtag"], vec![])
+        .expect("Adding context rule"); //bonus!
+                                        //                                      ^-- tag the whole entity with 'testtag'
 
     let mut params = get_test_searchparams();
     params.lm_weight = 0.0; //disable normal language model
     params.max_ngram = 1;
     let matches = model.find_all_matches("I tink you are rihgt", &params);
-    assert!( !matches.is_empty() );
-    assert_eq!( matches.get(0).unwrap().text , "I" );
-    assert_eq!( matches.get(0).unwrap().tag , vec!(0) );
-    assert_eq!( matches.get(0).unwrap().seqnr , vec!(0) );
-    assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
-    assert_eq!( matches.get(1).unwrap().text , "tink" );
-    assert_eq!( matches.get(1).unwrap().tag , vec!(0) );
-    assert_eq!( matches.get(1).unwrap().seqnr , vec!(1) );
-    assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
-    assert_eq!( matches.get(2).unwrap().text , "you" );
-    assert_eq!( model.match_to_str(matches.get(2).unwrap()) , "you" );
-    assert_eq!( matches.get(3).unwrap().text , "are" );
-    assert_eq!( model.match_to_str(matches.get(3).unwrap()) , "are" );
-    assert_eq!( matches.get(4).unwrap().text , "rihgt" );
-    assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "right" );
+    assert!(!matches.is_empty());
+    assert_eq!(matches.get(0).unwrap().text, "I");
+    assert_eq!(matches.get(0).unwrap().tag, vec!(0));
+    assert_eq!(matches.get(0).unwrap().seqnr, vec!(0));
+    assert_eq!(model.match_to_str(matches.get(0).unwrap()), "I");
+    assert_eq!(matches.get(1).unwrap().text, "tink");
+    assert_eq!(matches.get(1).unwrap().tag, vec!(0));
+    assert_eq!(matches.get(1).unwrap().seqnr, vec!(1));
+    assert_eq!(model.match_to_str(matches.get(1).unwrap()), "think");
+    assert_eq!(matches.get(2).unwrap().text, "you");
+    assert_eq!(model.match_to_str(matches.get(2).unwrap()), "you");
+    assert_eq!(matches.get(3).unwrap().text, "are");
+    assert_eq!(model.match_to_str(matches.get(3).unwrap()), "are");
+    assert_eq!(matches.get(4).unwrap().text, "rihgt");
+    assert_eq!(model.match_to_str(matches.get(4).unwrap()), "right");
 }
 
 #[test]
 fn test0903_find_all_match_context_rules_penalty() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 2);
-    model.add_to_vocabulary("I",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("think",Some(2), &VocabParams::default());
-    model.add_to_vocabulary("sink",Some(2), &VocabParams::default()); //context rule will decide between think/sink
-    model.add_to_vocabulary("you",Some(2), &VocabParams::default());
-    model.add_to_vocabulary("are",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("right",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("I", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("think", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("sink", Some(2), &VocabParams::default()); //context rule will decide between think/sink
+    model.add_to_vocabulary("you", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("are", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("right", Some(2), &VocabParams::default());
     model.build();
 
-    model.add_contextrule("I; think", 0.9, vec!(), vec!()).expect("Adding context rule"); //penalty!
+    model
+        .add_contextrule("I; think", 0.9, vec![], vec![])
+        .expect("Adding context rule"); //penalty!
 
     let mut params = get_test_searchparams();
     params.lm_weight = 0.0; //disable normal language model
     params.max_ngram = 1;
     let matches = model.find_all_matches("I tink you are rihgt", &params);
-    assert!( !matches.is_empty() );
-    assert_eq!( matches.get(0).unwrap().text , "I" );
-    assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
-    assert_eq!( matches.get(1).unwrap().text , "tink" );
-    assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "sink" );
-    assert_eq!( matches.get(2).unwrap().text , "you" );
-    assert_eq!( model.match_to_str(matches.get(2).unwrap()) , "you" );
-    assert_eq!( matches.get(3).unwrap().text , "are" );
-    assert_eq!( model.match_to_str(matches.get(3).unwrap()) , "are" );
-    assert_eq!( matches.get(4).unwrap().text , "rihgt" );
-    assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "right" );
+    assert!(!matches.is_empty());
+    assert_eq!(matches.get(0).unwrap().text, "I");
+    assert_eq!(model.match_to_str(matches.get(0).unwrap()), "I");
+    assert_eq!(matches.get(1).unwrap().text, "tink");
+    assert_eq!(model.match_to_str(matches.get(1).unwrap()), "sink");
+    assert_eq!(matches.get(2).unwrap().text, "you");
+    assert_eq!(model.match_to_str(matches.get(2).unwrap()), "you");
+    assert_eq!(matches.get(3).unwrap().text, "are");
+    assert_eq!(model.match_to_str(matches.get(3).unwrap()), "are");
+    assert_eq!(matches.get(4).unwrap().text, "rihgt");
+    assert_eq!(model.match_to_str(matches.get(4).unwrap()), "right");
 }
 
 #[test]
 fn test0904_find_all_match_context_rules2() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 2);
-    model.add_to_vocabulary("I",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("think",Some(2), &VocabParams::default());
-    model.add_to_vocabulary("sink",Some(2), &VocabParams::default()); //context rule will decide between think/sink
-    model.add_to_vocabulary("you",Some(2), &VocabParams::default());
-    model.add_to_vocabulary("are",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("right",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("I", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("think", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("sink", Some(2), &VocabParams::default()); //context rule will decide between think/sink
+    model.add_to_vocabulary("you", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("are", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("right", Some(2), &VocabParams::default());
     model.build();
 
-
-    model.add_contextrule("think", 1.0, vec!("testtag"), vec!()).expect("Adding context rule"); //bonus!
-    model.add_contextrule("are", 1.0, vec!("testtag"), vec!()).expect("Adding context rule"); //bonus!
-    //                                      ^-- tag the whole entity with 'testtag'
-    model.add_contextrule("right", 1.0, vec!("testtag"), vec!()).expect("Adding context rule"); //bonus!
+    model
+        .add_contextrule("think", 1.0, vec!["testtag"], vec![])
+        .expect("Adding context rule"); //bonus!
+    model
+        .add_contextrule("are", 1.0, vec!["testtag"], vec![])
+        .expect("Adding context rule"); //bonus!
+                                        //                                      ^-- tag the whole entity with 'testtag'
+    model
+        .add_contextrule("right", 1.0, vec!["testtag"], vec![])
+        .expect("Adding context rule"); //bonus!
 
     let mut params = get_test_searchparams();
     params.lm_weight = 0.0; //disable normal language model
     params.max_ngram = 1;
     let matches = model.find_all_matches("I tink you are rihgt", &params);
-    assert!( !matches.is_empty() );
-    assert_eq!( matches.get(0).unwrap().text , "I" );
-    assert_eq!( matches.get(0).unwrap().tag , vec!() );
-    assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
-    assert_eq!( matches.get(1).unwrap().text , "tink" );
-    assert_eq!( matches.get(1).unwrap().tag , vec!(0) );
-    assert_eq!( matches.get(1).unwrap().seqnr , vec!(0) );
-    assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
-    assert_eq!( matches.get(2).unwrap().text , "you" );
-    assert_eq!( model.match_to_str(matches.get(2).unwrap()) , "you" );
-    assert_eq!( matches.get(3).unwrap().text , "are" );
-    assert_eq!( matches.get(3).unwrap().tag , vec!(0) );
-    assert_eq!( matches.get(3).unwrap().seqnr , vec!(0) );
-    assert_eq!( model.match_to_str(matches.get(3).unwrap()) , "are" );
-    assert_eq!( matches.get(4).unwrap().text , "rihgt" );
-    assert_eq!( matches.get(4).unwrap().tag , vec!(0) );
-    assert_eq!( matches.get(4).unwrap().seqnr , vec!(0) );
-    assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "right" );
+    assert!(!matches.is_empty());
+    assert_eq!(matches.get(0).unwrap().text, "I");
+    assert_eq!(matches.get(0).unwrap().tag, vec!());
+    assert_eq!(model.match_to_str(matches.get(0).unwrap()), "I");
+    assert_eq!(matches.get(1).unwrap().text, "tink");
+    assert_eq!(matches.get(1).unwrap().tag, vec!(0));
+    assert_eq!(matches.get(1).unwrap().seqnr, vec!(0));
+    assert_eq!(model.match_to_str(matches.get(1).unwrap()), "think");
+    assert_eq!(matches.get(2).unwrap().text, "you");
+    assert_eq!(model.match_to_str(matches.get(2).unwrap()), "you");
+    assert_eq!(matches.get(3).unwrap().text, "are");
+    assert_eq!(matches.get(3).unwrap().tag, vec!(0));
+    assert_eq!(matches.get(3).unwrap().seqnr, vec!(0));
+    assert_eq!(model.match_to_str(matches.get(3).unwrap()), "are");
+    assert_eq!(matches.get(4).unwrap().text, "rihgt");
+    assert_eq!(matches.get(4).unwrap().tag, vec!(0));
+    assert_eq!(matches.get(4).unwrap().seqnr, vec!(0));
+    assert_eq!(model.match_to_str(matches.get(4).unwrap()), "right");
 }
 
 #[test]
 fn test0905_find_all_match_context_rules_multitag() {
     let (alphabet, _alphabet_size) = get_test_alphabet();
     let mut model = VariantModel::new_with_alphabet(alphabet, Weights::default(), 2);
-    model.add_to_vocabulary("I",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("think",Some(2), &VocabParams::default());
-    model.add_to_vocabulary("sink",Some(2), &VocabParams::default()); //context rule will decide between think/sink
-    model.add_to_vocabulary("you",Some(2), &VocabParams::default());
-    model.add_to_vocabulary("are",Some(2),&VocabParams::default());
-    model.add_to_vocabulary("right",Some(2),&VocabParams::default());
+    model.add_to_vocabulary("I", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("think", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("sink", Some(2), &VocabParams::default()); //context rule will decide between think/sink
+    model.add_to_vocabulary("you", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("are", Some(2), &VocabParams::default());
+    model.add_to_vocabulary("right", Some(2), &VocabParams::default());
     model.build();
 
-
-    model.add_contextrule("I; think", 1.1, vec!("testtag", "testtag2"), vec!()).expect("Adding context rule"); //bonus!
-    //                                      ^-- tag the whole entity with 'testtag'
+    model
+        .add_contextrule("I; think", 1.1, vec!["testtag", "testtag2"], vec![])
+        .expect("Adding context rule"); //bonus!
+                                        //                                      ^-- tag the whole entity with 'testtag'
 
     let mut params = get_test_searchparams();
     params.lm_weight = 0.0; //disable normal language model
     params.max_ngram = 1;
     let matches = model.find_all_matches("I tink you are rihgt", &params);
-    assert!( !matches.is_empty() );
-    assert_eq!( matches.get(0).unwrap().text , "I" );
-    assert_eq!( matches.get(0).unwrap().tag , vec!(0,1) );
-    assert_eq!( matches.get(0).unwrap().seqnr , vec!(0,0) );
-    assert_eq!( model.match_to_str(matches.get(0).unwrap()) , "I" );
-    assert_eq!( matches.get(1).unwrap().text , "tink" );
-    assert_eq!( matches.get(1).unwrap().tag , vec!(0,1) );
-    assert_eq!( matches.get(1).unwrap().seqnr , vec!(1,1) );
-    assert_eq!( model.match_to_str(matches.get(1).unwrap()) , "think" );
-    assert_eq!( matches.get(2).unwrap().text , "you" );
-    assert_eq!( model.match_to_str(matches.get(2).unwrap()) , "you" );
-    assert_eq!( matches.get(3).unwrap().text , "are" );
-    assert_eq!( model.match_to_str(matches.get(3).unwrap()) , "are" );
-    assert_eq!( matches.get(4).unwrap().text , "rihgt" );
-    assert_eq!( model.match_to_str(matches.get(4).unwrap()) , "right" );
+    assert!(!matches.is_empty());
+    assert_eq!(matches.get(0).unwrap().text, "I");
+    assert_eq!(matches.get(0).unwrap().tag, vec!(0, 1));
+    assert_eq!(matches.get(0).unwrap().seqnr, vec!(0, 0));
+    assert_eq!(model.match_to_str(matches.get(0).unwrap()), "I");
+    assert_eq!(matches.get(1).unwrap().text, "tink");
+    assert_eq!(matches.get(1).unwrap().tag, vec!(0, 1));
+    assert_eq!(matches.get(1).unwrap().seqnr, vec!(1, 1));
+    assert_eq!(model.match_to_str(matches.get(1).unwrap()), "think");
+    assert_eq!(matches.get(2).unwrap().text, "you");
+    assert_eq!(model.match_to_str(matches.get(2).unwrap()), "you");
+    assert_eq!(matches.get(3).unwrap().text, "are");
+    assert_eq!(model.match_to_str(matches.get(3).unwrap()), "are");
+    assert_eq!(matches.get(4).unwrap().text, "rihgt");
+    assert_eq!(model.match_to_str(matches.get(4).unwrap()), "right");
 }

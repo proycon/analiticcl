@@ -1,9 +1,9 @@
-use std::collections::HashMap;
 use bitflags::bitflags;
+use std::collections::HashMap;
 
 use crate::types::*;
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct VocabValue {
     pub text: String,
 
@@ -44,7 +44,6 @@ bitflags! {
         const TRANSPARENT = 0b00000100;
     }
 }
-
 
 impl VocabType {
     pub fn check(&self, test: VocabType) -> bool {
@@ -87,7 +86,6 @@ impl VocabValue {
     }
 }
 
-
 ///Map integers (indices correspond to VocabId) to string values (and optionally a frequency count)
 pub type VocabDecoder = Vec<VocabValue>;
 
@@ -96,7 +94,7 @@ pub type VocabEncoder = HashMap<String, VocabId>;
 
 ///Frequency handling in case of duplicate items (may be across multiple lexicons), the
 ///associated with it.
-#[derive(Clone,Copy,Debug,PartialEq,Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FrequencyHandling {
     Sum,
     Max,
@@ -104,7 +102,7 @@ pub enum FrequencyHandling {
     Replace,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct VocabParams {
     ///Column containing the Text (if any, 0-indexed)
     pub text_column: u8,
@@ -116,7 +114,6 @@ pub struct VocabParams {
     /// Lexicon index
     pub index: u8,
 }
-
 
 impl Default for VocabParams {
     fn default() -> Self {
@@ -150,7 +147,7 @@ pub const UNK: VocabId = 2;
 pub(crate) fn init_vocab(decoder: &mut VocabDecoder, encoder: &mut HashMap<String, VocabId>) {
     decoder.push(VocabValue {
         text: "<bos>".to_string(),
-        norm: vec!(),
+        norm: vec![],
         frequency: 0,
         tokencount: 1,
         lexindex: 0,
@@ -159,7 +156,7 @@ pub(crate) fn init_vocab(decoder: &mut VocabDecoder, encoder: &mut HashMap<Strin
     });
     decoder.push(VocabValue {
         text: "<eos>".to_string(),
-        norm: vec!(),
+        norm: vec![],
         frequency: 0,
         tokencount: 1,
         lexindex: 0,
@@ -168,14 +165,14 @@ pub(crate) fn init_vocab(decoder: &mut VocabDecoder, encoder: &mut HashMap<Strin
     });
     decoder.push(VocabValue {
         text: "<unk>".to_string(),
-        norm: vec!(),
+        norm: vec![],
         frequency: 0,
         tokencount: 1,
         lexindex: 0,
         variants: None,
         vocabtype: VocabType::NONE,
     });
-    encoder.insert("<bos>".to_string(),BOS);
-    encoder.insert("<eos>".to_string(),EOS);
-    encoder.insert("<unk>".to_string(),UNK);
+    encoder.insert("<bos>".to_string(), BOS);
+    encoder.insert("<eos>".to_string(), EOS);
+    encoder.insert("<unk>".to_string(), UNK);
 }
