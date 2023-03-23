@@ -22,7 +22,7 @@ implementation written in [Rust](https://www.rust-lang.org).
 Aside from reading this documentation, you can also view an in-depth [presentation
 video](https://diode.zone/w/kkrqA4MocGwxyC3s68Zsq7) that was presented at the KNAW Humanities Cluster in January 2022.
 
-If you plan to use analiticcl from Python, then we recommend you to also follow [this tutorial][tutorial.ipynb] in the form of a jupyter notebook.
+If you plan to use analiticcl from Python, then we recommend you to also follow [this tutorial](tutorial.ipynb) in the form of a jupyter notebook.
 
 ## Features
 
