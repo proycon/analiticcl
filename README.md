@@ -24,6 +24,10 @@ video](https://diode.zone/w/kkrqA4MocGwxyC3s68Zsq7) that was presented at the KN
 
 If you plan to use analiticcl from Python, then we recommend you to also follow [this tutorial](tutorial.ipynb) in the form of a jupyter notebook.
 
+## Demo
+
+![Analiticcl demo](https://raw.githubusercontent.com/CLARIAH/wp3-demos/master/analiticcl.gif)
+
 ## Features
 
 * Quick retrieval of spelling variants given an input word due to smart anagram hashing lookup. This is the main feature
