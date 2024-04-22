@@ -23,11 +23,9 @@ jobs:
           sparse-checkout-cone-mode: false
       - name: Move binding files to root
         run: |
-          ls -lah
           shopt -s dotglob
           mv bindings/python/* .
           rm -rf bindings
-          ls -lah        
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
@@ -35,7 +33,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist -i 3.7 3.8 3.9 3.10 3.11
+          args: --release --out dist -i 3.8 3.9 3.10 3.11
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels
@@ -56,11 +54,7 @@ jobs:
           sparse-checkout-cone-mode: false
       - name: Move binding files to root
         run: |
-          ls -lah
-          shopt -s dotglob
-          mv bindings/python/* .
-          rm -rf bindings
-          ls -lah        
+          Move-Item -Path .\bindings\python\* -Destination .\
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
@@ -89,11 +83,9 @@ jobs:
           sparse-checkout-cone-mode: false
       - name: Move binding files to root
         run: |
-          ls -lah
           shopt -s dotglob
           mv bindings/python/* .
           rm -rf bindings
-          ls -lah        
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
