@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          sparse-checkout: 'analiticcl/bindings/python'
+          sparse-checkout: 'bindings/python'
           sparse-checkout-cone-mode: false
       - name: Move binding files to root
         run: |
@@ -52,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          sparse-checkout: 'analiticcl/bindings/python'
+          sparse-checkout: 'bindings/python'
           sparse-checkout-cone-mode: false
       - name: Move binding files to root
         run: |
@@ -85,7 +85,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          sparse-checkout: 'analiticcl/bindings/python'
+          sparse-checkout: 'bindings/python'
           sparse-checkout-cone-mode: false
       - name: Move binding files to root
         run: |
@@ -114,7 +114,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          sparse-checkout: 'analiticcl/bindings/python'
+          sparse-checkout: 'bindings/python'
           sparse-checkout-cone-mode: false
       - name: Move binding files to root
         run: |
