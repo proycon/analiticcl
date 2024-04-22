@@ -783,6 +783,12 @@ impl PyVariantModel {
         }
         Ok(results)
     }
+
+    /// Configure the model to match against known confusables prior to pruning on maximum weight.
+    /// This corresponds to the `--early-confusables` option for the CLI version
+    fn set_confusables_before_pruning(&mut self) {
+        self.model.set_confusables_before_pruning();
+    }
 }
 
 #[pymodule]
