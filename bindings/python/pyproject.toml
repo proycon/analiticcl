@@ -5,5 +5,5 @@ name = "analiticcl"
 test = [ "pytest" ]
 
 [build-system]
-requires = ["maturin>=0.11,<0.12"]
+requires = ["maturin>=1.0.1"]
 build-backend = "maturin"
