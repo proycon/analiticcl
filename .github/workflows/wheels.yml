@@ -25,7 +25,7 @@ jobs:
         run: |
           ls -lah
           shopt -s dotglob
-          mv analiticcl/bindings/python/* .
+          mv bindings/python/* .
           rm -rf bindings
           ls -lah        
       - uses: actions/setup-python@v4
@@ -58,7 +58,7 @@ jobs:
         run: |
           ls -lah
           shopt -s dotglob
-          mv analiticcl/bindings/python/* .
+          mv bindings/python/* .
           rm -rf bindings
           ls -lah        
       - uses: actions/setup-python@v4
@@ -91,7 +91,7 @@ jobs:
         run: |
           ls -lah
           shopt -s dotglob
-          mv analiticcl/bindings/python/* .
+          mv bindings/python/* .
           rm -rf bindings
           ls -lah        
       - uses: actions/setup-python@v4
@@ -120,7 +120,7 @@ jobs:
         run: |
           ls -lah
           shopt -s dotglob
-          mv analiticcl/bindings/python/* .
+          mv bindings/python/* .
           rm -rf bindings
           ls -lah        
       - name: Build sdist
