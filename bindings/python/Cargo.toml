@@ -2,21 +2,21 @@
 authors = ["Maarten van Gompel <proycon@anaproy.nl>"]
 description = "Analiticcl is an approximate string matching or fuzzy-matching system that can be used to find variants for spelling correction or text normalisation"
 documentation = "https://docs.rs/analiticcl"
-edition = "2018"
+edition = "2021"
 homepage = "https://github.com/proycon/analiticcl"
 keywords = ["nlp", "text-processing", "spelling-correction", "linguistics", "spellcheck"]
 license = "GPL-3.0+"
 name = "analiticcl-python"
 readme = "README.md"
 repository = "https://github.com/proycon/analiticcl"
-version = "0.4.6" #also change version in dependencies below
+version = "0.4.7" #also change version in dependencies below
 
 [lib]
 name = "analiticcl"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = "0.20.3"
+pyo3 = "0.22.4"
 rayon = "1.10.0"
 analiticcl = "0.4.6"
 

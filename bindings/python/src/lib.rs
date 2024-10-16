@@ -1,11 +1,11 @@
-extern crate analiticcl as libanaliticcl;
-
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::*;
 use rayon::prelude::*;
 use std::str::FromStr;
 //use pyo3::wrap_pymodule;
+
+use ::analiticcl as libanaliticcl;
 
 #[pyclass(dict, name = "Weights")]
 #[derive(Default, Clone)]
@@ -17,43 +17,41 @@ pub struct PyWeights {
 impl PyWeights {
     #[new]
     #[pyo3(signature = (**kwargs))]
-    fn new(kwargs: Option<&PyDict>) -> Self {
+    fn new<'py>(kwargs: Option<Bound<'py, PyDict>>) -> PyResult<Self> {
         let mut instance = Self::default();
         if let Some(kwargs) = kwargs {
-            for (key, value) in kwargs {
-                if let Some(key) = key.extract().unwrap() {
-                    match key {
-                        "ld" => {
-                            if let Ok(Some(value)) = value.extract() {
-                                instance.weights.ld = value
-                            }
+            for (key, value) in kwargs.iter() {
+                match key.downcast()?.extract()? {
+                    "ld" => {
+                        if let Ok(Some(value)) = value.extract() {
+                            instance.weights.ld = value
                         }
-                        "lcs" => {
-                            if let Ok(Some(value)) = value.extract() {
-                                instance.weights.lcs = value
-                            }
-                        }
-                        "prefix" => {
-                            if let Ok(Some(value)) = value.extract() {
-                                instance.weights.prefix = value
-                            }
-                        }
-                        "suffix" => {
-                            if let Ok(Some(value)) = value.extract() {
-                                instance.weights.suffix = value
-                            }
-                        }
-                        "case" => {
-                            if let Ok(Some(value)) = value.extract() {
-                                instance.weights.case = value
-                            }
-                        }
-                        _ => eprintln!("Ignored unknown kwargs option {}", key),
                     }
+                    "lcs" => {
+                        if let Ok(Some(value)) = value.extract() {
+                            instance.weights.lcs = value
+                        }
+                    }
+                    "prefix" => {
+                        if let Ok(Some(value)) = value.extract() {
+                            instance.weights.prefix = value
+                        }
+                    }
+                    "suffix" => {
+                        if let Ok(Some(value)) = value.extract() {
+                            instance.weights.suffix = value
+                        }
+                    }
+                    "case" => {
+                        if let Ok(Some(value)) = value.extract() {
+                            instance.weights.case = value
+                        }
+                    }
+                    _ => eprintln!("Ignored unknown kwargs option {}", key),
                 }
             }
         }
-        instance
+        Ok(instance)
     }
 
     #[getter]
@@ -103,8 +101,8 @@ impl PyWeights {
         Ok(())
     }
 
-    fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<&'py PyDict> {
-        let dict = PyDict::new(py);
+    fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let dict = PyDict::new_bound(py);
         dict.set_item("ld", self.get_ld()?)?;
         dict.set_item("lcs", self.get_lcs()?)?;
         dict.set_item("prefix", self.get_prefix()?)?;
@@ -115,15 +113,17 @@ impl PyWeights {
 }
 
 //should ideally be implemented using FromPyObject but can't do that because libanaliticcl is not considered not crate-internal anymore here
-fn extract_distance_threshold(value: &PyAny) -> PyResult<libanaliticcl::DistanceThreshold> {
+fn extract_distance_threshold<'py>(
+    value: &Bound<'py, PyAny>,
+) -> PyResult<libanaliticcl::DistanceThreshold> {
     if let Ok(Some((v, limit))) = value.extract() {
         Ok(libanaliticcl::DistanceThreshold::RatioWithLimit(v, limit))
     } else if let Ok(Some(v)) = value.extract() {
         Ok(libanaliticcl::DistanceThreshold::Absolute(v))
     } else if let Ok(Some(v)) = value.extract() {
         Ok(libanaliticcl::DistanceThreshold::Ratio(v))
-    } else if let Ok(Some(v)) = value.extract() {
-        if let Ok(v) = libanaliticcl::DistanceThreshold::from_str(v) {
+    } else if let Ok(v) = value.downcast::<PyString>() {
+        if let Ok(v) = libanaliticcl::DistanceThreshold::from_str(v.extract()?) {
             Ok(v)
         } else {
             Err(PyValueError::new_err(format!("Unable to convert from string ({}). Must be an integer expressing an absolute value, or float in range 0-1 expressing a ratio. Or a two-tuple expression a ratio with an absolute limit (float;int)",v)))
@@ -143,145 +143,147 @@ pub struct PySearchParameters {
 impl PySearchParameters {
     #[new]
     #[pyo3(signature = (**kwargs))]
-    fn new(kwargs: Option<&PyDict>) -> Self {
+    fn new<'py>(kwargs: Option<Bound<'py, PyDict>>) -> PyResult<Self> {
         let mut instance = Self::default();
         if let Some(kwargs) = kwargs {
-            for (key, value) in kwargs {
-                if let Some(key) = key.extract().unwrap() {
-                    match key {
-                        "max_anagram_distance" => match extract_distance_threshold(value) {
-                            Ok(v) => instance.data.max_anagram_distance = v,
-                            Err(v) => eprintln!("{}", v),
-                        },
-                        "max_edit_distance" => match extract_distance_threshold(value) {
-                            Ok(v) => instance.data.max_edit_distance = v,
-                            Err(v) => eprintln!("{}", v),
-                        },
-                        "max_matches" => match value.extract() {
-                            Ok(Some(value)) => instance.data.max_matches = value,
-                            Ok(None) => eprintln!("No value specified for max_matches parameter"),
-                            Err(v) => eprintln!("{}", v),
-                        },
-                        "score_threshold" => match value.extract() {
-                            Ok(Some(value)) => instance.data.score_threshold = value,
-                            Ok(None) => {
-                                eprintln!("No value specified for score_threshold parameter")
-                            }
-                            Err(v) => eprintln!("{}", v),
-                        },
-                        "cutoff_threshold" => match value.extract() {
-                            Ok(Some(value)) => instance.data.cutoff_threshold = value,
-                            Ok(None) => {
-                                eprintln!("No value specified for cutoff_threshold parameter")
-                            }
-                            Err(v) => eprintln!("{}", v),
-                        },
-                        "max_ngram" => match value.extract() {
-                            Ok(Some(value)) => instance.data.max_ngram = value,
-                            Ok(None) => {
-                                eprintln!("No value specified for cutoff_threshold parameter")
-                            }
-                            Err(v) => eprintln!("{}", v),
-                        },
-                        "max_seq" => match value.extract() {
-                            Ok(Some(value)) => instance.data.max_seq = value,
-                            Ok(None) => {
-                                eprintln!("No value specified for cutoff_threshold parameter")
-                            }
-                            Err(v) => eprintln!("{}", v),
-                        },
-                        "stop_at_exact_match" => {
-                            if let Ok(Some(value)) = value.extract() {
-                                if value {
-                                    instance.data.stop_criterion =
-                                        libanaliticcl::StopCriterion::StopAtExactMatch;
-                                } else {
-                                    instance.data.stop_criterion =
-                                        libanaliticcl::StopCriterion::Exhaustive;
-                                }
+            for (key, value) in kwargs.iter() {
+                match key.downcast()?.extract()? {
+                    "max_anagram_distance" => match extract_distance_threshold(&value) {
+                        Ok(v) => instance.data.max_anagram_distance = v,
+                        Err(v) => eprintln!("{}", v),
+                    },
+                    "max_edit_distance" => match extract_distance_threshold(&value) {
+                        Ok(v) => instance.data.max_edit_distance = v,
+                        Err(v) => eprintln!("{}", v),
+                    },
+                    "max_matches" => match value.extract() {
+                        Ok(Some(value)) => instance.data.max_matches = value,
+                        Ok(None) => eprintln!("No value specified for max_matches parameter"),
+                        Err(v) => eprintln!("{}", v),
+                    },
+                    "score_threshold" => match value.extract() {
+                        Ok(Some(value)) => instance.data.score_threshold = value,
+                        Ok(None) => {
+                            eprintln!("No value specified for score_threshold parameter")
+                        }
+                        Err(v) => eprintln!("{}", v),
+                    },
+                    "cutoff_threshold" => match value.extract() {
+                        Ok(Some(value)) => instance.data.cutoff_threshold = value,
+                        Ok(None) => {
+                            eprintln!("No value specified for cutoff_threshold parameter")
+                        }
+                        Err(v) => eprintln!("{}", v),
+                    },
+                    "max_ngram" => match value.extract() {
+                        Ok(Some(value)) => instance.data.max_ngram = value,
+                        Ok(None) => {
+                            eprintln!("No value specified for cutoff_threshold parameter")
+                        }
+                        Err(v) => eprintln!("{}", v),
+                    },
+                    "max_seq" => match value.extract() {
+                        Ok(Some(value)) => instance.data.max_seq = value,
+                        Ok(None) => {
+                            eprintln!("No value specified for cutoff_threshold parameter")
+                        }
+                        Err(v) => eprintln!("{}", v),
+                    },
+                    "stop_at_exact_match" => {
+                        if let Ok(Some(value)) = value.extract() {
+                            if value {
+                                instance.data.stop_criterion =
+                                    libanaliticcl::StopCriterion::StopAtExactMatch;
+                            } else {
+                                instance.data.stop_criterion =
+                                    libanaliticcl::StopCriterion::Exhaustive;
                             }
                         }
-                        "single_thread" => match value.extract() {
-                            Ok(Some(value)) => instance.data.single_thread = value,
-                            Ok(None) => eprintln!("No value specified for single_thread parameter"),
-                            Err(v) => eprintln!("{}", v),
-                        },
-                        "unicodeoffsets" => match value.extract() {
-                            Ok(Some(value)) => instance.data.unicodeoffsets = value,
-                            Ok(None) => {
-                                eprintln!("No value specified for unicodeoffsets parameter")
-                            }
-                            Err(v) => eprintln!("{}", v),
-                        },
-                        "freq_weight" => match value.extract() {
-                            Ok(Some(value)) => instance.data.freq_weight = value,
-                            Ok(None) => eprintln!("No value specified for freq_weight parameter"),
-                            Err(v) => eprintln!("{}", v),
-                        },
-                        "lm_weight" => match value.extract() {
-                            Ok(Some(value)) => instance.data.lm_weight = value,
-                            Ok(None) => eprintln!("No value specified for lm_weight parameter"),
-                            Err(v) => eprintln!("{}", v),
-                        },
-                        "contextrules_weight" => match value.extract() {
-                            Ok(Some(value)) => instance.data.contextrules_weight = value,
-                            Ok(None) => {
-                                eprintln!("No value specified for contextrules_weight parameter")
-                            }
-                            Err(v) => eprintln!("{}", v),
-                        },
-                        "variantmodel_weight" => match value.extract() {
-                            Ok(Some(value)) => instance.data.variantmodel_weight = value,
-                            Ok(None) => {
-                                eprintln!("No value specified for variantmodel_weight parameter")
-                            }
-                            Err(v) => eprintln!("{}", v),
-                        },
-                        "context_weight" => match value.extract() {
-                            Ok(Some(value)) => instance.data.context_weight = value,
-                            Ok(None) => {
-                                eprintln!("No value specified for context_weight parameter")
-                            }
-                            Err(v) => eprintln!("{}", v),
-                        },
-                        "consolidate_matches" => match value.extract() {
-                            Ok(Some(value)) => instance.data.consolidate_matches = value,
-                            Ok(None) => {
-                                eprintln!("No value specified for consolidate_matches parameter")
-                            }
-                            Err(v) => eprintln!("{}", v),
-                        },
-                        _ => eprintln!("Ignored unknown kwargs option {}", key),
                     }
+                    "single_thread" => match value.extract() {
+                        Ok(Some(value)) => instance.data.single_thread = value,
+                        Ok(None) => eprintln!("No value specified for single_thread parameter"),
+                        Err(v) => eprintln!("{}", v),
+                    },
+                    "unicodeoffsets" => match value.extract() {
+                        Ok(Some(value)) => instance.data.unicodeoffsets = value,
+                        Ok(None) => {
+                            eprintln!("No value specified for unicodeoffsets parameter")
+                        }
+                        Err(v) => eprintln!("{}", v),
+                    },
+                    "freq_weight" => match value.extract() {
+                        Ok(Some(value)) => instance.data.freq_weight = value,
+                        Ok(None) => eprintln!("No value specified for freq_weight parameter"),
+                        Err(v) => eprintln!("{}", v),
+                    },
+                    "lm_weight" => match value.extract() {
+                        Ok(Some(value)) => instance.data.lm_weight = value,
+                        Ok(None) => eprintln!("No value specified for lm_weight parameter"),
+                        Err(v) => eprintln!("{}", v),
+                    },
+                    "contextrules_weight" => match value.extract() {
+                        Ok(Some(value)) => instance.data.contextrules_weight = value,
+                        Ok(None) => {
+                            eprintln!("No value specified for contextrules_weight parameter")
+                        }
+                        Err(v) => eprintln!("{}", v),
+                    },
+                    "variantmodel_weight" => match value.extract() {
+                        Ok(Some(value)) => instance.data.variantmodel_weight = value,
+                        Ok(None) => {
+                            eprintln!("No value specified for variantmodel_weight parameter")
+                        }
+                        Err(v) => eprintln!("{}", v),
+                    },
+                    "context_weight" => match value.extract() {
+                        Ok(Some(value)) => instance.data.context_weight = value,
+                        Ok(None) => {
+                            eprintln!("No value specified for context_weight parameter")
+                        }
+                        Err(v) => eprintln!("{}", v),
+                    },
+                    "consolidate_matches" => match value.extract() {
+                        Ok(Some(value)) => instance.data.consolidate_matches = value,
+                        Ok(None) => {
+                            eprintln!("No value specified for consolidate_matches parameter")
+                        }
+                        Err(v) => eprintln!("{}", v),
+                    },
+                    _ => eprintln!("Ignored unknown kwargs option {}", key),
                 }
             }
         }
-        instance
+        Ok(instance)
     }
 
     #[getter]
-    fn get_max_anagram_distance<'a>(&self, py: Python<'a>) -> PyResult<&'a PyAny> {
+    fn get_max_anagram_distance<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
         match self.data.max_anagram_distance {
-            libanaliticcl::DistanceThreshold::Absolute(value) => Ok(value.into_py(py).into_ref(py)),
-            libanaliticcl::DistanceThreshold::Ratio(value) => Ok(value.into_py(py).into_ref(py)),
+            libanaliticcl::DistanceThreshold::Absolute(value) => {
+                Ok(value.into_py(py).into_bound(py))
+            }
+            libanaliticcl::DistanceThreshold::Ratio(value) => Ok(value.into_py(py).into_bound(py)),
             libanaliticcl::DistanceThreshold::RatioWithLimit(value, limit) => {
-                let dict = PyDict::new(py);
+                let dict = PyDict::new_bound(py);
                 dict.set_item("ratio", value)?;
                 dict.set_item("limit", limit)?;
-                Ok(dict)
+                Ok(dict.into_any())
             }
         }
     }
     #[getter]
-    fn get_max_edit_distance<'a>(&self, py: Python<'a>) -> PyResult<&'a PyAny> {
+    fn get_max_edit_distance<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
         match self.data.max_edit_distance {
-            libanaliticcl::DistanceThreshold::Absolute(value) => Ok(value.into_py(py).into_ref(py)),
-            libanaliticcl::DistanceThreshold::Ratio(value) => Ok(value.into_py(py).into_ref(py)),
+            libanaliticcl::DistanceThreshold::Absolute(value) => {
+                Ok(value.into_py(py).into_bound(py))
+            }
+            libanaliticcl::DistanceThreshold::Ratio(value) => Ok(value.into_py(py).into_bound(py)),
             libanaliticcl::DistanceThreshold::RatioWithLimit(value, limit) => {
-                let dict = PyDict::new(py);
+                let dict = PyDict::new_bound(py);
                 dict.set_item("ratio", value)?;
                 dict.set_item("limit", limit)?;
-                Ok(dict)
+                Ok(dict.into_any())
             }
         }
     }
@@ -339,13 +341,13 @@ impl PySearchParameters {
     }
 
     #[setter]
-    fn set_max_anagram_distance(&mut self, value: &PyAny) -> PyResult<()> {
+    fn set_max_anagram_distance<'py>(&mut self, value: &Bound<'py, PyAny>) -> PyResult<()> {
         let v = extract_distance_threshold(value)?;
         self.data.max_anagram_distance = v;
         Ok(())
     }
     #[setter]
-    fn set_max_edit_distance(&mut self, value: &PyAny) -> PyResult<()> {
+    fn set_max_edit_distance<'py>(&mut self, value: &Bound<'py, PyAny>) -> PyResult<()> {
         let v = extract_distance_threshold(value)?;
         self.data.max_edit_distance = v;
         Ok(())
@@ -418,8 +420,8 @@ impl PySearchParameters {
         Ok(())
     }
 
-    fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<&'py PyDict> {
-        let dict = PyDict::new(py);
+    fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let dict = PyDict::new_bound(py);
         dict.set_item("max_anagram_distance", self.get_max_anagram_distance(py)?)?;
         dict.set_item("max_edit_distance", self.get_max_edit_distance(py)?)?;
         dict.set_item("max_matches", self.get_max_matches()?)?;
@@ -449,57 +451,64 @@ pub struct PyVocabParams {
 impl PyVocabParams {
     #[new]
     #[pyo3(signature = (**kwargs))]
-    fn new(kwargs: Option<&PyDict>) -> Self {
+    fn new<'py>(kwargs: Option<&Bound<'py, PyDict>>) -> PyResult<Self> {
         let mut instance = Self::default();
         if let Some(kwargs) = kwargs {
             for (key, value) in kwargs {
-                if let Some(key) = key.extract().unwrap() {
-                    match key {
-                        "text_column" => {
-                            if let Ok(Some(value)) = value.extract() {
-                                instance.data.text_column = value
-                            }
+                match key.downcast()?.extract()? {
+                    "text_column" => {
+                        if let Ok(Some(value)) = value.extract() {
+                            instance.data.text_column = value
                         }
-                        "freq_column" => {
-                            if let Ok(Some(value)) = value.extract() {
-                                instance.data.freq_column = value
-                            }
+                    }
+                    "freq_column" => {
+                        if let Ok(Some(value)) = value.extract() {
+                            instance.data.freq_column = value
                         }
-                        "index" => {
-                            if let Ok(Some(value)) = value.extract() {
-                                instance.data.index = value
-                            }
+                    }
+                    "index" => {
+                        if let Ok(Some(value)) = value.extract() {
+                            instance.data.index = value
                         }
-                        "freqhandling" => {
-                            if let Ok(Some(value)) = value.extract() {
-                                match value {
-                                 "sum" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::Sum,
-                                 "max" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::Max,
-                                 "min" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::Min,
-                                 "replace" => instance.data.freq_handling = libanaliticcl::FrequencyHandling::Replace,
-                                 _ =>  eprintln!("WARNING: Ignored unknown value for VocabParams.freqhandling ({})", value),
-                             }
-                            }
+                    }
+                    "freqhandling" => match value.downcast()?.extract()? {
+                        "sum" => {
+                            instance.data.freq_handling = libanaliticcl::FrequencyHandling::Sum
                         }
-                        "vocabtype" => {
-                            if let Ok(Some(value)) = value.extract() {
-                                match value {
-                                 "NONE" => instance.data.vocab_type = libanaliticcl::VocabType::NONE,
-                                 "INDEXED" => instance.data.vocab_type = libanaliticcl::VocabType::INDEXED,
-                                 "TRANSPARENT" => instance.data.vocab_type = libanaliticcl::VocabType::TRANSPARENT | libanaliticcl::VocabType::INDEXED,
-                                 "LM" => instance.data.vocab_type = libanaliticcl::VocabType::LM,
-                                 _ =>  eprintln!("WARNING: Ignored unknown value for VocabParams.vocabtype ({})", value),
-                            }
-                            }
+                        "max" => {
+                            instance.data.freq_handling = libanaliticcl::FrequencyHandling::Max
                         }
-                        _ => {
-                            eprintln!("WARNING: Ignored unknown VocabParams kwargs option {}", key)
+                        "min" => {
+                            instance.data.freq_handling = libanaliticcl::FrequencyHandling::Min
                         }
+                        "replace" => {
+                            instance.data.freq_handling = libanaliticcl::FrequencyHandling::Replace
+                        }
+                        _ => eprintln!(
+                            "WARNING: Ignored unknown value for VocabParams.freqhandling ({})",
+                            value
+                        ),
+                    },
+                    "vocabtype" => match value.downcast()?.extract()? {
+                        "NONE" => instance.data.vocab_type = libanaliticcl::VocabType::NONE,
+                        "INDEXED" => instance.data.vocab_type = libanaliticcl::VocabType::INDEXED,
+                        "TRANSPARENT" => {
+                            instance.data.vocab_type = libanaliticcl::VocabType::TRANSPARENT
+                                | libanaliticcl::VocabType::INDEXED
+                        }
+                        "LM" => instance.data.vocab_type = libanaliticcl::VocabType::LM,
+                        _ => eprintln!(
+                            "WARNING: Ignored unknown value for VocabParams.vocabtype ({})",
+                            value
+                        ),
+                    },
+                    _ => {
+                        eprintln!("WARNING: Ignored unknown VocabParams kwargs option {}", key)
                     }
                 }
             }
         }
-        instance
+        Ok(instance)
     }
 
     #[getter]
@@ -543,8 +552,8 @@ impl PyVariantModel {
         result: &libanaliticcl::VariantResult,
         freq_weight: f32,
         py: Python<'py>,
-    ) -> PyResult<&'py PyDict> {
-        let dict = PyDict::new(py);
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let dict = PyDict::new_bound(py);
         let vocabvalue = self
             .model
             .get_vocab(result.vocab_id)
@@ -618,9 +627,11 @@ impl PyVariantModel {
         &mut self,
         pattern: &str,
         score: f32,
-        tag: Vec<&str>,
-        tagoffset: Vec<&str>,
+        tag: Vec<String>,
+        tagoffset: Vec<String>,
     ) -> PyResult<()> {
+        let tag: Vec<&str> = tag.iter().map(|s| s.as_str()).collect();
+        let tagoffset: Vec<&str> = tagoffset.iter().map(|s| s.as_str()).collect();
         match self.model.add_contextrule(pattern, score, tag, tagoffset) {
             Ok(_) => Ok(()),
             Err(e) => Err(PyRuntimeError::new_err(format!("{}", e))),
@@ -691,8 +702,8 @@ impl PyVariantModel {
         input: &str,
         params: PyRef<PySearchParameters>,
         py: Python<'py>,
-    ) -> PyResult<&'py PyList> {
-        let pyresults = PyList::empty(py);
+    ) -> PyResult<Bound<'py, PyList>> {
+        let pyresults = PyList::empty_bound(py);
         let results = self.model.find_variants(input, &params.data);
         for result in results {
             let dict = self.variantresult_to_dict(&result, params.data.freq_weight, py)?;
@@ -704,19 +715,24 @@ impl PyVariantModel {
     /// Find variants in the vocabulary for all multiple string items at once, provided in in the input list. Returns a list of variants with scores and their source lexicons. Will use parallellisation under the hood.
     fn find_variants_par<'py>(
         &self,
-        input: Vec<&str>,
+        input: Vec<String>,
         params: PyRef<PySearchParameters>,
         py: Python<'py>,
-    ) -> PyResult<&'py PyList> {
+    ) -> PyResult<Bound<'py, PyList>> {
         let params_data = &params.data;
         let output: Vec<(&str, Vec<libanaliticcl::VariantResult>)> = input
             .par_iter()
-            .map(|input_str| (*input_str, self.model.find_variants(input_str, params_data)))
+            .map(|input_str| {
+                (
+                    input_str.as_str(),
+                    self.model.find_variants(input_str, params_data),
+                )
+            })
             .collect();
-        let results = PyList::empty(py);
+        let results = PyList::empty_bound(py);
         for (input_str, variants) in output {
-            let odict = PyDict::new(py);
-            let olist = PyList::empty(py);
+            let odict = PyDict::new_bound(py);
+            let olist = PyList::empty_bound(py);
             odict.set_item("input", input_str)?;
             for result in variants {
                 let dict = self.variantresult_to_dict(&result, params.data.freq_weight, py)?;
@@ -734,20 +750,20 @@ impl PyVariantModel {
         text: &str,
         params: PyRef<PySearchParameters>,
         py: Python<'py>,
-    ) -> PyResult<&'py PyList> {
+    ) -> PyResult<Bound<'py, PyList>> {
         let params_data = &params.data;
         let matches = self.model.find_all_matches(text, params_data);
-        let results = PyList::empty(py);
+        let results = PyList::empty_bound(py);
         for m in matches {
-            let odict = PyDict::new(py);
+            let odict = PyDict::new_bound(py);
             odict.set_item("input", m.text)?;
-            let offsetdict = PyDict::new(py);
+            let offsetdict = PyDict::new_bound(py);
             offsetdict.set_item("begin", m.offset.begin)?;
             offsetdict.set_item("end", m.offset.end)?;
             odict.set_item("offset", offsetdict)?;
             if !m.tag.is_empty() {
-                let taglist = PyList::empty(py);
-                let seqnrlist = PyList::empty(py);
+                let taglist = PyList::empty_bound(py);
+                let seqnrlist = PyList::empty_bound(py);
                 for (tagindex, seqnr) in m.tag.iter().zip(m.seqnr.iter()) {
                     taglist.append(
                         self.model
@@ -760,7 +776,7 @@ impl PyVariantModel {
                 odict.set_item("tag", taglist)?;
                 odict.set_item("seqnr", seqnrlist)?;
             }
-            let olist = PyList::empty(py);
+            let olist = PyList::empty_bound(py);
             if let Some(variants) = m.variants {
                 if let Some(selected) = m.selected {
                     if let Some(result) = variants.get(selected) {
@@ -792,7 +808,7 @@ impl PyVariantModel {
 }
 
 #[pymodule]
-fn analiticcl(_py: Python, m: &PyModule) -> PyResult<()> {
+fn analiticcl(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyWeights>()?;
     m.add_class::<PySearchParameters>()?;
     m.add_class::<PyVocabParams>()?;
