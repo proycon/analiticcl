@@ -18,7 +18,7 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3 = "0.22.4"
 rayon = "1.10.0"
-analiticcl = "0.4.6"
+analiticcl = "0.4.7"
 
 #compile against version in same repo: (doesn't work when building with maturin for pypi)
 #[dependencies.analiticcl]
