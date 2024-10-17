@@ -36,10 +36,19 @@ pub type Alphabet = Vec<Vec<String>>;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Weights {
+    ///Weight for the Levenshtein (or Damarau-Levenshtein) distance
     pub ld: f64,
+
+    ///Weight for the Longest common substring length
     pub lcs: f64,
+
+    ///Weight for the prefix length
     pub prefix: f64,
+
+    ///Weight for the suffix length
     pub suffix: f64,
+
+    ///Weight to assign to difference in case (lowercase/uppercase)
     pub case: f64,
 }
 
