@@ -115,6 +115,7 @@ jobs:
           mv bindings/python/* .
           rm -rf bindings
           ls -lah        
+          rm .gitignore
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:
