@@ -1,5 +1,4 @@
 target
-dist
 env
 bindings/python/target
 bindings/python/build
