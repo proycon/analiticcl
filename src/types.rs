@@ -5,6 +5,8 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::str::FromStr;
 
+use serde::{Deserialize, Serialize};
+
 ///Each type gets assigned an ID integer, carries no further meaning
 pub type VocabId = u64;
 
@@ -34,7 +36,7 @@ pub type AnaValue = UBig;
 ///in the same way
 pub type Alphabet = Vec<Vec<String>>;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 pub struct Weights {
     ///Weight for the Levenshtein (or Damarau-Levenshtein) distance
     pub ld: f64,
