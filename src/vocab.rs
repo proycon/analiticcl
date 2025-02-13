@@ -1,9 +1,10 @@
 use bitflags::bitflags;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::types::*;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VocabValue {
     pub text: String,
 
@@ -28,6 +29,8 @@ pub struct VocabValue {
 }
 
 bitflags! {
+    #[derive(Serialize, Deserialize)]
+    #[serde(transparent)]
     pub struct VocabType: u8 {
         /// Indexed for variant matching
         const NONE = 0b00000000;
@@ -94,7 +97,7 @@ pub type VocabEncoder = HashMap<String, VocabId>;
 
 ///Frequency handling in case of duplicate items (may be across multiple lexicons), the
 ///associated with it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FrequencyHandling {
     Sum,
     Max,
@@ -102,7 +105,7 @@ pub enum FrequencyHandling {
     Replace,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VocabParams {
     ///Column containing the Text (if any, 0-indexed)
     pub text_column: u8,

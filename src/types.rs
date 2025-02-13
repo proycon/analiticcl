@@ -72,7 +72,7 @@ impl Weights {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum DistanceThreshold {
     ///The distance threshold is expressed as a ratio of the total length of the text fragment under consideration, should be in range 0-1
     Ratio(f32),
@@ -107,7 +107,8 @@ impl FromStr for DistanceThreshold {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
 pub struct SearchParameters {
     /// Maximum anagram distance. The difference in characters (regardless of order)
     pub max_anagram_distance: DistanceThreshold,
@@ -303,7 +304,7 @@ pub struct Distance {
     pub samecase: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum StopCriterion {
     Exhaustive,
 
@@ -311,7 +312,7 @@ pub enum StopCriterion {
     StopAtExactMatch,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum VariantReference {
     ///The current item is a reference for a variant. The score expressed similarity from the
     ///variant to the reference.
