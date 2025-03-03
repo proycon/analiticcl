@@ -41,6 +41,7 @@ jobs:
         with:
           name: wheels
           path: dist
+          overwrite: true
 
   windows:
     runs-on: windows-latest
@@ -70,6 +71,7 @@ jobs:
         with:
           name: wheels
           path: dist
+          overwrite: true
 
   macos:
     runs-on: macos-latest
@@ -100,6 +102,7 @@ jobs:
         with:
           name: wheels
           path: dist
+          overwrite: true
 
   sdist:
     runs-on: ubuntu-latest
@@ -125,6 +128,7 @@ jobs:
         with:
           name: wheels
           path: dist
+          overwrite: true
 
   release:
     name: Release
