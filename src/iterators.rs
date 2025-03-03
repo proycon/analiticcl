@@ -25,10 +25,10 @@ pub struct DeletionIterator<'a> {
 }
 
 impl<'a> DeletionIterator<'a> {
-    pub fn new(value: &'a AnaValue, alphabet_size: CharIndexType) -> DeletionIterator {
+    pub fn new(value: &'a AnaValue, alphabet_size: CharIndexType) -> DeletionIterator<'a> {
         DeletionIterator {
-            value: value,
-            alphabet_size: alphabet_size,
+            value,
+            alphabet_size,
             iteration: 0,
         }
     }
