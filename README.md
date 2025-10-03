@@ -571,4 +571,6 @@ Analiticcl is open-source software licenced under the GNU Public Licence v3.
 
 ## Acknowledgement
 
+In memoriam Martin Reynaert (1963-2025), whose research lies at the foundation of this software.
+
 Analiticcl was developed at the [KNAW Humanities Cluster](https://huc.knaw.nl/). Its development was funded in the scope of the [Golden Agents](https://www.goldenagents.org/) project.
