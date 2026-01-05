@@ -21,7 +21,7 @@ impl PyWeights {
         let mut instance = Self::default();
         if let Some(kwargs) = kwargs {
             for (key, value) in kwargs.iter() {
-                match key.downcast()?.extract()? {
+                match key.cast()?.extract()? {
                     "ld" => {
                         if let Ok(Some(value)) = value.extract() {
                             instance.weights.ld = value
@@ -102,7 +102,7 @@ impl PyWeights {
     }
 
     fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
         dict.set_item("ld", self.get_ld()?)?;
         dict.set_item("lcs", self.get_lcs()?)?;
         dict.set_item("prefix", self.get_prefix()?)?;
@@ -122,7 +122,7 @@ fn extract_distance_threshold<'py>(
         Ok(libanaliticcl::DistanceThreshold::Absolute(v))
     } else if let Ok(Some(v)) = value.extract() {
         Ok(libanaliticcl::DistanceThreshold::Ratio(v))
-    } else if let Ok(v) = value.downcast::<PyString>() {
+    } else if let Ok(v) = value.cast::<PyString>() {
         if let Ok(v) = libanaliticcl::DistanceThreshold::from_str(v.extract()?) {
             Ok(v)
         } else {
@@ -147,7 +147,7 @@ impl PySearchParameters {
         let mut instance = Self::default();
         if let Some(kwargs) = kwargs {
             for (key, value) in kwargs.iter() {
-                match key.downcast()?.extract()? {
+                match key.cast()?.extract()? {
                     "max_anagram_distance" => match extract_distance_threshold(&value) {
                         Ok(v) => instance.data.max_anagram_distance = v,
                         Err(v) => eprintln!("{}", v),
@@ -261,11 +261,13 @@ impl PySearchParameters {
     fn get_max_anagram_distance<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
         match self.data.max_anagram_distance {
             libanaliticcl::DistanceThreshold::Absolute(value) => {
-                Ok(value.into_py(py).into_bound(py))
+                Ok(value.into_pyobject(py).expect("infallible").into_any())
             }
-            libanaliticcl::DistanceThreshold::Ratio(value) => Ok(value.into_py(py).into_bound(py)),
+            libanaliticcl::DistanceThreshold::Ratio(value) => {
+                Ok(value.into_pyobject(py).expect("infallible").into_any())
+            }
             libanaliticcl::DistanceThreshold::RatioWithLimit(value, limit) => {
-                let dict = PyDict::new_bound(py);
+                let dict = PyDict::new(py);
                 dict.set_item("ratio", value)?;
                 dict.set_item("limit", limit)?;
                 Ok(dict.into_any())
@@ -276,11 +278,13 @@ impl PySearchParameters {
     fn get_max_edit_distance<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
         match self.data.max_edit_distance {
             libanaliticcl::DistanceThreshold::Absolute(value) => {
-                Ok(value.into_py(py).into_bound(py))
+                Ok(value.into_pyobject(py).expect("infallible").into_any())
             }
-            libanaliticcl::DistanceThreshold::Ratio(value) => Ok(value.into_py(py).into_bound(py)),
+            libanaliticcl::DistanceThreshold::Ratio(value) => {
+                Ok(value.into_pyobject(py).expect("infallible").into_any())
+            }
             libanaliticcl::DistanceThreshold::RatioWithLimit(value, limit) => {
-                let dict = PyDict::new_bound(py);
+                let dict = PyDict::new(py);
                 dict.set_item("ratio", value)?;
                 dict.set_item("limit", limit)?;
                 Ok(dict.into_any())
@@ -421,7 +425,7 @@ impl PySearchParameters {
     }
 
     fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
         dict.set_item("max_anagram_distance", self.get_max_anagram_distance(py)?)?;
         dict.set_item("max_edit_distance", self.get_max_edit_distance(py)?)?;
         dict.set_item("max_matches", self.get_max_matches()?)?;
@@ -455,7 +459,7 @@ impl PyVocabParams {
         let mut instance = Self::default();
         if let Some(kwargs) = kwargs {
             for (key, value) in kwargs {
-                match key.downcast()?.extract()? {
+                match key.cast()?.extract()? {
                     "text_column" => {
                         if let Ok(Some(value)) = value.extract() {
                             instance.data.text_column = value
@@ -471,7 +475,7 @@ impl PyVocabParams {
                             instance.data.index = value
                         }
                     }
-                    "freqhandling" => match value.downcast()?.extract()? {
+                    "freqhandling" => match value.cast()?.extract()? {
                         "sum" => {
                             instance.data.freq_handling = libanaliticcl::FrequencyHandling::Sum
                         }
@@ -489,7 +493,7 @@ impl PyVocabParams {
                             value
                         ),
                     },
-                    "vocabtype" => match value.downcast()?.extract()? {
+                    "vocabtype" => match value.cast()?.extract()? {
                         "NONE" => instance.data.vocab_type = libanaliticcl::VocabType::NONE,
                         "INDEXED" => instance.data.vocab_type = libanaliticcl::VocabType::INDEXED,
                         "TRANSPARENT" => {
@@ -553,7 +557,7 @@ impl PyVariantModel {
         freq_weight: f32,
         py: Python<'py>,
     ) -> PyResult<Bound<'py, PyDict>> {
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
         let vocabvalue = self
             .model
             .get_vocab(result.vocab_id)
@@ -703,7 +707,7 @@ impl PyVariantModel {
         params: PyRef<PySearchParameters>,
         py: Python<'py>,
     ) -> PyResult<Bound<'py, PyList>> {
-        let pyresults = PyList::empty_bound(py);
+        let pyresults = PyList::empty(py);
         let results = self.model.find_variants(input, &params.data);
         for result in results {
             let dict = self.variantresult_to_dict(&result, params.data.freq_weight, py)?;
@@ -729,10 +733,10 @@ impl PyVariantModel {
                 )
             })
             .collect();
-        let results = PyList::empty_bound(py);
+        let results = PyList::empty(py);
         for (input_str, variants) in output {
-            let odict = PyDict::new_bound(py);
-            let olist = PyList::empty_bound(py);
+            let odict = PyDict::new(py);
+            let olist = PyList::empty(py);
             odict.set_item("input", input_str)?;
             for result in variants {
                 let dict = self.variantresult_to_dict(&result, params.data.freq_weight, py)?;
@@ -753,17 +757,17 @@ impl PyVariantModel {
     ) -> PyResult<Bound<'py, PyList>> {
         let params_data = &params.data;
         let matches = self.model.find_all_matches(text, params_data);
-        let results = PyList::empty_bound(py);
+        let results = PyList::empty(py);
         for m in matches {
-            let odict = PyDict::new_bound(py);
+            let odict = PyDict::new(py);
             odict.set_item("input", m.text)?;
-            let offsetdict = PyDict::new_bound(py);
+            let offsetdict = PyDict::new(py);
             offsetdict.set_item("begin", m.offset.begin)?;
             offsetdict.set_item("end", m.offset.end)?;
             odict.set_item("offset", offsetdict)?;
             if !m.tag.is_empty() {
-                let taglist = PyList::empty_bound(py);
-                let seqnrlist = PyList::empty_bound(py);
+                let taglist = PyList::empty(py);
+                let seqnrlist = PyList::empty(py);
                 for (tagindex, seqnr) in m.tag.iter().zip(m.seqnr.iter()) {
                     taglist.append(
                         self.model
@@ -776,7 +780,7 @@ impl PyVariantModel {
                 odict.set_item("tag", taglist)?;
                 odict.set_item("seqnr", seqnrlist)?;
             }
-            let olist = PyList::empty_bound(py);
+            let olist = PyList::empty(py);
             if let Some(variants) = m.variants {
                 if let Some(selected) = m.selected {
                     if let Some(result) = variants.get(selected) {
