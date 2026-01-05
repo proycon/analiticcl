@@ -90,13 +90,13 @@ pub trait Anahash: One + Zero {
     fn insert(&self, value: &AnaValue) -> AnaValue;
     fn delete(&self, value: &AnaValue) -> Option<AnaValue>;
     fn contains(&self, value: &AnaValue) -> bool;
-    fn iter(&self, alphabet_size: CharIndexType) -> RecurseDeletionIterator;
-    fn iter_parents(&self, alphabet_size: CharIndexType) -> DeletionIterator;
+    fn iter(&self, alphabet_size: CharIndexType) -> RecurseDeletionIterator<'_>;
+    fn iter_parents(&self, alphabet_size: CharIndexType) -> DeletionIterator<'_>;
     fn iter_recursive(
         &self,
         alphabet_size: CharIndexType,
         params: &SearchParams,
-    ) -> RecurseDeletionIterator;
+    ) -> RecurseDeletionIterator<'_>;
     fn iter_recursive_external_cache<'a>(
         &self,
         alphabet_size: CharIndexType,
@@ -189,7 +189,7 @@ impl Anahash for AnaValue {
     ///    chars.push(AnaValue::character(deletion.charindex));
     /// }
     /// ```
-    fn iter(&self, alphabet_size: CharIndexType) -> RecurseDeletionIterator {
+    fn iter(&self, alphabet_size: CharIndexType) -> RecurseDeletionIterator<'_> {
         RecurseDeletionIterator::new(
             self.clone(),
             alphabet_size,
@@ -204,7 +204,7 @@ impl Anahash for AnaValue {
     }
 
     /// Iterator over all the parents that are generated when applying all deletions within edit distance 1
-    fn iter_parents(&self, alphabet_size: CharIndexType) -> DeletionIterator {
+    fn iter_parents(&self, alphabet_size: CharIndexType) -> DeletionIterator<'_> {
         DeletionIterator::new(self, alphabet_size)
     }
 
@@ -213,7 +213,7 @@ impl Anahash for AnaValue {
         &self,
         alphabet_size: CharIndexType,
         params: &SearchParams,
-    ) -> RecurseDeletionIterator {
+    ) -> RecurseDeletionIterator<'_> {
         RecurseDeletionIterator::new(
             self.clone(),
             alphabet_size,
